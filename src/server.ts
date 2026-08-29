@@ -3,12 +3,20 @@ import helmet from "helmet"
 import { join } from "node:path"
 import type { AddressInfo } from "node:net"
 import type { Config } from "./config"
+import { PriceFeed, CoinGeckoSource } from "./services/price-feed"
+import { createPriceRoutes } from "./routes/prices"
+import { openDatabase, migrate } from "./db"
+import { AssetRepository } from "./db/repositories/assets"
+
+export interface AppDeps {
+  priceFeed?: PriceFeed
+}
 
 export interface App extends express.Express {
   inject(path: string, init?: RequestInit): Promise<Response>
 }
 
-export function createApp(config: Config): App {
+export function createApp(config: Config, deps: AppDeps = {}): App {
   const app = express() as App
   app.disable("x-powered-by")
 
@@ -48,6 +56,17 @@ export function createApp(config: Config): App {
 
   app.use(express.urlencoded({ extended: false, limit: "64kb" }))
   app.use(express.json({ limit: "64kb" }))
+
+  const priceFeed =
+    deps.priceFeed ??
+    (() => {
+      const db = openDatabase(config.databasePath)
+      migrate(db)
+      return new PriceFeed(new CoinGeckoSource(), new AssetRepository(db).all())
+    })()
+
+  app.locals.priceFeed = priceFeed
+  app.use(createPriceRoutes(priceFeed))
 
   app.get("/health", (_req, res) => {
     res.json({ status: "ok", env: config.env })
