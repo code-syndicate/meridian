@@ -72,7 +72,7 @@ Three corrections to the spec, applied in the spec's revision log:
 - Produces:
   - `loadConfig(source?: Record<string, string | undefined>): Config`
   - `interface Config { env: "development" | "test" | "production"; port: number; databasePath: string; sessionSecret: string; totpEncryptionKey: string }`
-  - `createApp(config: Config): express.Express`
+  - `createApp(config: Config): App` where `App extends express.Express` and adds `inject(path, init?): Promise<Response>` for tests. It must be named `inject`, not `request`: Express already defines `request` on the app object and the collision is a type error.
 
 - [ ] **Step 1: Initialize the project and install dependencies**
 
@@ -237,13 +237,13 @@ const config = loadConfig({
 
 describe("createApp", () => {
   test("serves a health check", async () => {
-    const res = await createApp(config).request("/health")
+    const res = await createApp(config).inject("/health")
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ status: "ok" })
   })
 
   test("sets a content security policy with no unsafe directives", async () => {
-    const res = await createApp(config).request("/health")
+    const res = await createApp(config).inject("/health")
     const csp = res.headers.get("content-security-policy") ?? ""
     expect(csp).toContain("default-src 'none'")
     expect(csp).toContain("script-src 'self'")
@@ -253,14 +253,14 @@ describe("createApp", () => {
   })
 
   test("sets the remaining security headers", async () => {
-    const res = await createApp(config).request("/health")
+    const res = await createApp(config).inject("/health")
     expect(res.headers.get("x-content-type-options")).toBe("nosniff")
     expect(res.headers.get("referrer-policy")).toBe("strict-origin-when-cross-origin")
     expect(res.headers.get("x-powered-by")).toBeNull()
   })
 
   test("returns 404 as JSON for an unknown route", async () => {
-    const res = await createApp(config).request("/nope")
+    const res = await createApp(config).inject("/nope")
     expect(res.status).toBe(404)
   })
 })
@@ -281,7 +281,7 @@ import helmet from "helmet"
 import type { Config } from "./config"
 
 export interface App extends express.Express {
-  request(path: string, init?: RequestInit): Promise<Response>
+  inject(path: string, init?: RequestInit): Promise<Response>
 }
 
 export function createApp(config: Config): App {
@@ -321,7 +321,7 @@ export function createApp(config: Config): App {
     res.status(404).json({ error: "not_found" })
   })
 
-  app.request = (path, init) =>
+  app.inject = (path, init) =>
     // @ts-expect-error Bun accepts an Express handler as a fetch handler
     Promise.resolve(app.fetch(new Request(`http://localhost${path}`, init)))
 

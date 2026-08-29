@@ -1,0 +1,48 @@
+export interface Config {
+  env: "development" | "test" | "production"
+  port: number
+  databasePath: string
+  sessionSecret: string
+  totpEncryptionKey: string
+}
+
+const ENVIRONMENTS = ["development", "test", "production"] as const
+const REQUIRED = ["DATABASE_PATH", "SESSION_SECRET", "TOTP_ENCRYPTION_KEY"] as const
+
+export function loadConfig(
+  source: Record<string, string | undefined> = process.env,
+): Config {
+  const missing = REQUIRED.filter((key) => !source[key])
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(", ")}`)
+  }
+
+  const env = source.NODE_ENV ?? "development"
+  if (!ENVIRONMENTS.includes(env as (typeof ENVIRONMENTS)[number])) {
+    throw new Error(`NODE_ENV must be one of ${ENVIRONMENTS.join(", ")}, got "${env}"`)
+  }
+
+  const portRaw = source.PORT ?? "3000"
+  const port = Number(portRaw)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`PORT must be an integer between 1 and 65535, got "${portRaw}"`)
+  }
+
+  const sessionSecret = source.SESSION_SECRET as string
+  if (sessionSecret.length < 32) {
+    throw new Error("SESSION_SECRET must be at least 32 characters")
+  }
+
+  const totpEncryptionKey = source.TOTP_ENCRYPTION_KEY as string
+  if (totpEncryptionKey.length < 32) {
+    throw new Error("TOTP_ENCRYPTION_KEY must be at least 32 characters")
+  }
+
+  return {
+    env: env as Config["env"],
+    port,
+    databasePath: source.DATABASE_PATH as string,
+    sessionSecret,
+    totpEncryptionKey,
+  }
+}

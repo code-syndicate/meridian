@@ -1,0 +1,25 @@
+{
+  "name": "meridian",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "test": "bun test",
+    "typecheck": "bunx tsc --noEmit",
+    "verify-ledger": "bun scripts/verify-ledger.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/express": "^5.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "helmet": "^8.0.0",
+    "pug": "^3.0.3"
+  }
+}
