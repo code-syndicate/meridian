@@ -6,6 +6,7 @@ import type { UserRepository } from "../db/repositories/users"
 import type { SessionRepository } from "../db/repositories/sessions"
 import type { AuditRepository } from "../db/repositories/audit"
 import type { RateLimitRepository } from "../db/repositories/rate-limits"
+import type { EmailTokenRepository } from "../db/repositories/email-tokens"
 import type { AssetRepository } from "../db/repositories/assets"
 import type { LedgerRepository } from "../db/repositories/ledger"
 import type { EmailSender } from "../services/email"
@@ -17,7 +18,7 @@ import {
   needsRehash,
 } from "../domain/identity/password"
 import { verifyTotp, decryptSecret } from "../domain/identity/totp"
-import { randomToken, hashToken, normalizeEmail } from "../domain/identity/tokens"
+import { randomToken, normalizeEmail } from "../domain/identity/tokens"
 import { IdentityError } from "../domain/identity/errors"
 import { rateLimit } from "../middleware/rate-limit"
 import { setSessionCookie, clearSessionCookie } from "../middleware/session"
@@ -27,6 +28,7 @@ export interface AuthDeps {
   sessions: SessionRepository
   audit: AuditRepository
   limits: RateLimitRepository
+  emailTokens: EmailTokenRepository
   assets: AssetRepository
   ledger: LedgerRepository
   email: EmailSender
@@ -155,17 +157,7 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
         }
 
         const token = randomToken(32)
-        deps.db
-          .query(
-            `INSERT INTO email_tokens (token_hash, user_id, purpose, expires_at, created_at)
-             VALUES (?, ?, 'verify_email', ?, ?)`,
-          )
-          .run(
-            hashToken(token),
-            userId,
-            new Date(Date.now() + VERIFY_TTL_MS).toISOString(),
-            new Date().toISOString(),
-          )
+        deps.emailTokens.issue(userId, "verify_email", token, VERIFY_TTL_MS)
 
         deps.audit.record({
           userId,
@@ -203,16 +195,9 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
 
   router.get("/verify-email", (req, res) => {
     const token = String(req.query.token ?? "")
-    const now = new Date().toISOString()
+    const claim = deps.emailTokens.consume(token, "verify_email")
 
-    const row = deps.db
-      .query<{ user_id: number; expires_at: string; consumed_at: string | null }, [string]>(
-        `SELECT user_id, expires_at, consumed_at FROM email_tokens
-         WHERE token_hash = ? AND purpose = 'verify_email'`,
-      )
-      .get(hashToken(token))
-
-    if (!row || row.consumed_at || row.expires_at < now) {
+    if (!claim) {
       res.status(400).render("error", {
         title: "Link not valid | Meridian",
         description: "This verification link is not valid.",
@@ -224,19 +209,16 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
       return
     }
 
-    deps.db
-      .query("UPDATE email_tokens SET consumed_at = ? WHERE token_hash = ?")
-      .run(now, hashToken(token))
-    deps.users.markEmailVerified(row.user_id)
+    deps.users.markEmailVerified(claim.userId)
     deps.audit.record({
-      userId: row.user_id,
+      userId: claim.userId,
       actorType: "user",
       action: "user.email_verified",
       ip: req.ip ?? null,
       userAgent: req.get("user-agent") ?? null,
     })
 
-    const sessionId = deps.sessions.create(row.user_id, {
+    const sessionId = deps.sessions.create(claim.userId, {
       ip: req.ip ?? null,
       userAgent: req.get("user-agent") ?? null,
     })

@@ -27,6 +27,9 @@ const ROUTES = [
   "/legal/risk",
   "/legal/aml",
   "/legal/cookies",
+  "/login",
+  "/register",
+  "/check-email",
 ]
 
 interface AxeViolation {

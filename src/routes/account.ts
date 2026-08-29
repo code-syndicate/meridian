@@ -1,12 +1,12 @@
 import express from "express"
 import { createHmac, timingSafeEqual } from "node:crypto"
-import type { Database } from "bun:sqlite"
 import type { Config } from "../config"
 import type { UserRepository } from "../db/repositories/users"
 import type { SessionRepository, Session } from "../db/repositories/sessions"
 import type { AuditRepository } from "../db/repositories/audit"
 import type { AssetRepository } from "../db/repositories/assets"
 import type { LedgerRepository } from "../db/repositories/ledger"
+import type { RecoveryCodeRepository } from "../db/repositories/recovery-codes"
 import {
   validatePasswordPolicy,
   hashPassword,
@@ -30,8 +30,8 @@ export interface AccountDeps {
   audit: AuditRepository
   assets: AssetRepository
   ledger: LedgerRepository
+  recoveryCodes: RecoveryCodeRepository
   config: Config
-  db: Database
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -214,9 +214,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
     const codes = generateRecoveryCodes()
     const now = new Date().toISOString()
     for (const code of codes) {
-      deps.db
-        .query("INSERT INTO recovery_codes (user_id, code_hash, created_at) VALUES (?, ?, ?)")
-        .run(user.id, await hashRecoveryCode(code), now)
+      deps.recoveryCodes.store(user.id, await hashRecoveryCode(code), now)
     }
 
     deps.audit.record({
@@ -239,7 +237,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
   router.post("/account/2fa/disable", (req, res) => {
     const user = req.user!
     deps.users.disableTotp(user.id)
-    deps.db.query("DELETE FROM recovery_codes WHERE user_id = ?").run(user.id)
+    deps.recoveryCodes.deleteAllFor(user.id)
     deps.audit.record({
       userId: user.id,
       actorType: "user",

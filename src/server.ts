@@ -12,6 +12,8 @@ import { UserRepository } from "./db/repositories/users"
 import { SessionRepository } from "./db/repositories/sessions"
 import { AuditRepository } from "./db/repositories/audit"
 import { RateLimitRepository } from "./db/repositories/rate-limits"
+import { EmailTokenRepository } from "./db/repositories/email-tokens"
+import { RecoveryCodeRepository } from "./db/repositories/recovery-codes"
 import { PriceFeed, CoinGeckoSource } from "./services/price-feed"
 import { createEmailSender, type EmailSender } from "./services/email"
 import { HibpBreachCheck, type BreachCheck } from "./services/breach-check"
@@ -93,6 +95,8 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   const sessions = new SessionRepository(db)
   const audit = new AuditRepository(db)
   const limits = new RateLimitRepository(db)
+  const emailTokens = new EmailTokenRepository(db)
+  const recoveryCodes = new RecoveryCodeRepository(db)
 
   const priceFeed = deps.priceFeed ?? new PriceFeed(new CoinGeckoSource(), assets.all())
   const email = deps.email ?? createEmailSender(config)
@@ -115,6 +119,7 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
       sessions,
       audit,
       limits,
+      emailTokens,
       assets,
       ledger,
       email,
@@ -123,7 +128,7 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
       db,
     }),
   )
-  app.use(createAccountRoutes({ users, sessions, audit, assets, ledger, config, db }))
+  app.use(createAccountRoutes({ users, sessions, audit, assets, ledger, recoveryCodes, config }))
   app.use(createMarketingRoutes({ assets, feed: priceFeed }))
 
   app.use((_req, res) => {

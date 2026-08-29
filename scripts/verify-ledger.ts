@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite"
-import { openDatabase, moneyQuery } from "../src/db"
+import { openDatabase, migrate, moneyQuery } from "../src/db"
 import { loadConfig } from "../src/config"
 
 export interface Violation {
@@ -132,6 +132,9 @@ export function verifyLedger(db: Database): VerifyResult {
 if (import.meta.main) {
   const config = loadConfig()
   const db = openDatabase(config.databasePath)
+  // Idempotent, and a no-op against an already-migrated database. Without it
+  // the tool crashes on a fresh file instead of reporting a clean ledger.
+  migrate(db)
   const result = verifyLedger(db)
 
   console.log(
