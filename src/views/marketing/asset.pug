@@ -1,0 +1,36 @@
+extends ../layouts/base.pug
+
+block content
+  .shell
+    .section
+      .eyebrow= asset.networkLabel
+      h1 #{asset.name} (#{asset.displaySymbol})
+      p Indicative price #{price} #{change}. Reference only.
+
+      .table-scroll
+        table.table
+          tbody
+            tr
+              td Network
+              td.n= asset.networkLabel
+            tr
+              td Confirmations required
+              td.n #{asset.confirmationsRequired} confirmations
+            tr
+              td Deposits
+              td.n= asset.depositEnabled ? "Enabled" : "Not yet enabled"
+            tr
+              td Withdrawals
+              td.n= asset.withdrawalEnabled ? "Enabled" : "Not yet enabled"
+            tr
+              td Trading
+              td.n= asset.tradingEnabled ? "Enabled" : "Not yet enabled"
+            if asset.contractAddress
+              tr
+                td Contract address
+                td.n.num= asset.contractAddress
+
+    if asset.kind === "token"
+      .section
+        h2 Network matters
+        p #{asset.displaySymbol} exists on more than one network. Sending #{asset.displaySymbol} to a #{asset.networkLabel} address over the wrong network will lose the funds permanently, and nobody can reverse it. Always check the network before you send.

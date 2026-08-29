@@ -1,0 +1,28 @@
+extends ../layouts/base.pug
+
+block content
+  .shell
+    .section
+      .eyebrow Markets
+      h1 Supported assets
+      p Prices are indicative, sourced from public market data, and refresh every ten seconds. They are for reference only and do not price any transaction. Trading is not yet live.
+      .table-scroll
+        table.table
+          thead
+            tr
+              th Asset
+              th Network
+              th.n Price (USD)
+              th.n 24h
+              th.n Confirmations
+          tbody
+            each row in rows
+              tr
+                td
+                  strong= row.name
+                  |  
+                  span.num-frac= row.displaySymbol
+                td= row.networkLabel
+                td.n.num= row.price
+                td.n.num(class=row.direction)= row.change
+                td.n.num= row.confirmations

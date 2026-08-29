@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net"
 import type { Config } from "./config"
 import { PriceFeed, CoinGeckoSource } from "./services/price-feed"
 import { createPriceRoutes } from "./routes/prices"
+import { createMarketingRoutes } from "./routes/marketing"
 import { openDatabase, migrate } from "./db"
 import { AssetRepository } from "./db/repositories/assets"
 
@@ -72,13 +73,15 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
     res.json({ status: "ok", env: config.env })
   })
 
-  app.get("/", (req, res) => {
-    res.render("marketing/home", {
-      title: "Meridian",
-      description: "Execution infrastructure for digital assets.",
-      path: req.path,
-    })
-  })
+  const assetRepository = new AssetRepository(
+    (() => {
+      const db = openDatabase(config.databasePath)
+      migrate(db)
+      return db
+    })(),
+  )
+
+  app.use(createMarketingRoutes({ assets: assetRepository, feed: priceFeed }))
 
   app.use((_req, res) => {
     res.status(404).json({ error: "not_found" })
