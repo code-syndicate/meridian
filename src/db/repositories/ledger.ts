@@ -240,4 +240,92 @@ export class LedgerRepository {
       nextCursor: hasMore ? Number(page[page.length - 1]!.id) : null,
     }
   }
+
+  hold(
+    userId: number,
+    asset: string,
+    amount: bigint,
+    reference: string,
+    idempotencyKey: string,
+  ): { holdId: number } {
+    const available = this.ensureAccount(userId, asset, "user_available")
+    const held = this.ensureAccount(userId, asset, "user_hold")
+    const now = new Date().toISOString()
+
+    return this.db.transaction(() => {
+      const { transactionId } = this.post({
+        kind: "hold",
+        idempotencyKey,
+        externalRef: reference,
+        entries: [
+          { accountId: available, asset, amount: -amount },
+          { accountId: held, asset, amount },
+        ],
+      })
+
+      this.db
+        .query(
+          `INSERT INTO holds (user_id, asset, amount, status, reference,
+             place_transaction_id, created_at)
+           VALUES (?, ?, ?, 'active', ?, ?, ?)`,
+        )
+        .run(userId, asset, amount, reference, transactionId, now)
+
+      return {
+        holdId: Number(
+          this.db.query<{ id: number }, []>("SELECT last_insert_rowid() AS id").get()!.id,
+        ),
+      }
+    })()
+  }
+
+  private closeHold(
+    holdId: number,
+    idempotencyKey: string,
+    status: "released" | "consumed",
+    destinationAccountId: number | null,
+  ): void {
+    const hold = moneyQuery<
+      { id: bigint; user_id: bigint; asset: string; amount: bigint; status: string },
+      [number]
+    >(this.db, "SELECT id, user_id, asset, amount, status FROM holds WHERE id = ?").get(
+      holdId,
+    )
+
+    if (!hold || hold.status !== "active") {
+      throw new LedgerError("hold_not_active", `Hold ${holdId} is not active`)
+    }
+
+    const userId = Number(hold.user_id)
+    const heldAccount = this.ensureAccount(userId, hold.asset, "user_hold")
+    const destination =
+      destinationAccountId ?? this.ensureAccount(userId, hold.asset, "user_available")
+    const amount = hold.amount
+    const now = new Date().toISOString()
+
+    this.db.transaction(() => {
+      const { transactionId } = this.post({
+        kind: status === "released" ? "hold_release" : "hold_consume",
+        idempotencyKey,
+        entries: [
+          { accountId: heldAccount, asset: hold.asset, amount: -amount },
+          { accountId: destination, asset: hold.asset, amount },
+        ],
+      })
+
+      this.db
+        .query(
+          "UPDATE holds SET status = ?, close_transaction_id = ?, closed_at = ? WHERE id = ?",
+        )
+        .run(status, transactionId, now, holdId)
+    })()
+  }
+
+  release(holdId: number, idempotencyKey: string): void {
+    this.closeHold(holdId, idempotencyKey, "released", null)
+  }
+
+  consume(holdId: number, destinationAccountId: number, idempotencyKey: string): void {
+    this.closeHold(holdId, idempotencyKey, "consumed", destinationAccountId)
+  }
 }
