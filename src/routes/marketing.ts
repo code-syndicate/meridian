@@ -3,6 +3,7 @@ import type { AssetRepository } from "../db/repositories/assets"
 import type { PriceFeed } from "../services/price-feed"
 import { formatUsd, formatChange, directionOf } from "../domain/prices"
 import { CONTENT_PAGES, LEGAL_PAGES } from "../content/pages"
+import { HELP_ARTICLES } from "../content/help"
 
 export interface MarketingDeps {
   assets: AssetRepository
@@ -96,6 +97,30 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
       })
     })
   }
+
+  router.get("/help", (req, res) => {
+    const categories = [...new Set(HELP_ARTICLES.map((a) => a.category))]
+    res.render("marketing/help-index", {
+      title: "Help centre | Meridian",
+      description: "Guides to deposits, networks, verification, and account security.",
+      path: req.path,
+      groups: categories.map((category) => ({
+        category,
+        articles: HELP_ARTICLES.filter((a) => a.category === category),
+      })),
+    })
+  })
+
+  router.get("/help/:slug", (req, res, next) => {
+    const article = HELP_ARTICLES.find((a) => a.slug === req.params.slug)
+    if (!article) return next()
+    res.render("marketing/help-article", {
+      title: `${article.title} | Meridian`,
+      description: article.summary,
+      path: req.path,
+      article,
+    })
+  })
 
   return router
 }
