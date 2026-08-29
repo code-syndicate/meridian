@@ -1,4 +1,5 @@
 extends ../layouts/base.pug
+include ../components/amount.pug
 
 block content
   .shell
@@ -25,7 +26,8 @@ block content
                   strong= row.name
                   |
                   span.num-frac= row.displaySymbol
-                td.n.num= row.price
+                td.n
+                  +amount(row.price)
                 td.n.num(class=row.direction)= row.change
       p Reference data from public sources, refreshed every ten seconds. Not a quote and not tradable.
 

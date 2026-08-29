@@ -47,7 +47,9 @@ describe("GET /markets", () => {
 
   test("shows a price for an asset the feed covers", async () => {
     const html = await (await (await build()).inject("/markets")).text()
-    expect(html).toContain("67,412.08")
+    // Split so the fraction can be muted, per spec 4.4.
+    expect(html).toContain("67,412")
+    expect(html).toContain('<span class="num-frac">.08</span>')
   })
 
   test("labels the prices as indicative", async () => {
