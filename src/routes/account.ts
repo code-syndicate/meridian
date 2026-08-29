@@ -229,6 +229,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
       userAgent: req.get("user-agent") ?? null,
     })
     setSessionCookie(res, fresh, secure)
+    res.flash("Password changed. You have been signed out everywhere else.")
     res.redirect(303, "/account/security")
   })
 
@@ -301,6 +302,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
     const user = req.user!
     deps.users.disableTotp(user.id)
     deps.recoveryCodes.deleteAllFor(user.id)
+    res.flash("Two-factor authentication is off.")
     deps.audit.record({
       userId: user.id,
       actorType: "user",
@@ -324,6 +326,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
       ip: req.ip ?? null,
       userAgent: req.get("user-agent") ?? null,
     })
+    res.flash("Signed out of your other devices.")
     res.redirect(303, "/account/security")
   })
 

@@ -372,3 +372,12 @@ fieldset.field legend {
 .ticker-skeletons { display: flex; gap: calc(var(--u) * 8); align-items: center; }
 .skel-54 { width: 54px } .skel-56 { width: 56px } .skel-58 { width: 58px }
 .skel-60 { width: 60px } .skel-62 { width: 62px } .skel-64 { width: 64px }
+
+.flash {
+  border-left: 2px solid var(--up);
+  background: var(--surface);
+  padding: calc(var(--u) * 3) calc(var(--u) * 4);
+  margin: calc(var(--u) * 6) 0 0;
+  font-size: 0.875rem;
+  max-width: 68ch;
+}

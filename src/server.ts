@@ -26,6 +26,7 @@ import { createOnboardingRoutes } from "./routes/onboarding"
 import { SandboxKycProvider, type KycProvider } from "./services/kyc-provider"
 import { csrfMiddleware } from "./middleware/csrf"
 import { sessionMiddleware } from "./middleware/session"
+import { flashMiddleware } from "./middleware/flash"
 
 export interface App extends express.Express {
   inject(path: string, init?: RequestInit): Promise<Response>
@@ -113,6 +114,7 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   const secure = config.env === "production"
   app.use(csrfMiddleware(secure))
   app.use(sessionMiddleware({ sessions, users, secure }))
+  app.use(flashMiddleware(config.sessionSecret, secure))
 
   // Server-rendered so the palette needs no fetch and no inline object,
   // which the Alpine CSP build would refuse anyway.
