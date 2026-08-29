@@ -1,0 +1,18 @@
+extends ../layouts/base.pug
+
+block content
+  .shell
+    .section
+      .eyebrow Help centre
+      h1 How Meridian works.
+    each group in groups
+      .section
+        h2= group.category
+        .table-scroll
+          table.table
+            tbody
+              each article in group.articles
+                tr
+                  td
+                    a(href="/help/" + article.slug)= article.title
+                  td= article.summary

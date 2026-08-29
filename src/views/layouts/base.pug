@@ -1,0 +1,60 @@
+include ../components/ticker.pug
+
+doctype html
+html(lang="en")
+  head
+    meta(charset="utf-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1")
+    title= title
+    meta(name="description" content=description)
+    link(rel="preload" href="/static/fonts/inter-variable.woff2" as="font" type="font/woff2" crossorigin)
+    link(rel="preload" href="/static/fonts/jetbrains-mono-400.woff2" as="font" type="font/woff2" crossorigin)
+    link(rel="stylesheet" href="/static/css/app.css")
+    script(src="/static/js/alpine-components.js" defer)
+    script(src="/static/js/alpine.js" defer)
+  body
+    a.skip(href="#main") Skip to content
+    header.rail
+      .shell.rail-inner
+        a.wordmark(href="/" aria-label="Meridian home") MERIDIAN
+        nav.nav(aria-label="Primary")
+          a(href="/markets" aria-current=(path.startsWith("/markets") ? "page" : false)) Markets
+          a(href="/fees" aria-current=(path === "/fees" ? "page" : false)) Fees
+          a(href="/security" aria-current=(path === "/security" ? "page" : false)) Security
+          a(href="/regulatory" aria-current=(path === "/regulatory" ? "page" : false)) Regulatory
+          a(href="/help") Help
+      +ticker()
+    main#main
+      block content
+    footer.footer
+      .shell
+        .footer-cols
+          div
+            h2.footer-heading Product
+            ul
+              li: a(href="/markets") Markets
+              li: a(href="/fees") Fees
+              li: a(href="/status") Status
+          div
+            h2.footer-heading Company
+            ul
+              li: a(href="/about") About
+              li: a(href="/security") Security
+              li: a(href="/regulatory") Regulatory
+          div
+            h2.footer-heading Support
+            ul
+              li: a(href="/help") Help centre
+          div
+            h2.footer-heading Legal
+            ul
+              li: a(href="/legal/terms") Terms of Service
+              li: a(href="/legal/privacy") Privacy Policy
+              li: a(href="/legal/risk") Risk Disclosure
+              li: a(href="/legal/aml") AML Policy
+              li: a(href="/legal/cookies") Cookie Policy
+        .risk
+          p
+            strong Risk warning.
+            |  Digital assets are volatile and you can lose the entire value of what you put in. Nothing on this site is investment advice, and nothing here is a promise of any return. Meridian does not guarantee the value of any asset.
+          p Meridian is not yet registered with the Securities and Exchange Commission of Nigeria. We are preparing an application under the Accelerated Regulatory Incubation Programme. We are not accepting deposits or offering trading at this time.

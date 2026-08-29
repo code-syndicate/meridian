@@ -1,0 +1,59 @@
+extends ../layouts/base.pug
+
+block content
+  .shell
+    .hero
+      h1 Execution infrastructure for digital assets.
+      p A custody and execution platform for Nigerian investors, built to be examined. We publish how we hold assets, what we charge, and where our licensing actually stands.
+      .actions
+        a.btn.btn-primary(href="/regulatory") Read our regulatory status
+        a.btn(href="/markets") View supported assets
+
+    .section
+      .eyebrow Indicative prices
+      .table-scroll
+        table.table
+          thead
+            tr
+              th Asset
+              th.n Price (USD)
+              th.n 24h
+          tbody
+            each row in strip
+              tr(data-strip-row)
+                td
+                  strong= row.name
+                  |
+                  span.num-frac= row.displaySymbol
+                td.n.num= row.price
+                td.n.num(class=row.direction)= row.change
+      p Reference data from public sources, refreshed every ten seconds. Not a quote and not tradable.
+
+    .section
+      .eyebrow How custody works
+      h2 Your assets are pooled, and the accounting is not.
+      .grid-3
+        div
+          h3 Pooled reserves
+          p Client assets are held together in platform-controlled wallets, which is how every centralized exchange operates. What each client is owed is tracked separately in an internal double-entry ledger.
+        div
+          h3 An append-only ledger
+          p Ledger records cannot be edited or deleted. A correction is a new, opposing entry that leaves the original visible. Balances are reconciled against the journal continuously.
+        div
+          h3 Third-party custody
+          p Private keys are held by a licensed custody provider under multi-party controls, not by our own servers. No single person can move client assets.
+
+    .section
+      .eyebrow Fees
+      h2 Published in full, with no asterisks.
+      p Deposits are free. Withdrawals cost the network fee plus a fixed amount per asset. Trading carries a spread that is shown before you confirm anything. Every number is on one page.
+      .actions
+        a.btn(href="/fees") See the fee schedule
+
+    .section
+      .eyebrow Regulatory status
+      h2 Where we actually stand.
+      p Meridian is not registered with the Securities and Exchange Commission of Nigeria. We are preparing an application under the Accelerated Regulatory Incubation Programme, which is the supervised pathway toward full registration. We are not accepting deposits and not offering trading until that is in place.
+      p We would rather tell you this plainly than imply otherwise.
+      .actions
+        a.btn(href="/regulatory") Read the detail

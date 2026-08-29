@@ -1,0 +1,14 @@
+extends ../layouts/base.pug
+
+block content
+  .shell
+    .section
+      .eyebrow
+        a(href="/help") Help centre
+      h1= article.title
+      p= article.summary
+    each section in article.sections
+      .section
+        h2= section.heading
+        each paragraph in section.body
+          p= paragraph

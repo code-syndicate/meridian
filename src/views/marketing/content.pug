@@ -1,0 +1,12 @@
+extends ../layouts/base.pug
+
+block content
+  .shell
+    .section
+      .eyebrow= page.eyebrow
+      h1= page.heading
+    each section in page.sections
+      .section
+        h2= section.heading
+        each paragraph in section.body
+          p= paragraph
