@@ -134,7 +134,7 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
       db,
     }),
   )
-  app.use(createAccountRoutes({ users, sessions, audit, assets, ledger, recoveryCodes, kyc, config }))
+  app.use(createAccountRoutes({ users, sessions, audit, assets, ledger, feed: priceFeed, recoveryCodes, kyc, config }))
   app.use(createOnboardingRoutes({ kyc, audit, provider: kycProvider, config }))
   app.use(createMarketingRoutes({ assets, feed: priceFeed }))
 

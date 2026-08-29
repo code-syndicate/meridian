@@ -1,15 +1,56 @@
 extends ../layouts/base.pug
+include ../components/amount.pug
 
 block content
   .shell
     .section
       .eyebrow Portfolio
       h1 Your account.
-      p Your balances appear here once deposits are enabled. Nothing is live yet, so every balance below is zero.
+      if pricesUnavailable
+        p Prices are unavailable right now, so we cannot value your holdings. Your balances below are still correct.
+      else
+        p.total
+          span.total-currency USD
+          +amount(total)
+        p.field-hint Valued at indicative prices from public market data. Not a quote.
       .actions
         a.btn(href="/account/verification") Verification
         a.btn(href="/account/security") Security
         a.btn(href="/account/activity") Activity
+
+    .section
+      h2 Balances
+      if empty
+        p Nothing here yet. Your balances appear once deposits are enabled.
+      .table-scroll
+        table.table
+          thead
+            tr
+              th Asset
+              th Network
+              th.n Available
+              th.n On hold
+              th.n Value (USD)
+          tbody
+            each row in balances
+              tr
+                td
+                  strong= row.name
+                  |  
+                  span.num-frac= row.displaySymbol
+                td= row.networkLabel
+                td.n
+                  +amount(row.available)
+                td.n
+                  if row.hasHold
+                    +amount(row.held)
+                  else
+                    span.num-frac 0
+                td.n
+                  if row.value
+                    +amount(row.value)
+                  else
+                    span.num-frac unpriced
 
     .section
       h2 Move money
@@ -19,22 +60,3 @@ block content
         button.btn(type="button" disabled title=actionReason) Withdraw
         button.btn(type="button" disabled title=actionReason) Trade
       p.field-hint= actionReason
-
-    .section
-      h2 Balances
-      .table-scroll
-        table.table
-          thead
-            tr
-              th Asset
-              th Network
-              th.n Available
-          tbody
-            each row in balances
-              tr
-                td
-                  strong= row.name
-                  |  
-                  span.num-frac= row.displaySymbol
-                td= row.networkLabel
-                td.n.num= row.available
