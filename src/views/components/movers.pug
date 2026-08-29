@@ -1,0 +1,26 @@
+mixin movers(gainers, losers)
+  .movers
+    .movers-col
+      .movers-head
+        span.movers-title Top gainers
+        span.movers-note 24h
+      .movers-list
+        each row in gainers
+          a.mover(href="/markets/" + row.symbol.toLowerCase())
+            .mover-id
+              strong= row.displaySymbol
+              span.mover-name= row.name
+            span.mover-price.num= row.price
+            span.mover-change.num.up= row.change
+    .movers-col
+      .movers-head
+        span.movers-title Top losers
+        span.movers-note 24h
+      .movers-list
+        each row in losers
+          a.mover(href="/markets/" + row.symbol.toLowerCase())
+            .mover-id
+              strong= row.displaySymbol
+              span.mover-name= row.name
+            span.mover-price.num= row.price
+            span.mover-change.num.down= row.change

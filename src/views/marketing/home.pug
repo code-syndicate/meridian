@@ -3,6 +3,7 @@ include ../components/amount.pug
 include ../components/spark.pug
 include ../components/icons.pug
 include ../components/news.pug
+include ../components/movers.pug
 
 block content
   .shell
@@ -51,8 +52,8 @@ block content
     .section.section-line
       .section-head
         .eyebrow Markets
-        h2 Live indicative prices.
-        p Reference data from public sources, refreshed every ten seconds. Not a quote and not tradable.
+        h2 Cryptocurrency prices today
+        p Reference data from public sources, refreshed every ten seconds. Indicative only, not a quote and not tradable.
       .table-scroll
         table.table
           thead
@@ -76,12 +77,20 @@ block content
                 td.spark-cell
                   +sparkline(row.spark, row.displaySymbol + " price over the last week")
       p.field-hint
-        a(href="/markets") See every supported asset and network
+        a(href="/markets") See all cryptocurrency prices
+
+    if gainers && gainers.length
+      .section.section-line
+        .section-head
+          .eyebrow Movers
+          h2 Top gainers and losers
+          p The biggest 24 hour moves among the assets we support.
+        +movers(gainers, losers)
 
     .section.section-line
       .section-head
         .eyebrow How custody works
-        h2 Your assets are pooled. The accounting is not.
+        h2 How custody works
         p This is how every centralized exchange operates. It is worth understanding rather than glossing over, so here it is in full.
       .grid-3
         .feature
@@ -116,7 +125,7 @@ block content
       .section.section-line
         .section-head
           .eyebrow Market news
-          h2 What is happening elsewhere.
+          h2 Crypto news
           p Headlines from public crypto press. We do not write these and we do not endorse them.
         +newsList(news)
         p.field-hint
@@ -125,7 +134,7 @@ block content
     .section-tight
       .section-head
         .eyebrow Fees
-        h2 Published in full, with no asterisks.
+        h2 Fees, published in full
         p Deposits are free. Withdrawals cost the network fee plus a fixed amount per asset. Trading carries a spread shown before you confirm anything. Every number is on one page.
       .actions
         a.btn(href="/fees")
@@ -135,7 +144,7 @@ block content
     .section.section-line
       .section-head
         .eyebrow Regulatory status
-        h2 Where we actually stand.
+        h2 Regulatory status
         p Meridian is not registered with the Securities and Exchange Commission of Nigeria. We are preparing an application under the Accelerated Regulatory Incubation Programme, the supervised pathway toward full registration. We are not accepting deposits and not offering trading until that is in place.
         p We would rather publish the unflattering version and be checkable.
       .actions

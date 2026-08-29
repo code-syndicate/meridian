@@ -18,7 +18,7 @@ export const CONTENT_PAGES: ContentPage[] = [
     title: "Fees | Meridian",
     description: "The complete fee schedule, with no asterisks.",
     eyebrow: "Fees",
-    heading: "What we charge, in full.",
+    heading: "Fee schedule",
     sections: [
       {
         heading: "Deposits",
@@ -54,7 +54,7 @@ export const CONTENT_PAGES: ContentPage[] = [
     title: "Security | Meridian",
     description: "How Meridian holds client assets and manages keys.",
     eyebrow: "Security",
-    heading: "How we hold what you deposit.",
+    heading: "Security and custody",
     sections: [
       {
         heading: "Pooled custody, separate accounting",
@@ -90,7 +90,7 @@ export const CONTENT_PAGES: ContentPage[] = [
     title: "Regulatory status | Meridian",
     description: "Meridian's licensing position, stated at its actual stage.",
     eyebrow: "Regulatory",
-    heading: "Where our licensing actually stands.",
+    heading: "Regulatory status and compliance",
     sections: [
       {
         heading: "Current position",
@@ -126,7 +126,7 @@ export const CONTENT_PAGES: ContentPage[] = [
     title: "About | Meridian",
     description: "What Meridian is and how to reach us.",
     eyebrow: "About",
-    heading: "A digital asset platform being built in public view.",
+    heading: "About Meridian",
     sections: [
       {
         heading: "What we are building",
@@ -148,7 +148,7 @@ export const CONTENT_PAGES: ContentPage[] = [
     title: "System status | Meridian",
     description: "Current operational status of Meridian services.",
     eyebrow: "Status",
-    heading: "System status.",
+    heading: "System status",
     sections: [
       {
         heading: "Current status",
@@ -167,7 +167,7 @@ export const LEGAL_PAGES: ContentPage[] = [
     title: "Risk disclosure | Meridian",
     description: "The risks of holding and trading digital assets.",
     eyebrow: "Legal",
-    heading: "Risk disclosure.",
+    heading: "Risk disclosure",
     sections: [
       {
         heading: "You can lose everything",
@@ -204,7 +204,7 @@ export const LEGAL_PAGES: ContentPage[] = [
     title: "Terms of Service | Meridian",
     description: "The terms governing use of the Meridian website.",
     eyebrow: "Legal",
-    heading: "Terms of Service.",
+    heading: "Terms of Service",
     sections: [
       {
         heading: "Scope",
@@ -233,7 +233,7 @@ export const LEGAL_PAGES: ContentPage[] = [
     title: "Privacy Policy | Meridian",
     description: "How Meridian handles personal data.",
     eyebrow: "Legal",
-    heading: "Privacy Policy.",
+    heading: "Privacy Policy",
     sections: [
       {
         heading: "What this site collects",
@@ -262,7 +262,7 @@ export const LEGAL_PAGES: ContentPage[] = [
     title: "AML Policy | Meridian",
     description: "Meridian's anti-money-laundering approach.",
     eyebrow: "Legal",
-    heading: "Anti-money-laundering policy.",
+    heading: "Anti-money-laundering policy",
     sections: [
       {
         heading: "Verification",
@@ -291,7 +291,7 @@ export const LEGAL_PAGES: ContentPage[] = [
     title: "Cookie Policy | Meridian",
     description: "How Meridian uses cookies.",
     eyebrow: "Legal",
-    heading: "Cookie Policy.",
+    heading: "Cookie Policy",
     sections: [
       {
         heading: "What we set",

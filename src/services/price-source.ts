@@ -3,6 +3,8 @@ export interface RawPrice {
   change24h: number
   /** Hourly closes over the last week, oldest first. Empty when unavailable. */
   sparkline: number[]
+  marketCap: number
+  volume24h: number
 }
 
 export interface PriceSource {
@@ -51,6 +53,8 @@ export class CoinGeckoSource implements PriceSource {
       id?: string
       current_price?: number
       price_change_percentage_24h?: number
+      market_cap?: number
+      total_volume?: number
       sparkline_in_7d?: { price?: number[] }
     }>
 
@@ -63,6 +67,8 @@ export class CoinGeckoSource implements PriceSource {
         sparkline: (row.sparkline_in_7d?.price ?? []).filter(
           (n): n is number => typeof n === "number" && Number.isFinite(n),
         ),
+        marketCap: typeof row.market_cap === "number" ? row.market_cap : 0,
+        volume24h: typeof row.total_volume === "number" ? row.total_volume : 0,
       })
     }
     return result

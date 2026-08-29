@@ -1,7 +1,7 @@
 import express from "express"
 import type { AssetRepository } from "../db/repositories/assets"
 import type { PriceFeed } from "../services/price-feed"
-import { usdParts, formatChange, directionOf } from "../domain/prices"
+import { usdParts, formatChange, directionOf, formatUsd, formatCompactUsd } from "../domain/prices"
 import { buildSparkline } from "../domain/sparkline"
 import { CONTENT_PAGES, LEGAL_PAGES } from "../content/pages"
 import { HELP_ARTICLES } from "../content/help"
@@ -43,6 +43,27 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
           spark: buildSparkline(quote.sparkline),
         }
       })
+
+    // Gainers and losers, deduplicated by display symbol so the same token
+    // on three networks does not fill both lists.
+    const seen = new Set<string>()
+    const ranked = deps.feed
+      .snapshot()
+      .filter((q) => {
+        if (seen.has(q.displaySymbol)) return false
+        seen.add(q.displaySymbol)
+        return true
+      })
+      .map((q) => ({
+        symbol: q.symbol,
+        displaySymbol: q.displaySymbol,
+        name: q.name,
+        price: formatUsd(q.priceUsd),
+        change: formatChange(q.change24h),
+        raw: q.change24h,
+      }))
+    const gainers = [...ranked].sort((a, b) => b.raw - a.raw).slice(0, 4)
+    const losers = [...ranked].sort((a, b) => a.raw - b.raw).slice(0, 4)
 
     // The hero carries one asset at size. Bitcoin is the one people look for.
     const leadQuote = quotes.get("BTC") ?? deps.feed.snapshot()[0]
@@ -104,6 +125,8 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
       lead,
       preview,
       news: newsRows(6),
+      gainers,
+      losers,
     })
   })
 
@@ -139,6 +162,8 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
         change: quote ? formatChange(quote.change24h) : "-",
         direction: quote ? directionOf(quote.change24h) : "flat",
         spark: quote ? buildSparkline(quote.sparkline) : null,
+        marketCap: quote ? formatCompactUsd(quote.marketCap) : "\u2014",
+        volume24h: quote ? formatCompactUsd(quote.volume24h) : "\u2014",
       }
     })
 

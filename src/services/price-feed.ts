@@ -56,6 +56,8 @@ export class PriceFeed {
         priceUsd: priceFromFeed(price.usd),
         change24h: price.change24h,
         sparkline: price.sparkline,
+        marketCap: price.marketCap,
+        volume24h: price.volume24h,
         updatedAt,
       })
     }

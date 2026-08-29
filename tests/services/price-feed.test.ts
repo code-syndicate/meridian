@@ -7,9 +7,9 @@ class FakeSource implements PriceSource {
   calls = 0
   failNext = false
   prices = new Map<string, RawPrice>([
-    ["bitcoin", { usd: 67412.08, change24h: 2.41, sparkline: [] }],
-    ["ethereum", { usd: 3120.5, change24h: -1.2, sparkline: [] }],
-    ["tether", { usd: 1.0, change24h: 0.01, sparkline: [] }],
+    ["bitcoin", { usd: 67412.08, change24h: 2.41, sparkline: [], marketCap: 0, volume24h: 0 }],
+    ["ethereum", { usd: 3120.5, change24h: -1.2, sparkline: [], marketCap: 0, volume24h: 0 }],
+    ["tether", { usd: 1.0, change24h: 0.01, sparkline: [], marketCap: 0, volume24h: 0 }],
   ])
 
   async fetch(): Promise<Map<string, RawPrice>> {

@@ -20,7 +20,7 @@ const PASSWORD = "correct horse battery staple"
 
 class Priced implements PriceSource {
   async fetch(): Promise<Map<string, RawPrice>> {
-    return new Map([["bitcoin", { usd: 67412.08, change24h: 2.41, sparkline: [] }]])
+    return new Map([["bitcoin", { usd: 67412.08, change24h: 2.41, sparkline: [], marketCap: 0, volume24h: 0 }]])
   }
 }
 class Dead implements PriceSource {

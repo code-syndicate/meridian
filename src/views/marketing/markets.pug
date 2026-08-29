@@ -7,7 +7,7 @@ block content
     .section
       .section-head
         .eyebrow Markets
-        h1 Supported assets
+        h1 Cryptocurrency prices by market cap
         p Prices are indicative, sourced from public market data, and refresh every ten seconds. They are for reference only and do not price any transaction. Trading is not yet live.
       .table-scroll
         table.table
@@ -15,9 +15,11 @@ block content
             tr
               th Asset
               th Network
-              th.n Price (USD)
-              th.n 24h
-              th 7 days
+              th.n Price
+              th.n 24h %
+              th.n Market cap
+              th.n Volume (24h)
+              th 7d chart
               th.n Confirmations
           tbody
             each row in rows
@@ -33,6 +35,8 @@ block content
                   else
                     span.num -
                 td.n.num(class=row.direction)= row.change
+                td.n.num= row.marketCap
+                td.n.num= row.volume24h
                 td.spark-cell
                   +sparkline(row.spark, row.displaySymbol + " price over the last week")
                 td.n.num= row.confirmations

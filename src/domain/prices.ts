@@ -8,6 +8,8 @@ export interface Quote {
   change24h: number
   updatedAt: string
   sparkline: number[]
+  marketCap: number
+  volume24h: number
 }
 
 export interface TickerRow {
@@ -90,6 +92,21 @@ export function formatChange(change24h: number): string {
   const direction = directionOf(change24h)
   if (direction === "flat") return `${rounded}%`
   return `${direction === "up" ? "▲" : "▼"}${rounded}%`
+}
+
+/** Compact money, the way every exchange writes market cap and volume. */
+export function formatCompactUsd(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "\u2014"
+  const units: Array<[number, string]> = [
+    [1e12, "T"], [1e9, "B"], [1e6, "M"], [1e3, "K"],
+  ]
+  for (const [size, suffix] of units) {
+    if (value >= size) {
+      const scaled = value / size
+      return `$${scaled >= 100 ? scaled.toFixed(0) : scaled.toFixed(2)}${suffix}`
+    }
+  }
+  return `$${value.toFixed(2)}`
 }
 
 export function toTickerRow(quote: Quote): TickerRow {
