@@ -1,0 +1,7 @@
+node_modules/
+.beads/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
