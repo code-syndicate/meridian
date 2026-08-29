@@ -1,0 +1,15 @@
+extends ../layouts/base.pug
+include ../components/step-rail.pug
+
+block content
+  .shell
+    .section
+      +stepRail(stepNumber, stepTotal)
+      h1 Photo ID and a selfie.
+      if error
+        p.form-error= error
+      p Our verification provider handles this step. You will photograph your identity document and take a selfie in their window. The images go to them, never to us.
+      p Have your document ready and find somewhere with reasonable light.
+      .actions
+        a.btn.btn-primary(href=sessionUrl) Start verification
+      p.field-hint Come back to this page when you are finished and we will check the result.

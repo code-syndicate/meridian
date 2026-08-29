@@ -1,0 +1,8 @@
+mixin stepRail(current, total)
+  .rail-steps
+    p.eyebrow Step #{current} of #{total}
+    ol.steps(aria-label="Verification progress")
+      each label, index in ["Identity", "Government ID", "Address", "Document", "Disclosures"]
+        li(class=(index + 1 < current ? "done" : index + 1 === current ? "active" : ""))
+          span.visually-hidden= index + 1 < current ? "Completed: " : index + 1 === current ? "Current step: " : "Not started: "
+          = label

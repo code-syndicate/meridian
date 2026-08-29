@@ -3,6 +3,14 @@ import { JSDOM } from "jsdom"
 import { source as axeSource } from "axe-core"
 import { createApp } from "../src/server"
 import { loadConfig } from "../src/config"
+import { CapturingEmailSender } from "../src/services/email"
+import { NeverBreached } from "../src/services/breach-check"
+import { SandboxKycProvider } from "../src/services/kyc-provider"
+import { openDatabase, migrate } from "../src/db"
+import { UserRepository } from "../src/db/repositories/users"
+import { KycRepository } from "../src/db/repositories/kyc"
+import { hashPassword } from "../src/domain/identity/password"
+import { post, cookiesFrom } from "./support/http"
 
 const config = loadConfig({
   NODE_ENV: "test",
@@ -88,4 +96,62 @@ describe("document structure", () => {
       expect(`${route}: ${/name="description"/.test(html)}`).toContain("true")
     }
   }, 30_000)
+})
+
+// Authenticated pages, including every wizard step. New form markup is the
+// most likely place to introduce a violation, so it gets the same gate.
+describe("accessibility of authenticated pages", () => {
+  const AUTH_ROUTES = [
+    "/dashboard",
+    "/account",
+    "/account/security",
+    "/account/activity",
+    "/account/verification",
+    "/account/2fa",
+    "/onboarding/identity",
+    "/onboarding/government-id",
+    "/onboarding/address",
+    "/onboarding/document",
+    "/onboarding/disclosures",
+    "/onboarding/submitted",
+  ]
+
+  test("every authenticated route has no axe violations", async () => {
+    const db = openDatabase(":memory:")
+    migrate(db)
+    const app = createApp(config, {
+      db,
+      email: new CapturingEmailSender(),
+      breach: new NeverBreached(),
+      kycProvider: new SandboxKycProvider(),
+    })
+    const users = new UserRepository(db)
+    const userId = users.create("a@test.co", await hashPassword("correct horse battery staple"))
+    users.markEmailVerified(userId)
+    const jar = cookiesFrom(
+      await post(app, "/login", {
+        email: "a@test.co",
+        password: "correct horse battery staple",
+      }),
+    )
+
+    // Push the application to the last step so every wizard screen renders.
+    const kyc = new KycRepository(db)
+    const id = kyc.start(userId, 2)
+    kyc.advance(id, "disclosures")
+
+    const failures: string[] = []
+    for (const route of AUTH_ROUTES) {
+      const html = await (await app.inject(route, { headers: { cookie: jar } })).text()
+      const dom = new JSDOM(html, { runScripts: "outside-only" })
+      dom.window.eval(axeSource)
+      const results = (await dom.window.eval(
+        "axe.run(document, { resultTypes: ['violations'] })",
+      )) as { violations: AxeViolation[] }
+      if (results.violations.length > 0) {
+        failures.push(`${route}: ${results.violations.map((v) => v.id).join(", ")}`)
+      }
+    }
+    expect(failures.join(" | ")).toBe("")
+  }, 60_000)
 })

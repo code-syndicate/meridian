@@ -7,6 +7,9 @@ import type { AuditRepository } from "../db/repositories/audit"
 import type { AssetRepository } from "../db/repositories/assets"
 import type { LedgerRepository } from "../db/repositories/ledger"
 import type { RecoveryCodeRepository } from "../db/repositories/recovery-codes"
+import type { KycRepository } from "../db/repositories/kyc"
+import { tierFor, limitsFor } from "../domain/kyc/tiers"
+import { canResubmit } from "../domain/kyc/steps"
 import {
   validatePasswordPolicy,
   hashPassword,
@@ -31,6 +34,7 @@ export interface AccountDeps {
   assets: AssetRepository
   ledger: LedgerRepository
   recoveryCodes: RecoveryCodeRepository
+  kyc: KycRepository
   config: Config
 }
 
@@ -48,6 +52,12 @@ const ACTION_LABELS: Record<string, string> = {
 }
 
 const ENROL_COOKIE = "meridian_totp_enrol"
+
+/** Spec 8.6: a disabled action must say why, accurately for this viewer. */
+function actionReason(tier: number): string {
+  if (tier === 0) return "Verify your identity to enable this."
+  return "Not yet available. Deposits and trading open when we complete registration."
+}
 
 // The candidate secret lives in a signed short-lived cookie, never in the user
 // row, so an abandoned enrolment cannot leave a usable secret behind.
@@ -107,11 +117,15 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
 
   router.get("/dashboard", (req, res) => {
     const user = req.user!
+    const application = deps.kyc.latestFor(user.id)
+    const kycTier = application ? tierFor(application.status, application.targetTier) : 0
     const balances = deps.ledger.balances(user.id)
     res.render("app/dashboard", {
       title: "Dashboard | Meridian",
       description: "Your Meridian account.",
       path: req.path,
+      tier: kycTier,
+      actionReason: actionReason(kycTier),
       balances: deps.assets.all().map((asset) => ({
         name: asset.name,
         displaySymbol: asset.displaySymbol,
@@ -121,6 +135,45 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
           asset.displayDecimals,
         ),
       })),
+    })
+  })
+
+  router.get("/account", (req, res) => {
+    const user = req.user!
+    const application = deps.kyc.latestFor(user.id)
+    const profile = application ? deps.kyc.profileFor(application.id) : null
+    res.render("account/profile", {
+      title: "Account | Meridian",
+      description: "Your account details.",
+      path: req.path,
+      email: user.email,
+      // Names come from the verified application, never from free user input.
+      fullName: profile?.firstName
+        ? [profile.firstName, profile.middleName, profile.lastName].filter(Boolean).join(" ")
+        : null,
+      phone: profile?.phone ?? null,
+      tier: application ? tierFor(application.status, application.targetTier) : 0,
+    })
+  })
+
+  router.get("/account/verification", (req, res) => {
+    const user = req.user!
+    const application = deps.kyc.latestFor(user.id)
+    const tier = application ? tierFor(application.status, application.targetTier) : 0
+    const profile = application ? deps.kyc.profileFor(application.id) : null
+    res.render("account/verification", {
+      title: "Verification | Meridian",
+      description: "Your identity verification status.",
+      path: req.path,
+      status: application?.status ?? null,
+      currentStep: application?.currentStep ?? null,
+      rejectionReason: application?.rejectionReason ?? null,
+      tier,
+      limits: limitsFor(tier),
+      last4: profile?.governmentIdLast4 ?? null,
+      canResubmit: application
+        ? canResubmit(application.status, deps.kyc.attemptsFor(user.id))
+        : false,
     })
   })
 

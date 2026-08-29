@@ -1,0 +1,26 @@
+extends ../layouts/base.pug
+
+block content
+  .shell
+    .section
+      .eyebrow Account
+      h1 Your details.
+      .table-scroll
+        table.table
+          tbody
+            tr
+              td Email address
+              td.n= email
+            tr
+              td Legal name
+              td.n= fullName || "Not verified yet"
+            tr
+              td Phone number
+              td.n= phone || "Not verified yet"
+            tr
+              td Verification tier
+              td.n Tier #{tier}
+      p Your legal name and phone number come from identity verification, so they cannot be edited here. Changing your email address requires re-verification and is not available yet.
+      .actions
+        a.btn(href="/account/verification") Verification
+        a.btn(href="/account/security") Security

@@ -14,6 +14,7 @@ import { AuditRepository } from "./db/repositories/audit"
 import { RateLimitRepository } from "./db/repositories/rate-limits"
 import { EmailTokenRepository } from "./db/repositories/email-tokens"
 import { RecoveryCodeRepository } from "./db/repositories/recovery-codes"
+import { KycRepository } from "./db/repositories/kyc"
 import { PriceFeed, CoinGeckoSource } from "./services/price-feed"
 import { createEmailSender, type EmailSender } from "./services/email"
 import { HibpBreachCheck, type BreachCheck } from "./services/breach-check"
@@ -21,6 +22,8 @@ import { createPriceRoutes } from "./routes/prices"
 import { createMarketingRoutes } from "./routes/marketing"
 import { createAuthRoutes } from "./routes/auth"
 import { createAccountRoutes } from "./routes/account"
+import { createOnboardingRoutes } from "./routes/onboarding"
+import { SandboxKycProvider, type KycProvider } from "./services/kyc-provider"
 import { csrfMiddleware } from "./middleware/csrf"
 import { sessionMiddleware } from "./middleware/session"
 
@@ -33,6 +36,7 @@ export interface AppDeps {
   db?: Database
   email?: EmailSender
   breach?: BreachCheck
+  kycProvider?: KycProvider
 }
 
 export function createApp(config: Config, deps: AppDeps = {}): App {
@@ -97,10 +101,12 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   const limits = new RateLimitRepository(db)
   const emailTokens = new EmailTokenRepository(db)
   const recoveryCodes = new RecoveryCodeRepository(db)
+  const kyc = new KycRepository(db)
 
   const priceFeed = deps.priceFeed ?? new PriceFeed(new CoinGeckoSource(), assets.all())
   const email = deps.email ?? createEmailSender(config)
   const breach = deps.breach ?? new HibpBreachCheck()
+  const kycProvider = deps.kycProvider ?? new SandboxKycProvider()
 
   app.locals.priceFeed = priceFeed
 
@@ -128,7 +134,8 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
       db,
     }),
   )
-  app.use(createAccountRoutes({ users, sessions, audit, assets, ledger, recoveryCodes, config }))
+  app.use(createAccountRoutes({ users, sessions, audit, assets, ledger, recoveryCodes, kyc, config }))
+  app.use(createOnboardingRoutes({ kyc, audit, provider: kycProvider, config }))
   app.use(createMarketingRoutes({ assets, feed: priceFeed }))
 
   app.use((_req, res) => {

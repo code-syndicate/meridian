@@ -7,8 +7,18 @@ block content
       h1 Your account.
       p Your balances appear here once deposits are enabled. Nothing is live yet, so every balance below is zero.
       .actions
-        a.btn(href="/account/security") Account security
+        a.btn(href="/account/verification") Verification
+        a.btn(href="/account/security") Security
         a.btn(href="/account/activity") Activity
+
+    .section
+      h2 Move money
+      p Deposit, withdraw, and trade appear here. They are switched off, and this is why.
+      .actions
+        button.btn(type="button" disabled title=actionReason) Deposit
+        button.btn(type="button" disabled title=actionReason) Withdraw
+        button.btn(type="button" disabled title=actionReason) Trade
+      p.field-hint= actionReason
 
     .section
       h2 Balances

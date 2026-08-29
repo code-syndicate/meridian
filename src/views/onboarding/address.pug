@@ -1,0 +1,33 @@
+extends ../layouts/base.pug
+include ../components/step-rail.pug
+
+block content
+  .shell
+    .section
+      +stepRail(stepNumber, stepTotal)
+      h1 Where you live.
+      p Give your residential address. A post office box is not accepted.
+      form(method="post" action="/onboarding/address")
+        input(type="hidden" name="_csrf" value=csrfToken)
+        .field
+          label(for="state") State
+          select#state(name="state" required)
+            option(value="") Choose a state
+            each name in states
+              option(value=name selected=(values.state === name))= name
+          if errors.state
+            p.field-error= errors.state
+        .field
+          label(for="lga") Local government area
+          input#lga(type="text" name="lga" value=values.lga required)
+          if errors.lga
+            p.field-error= errors.lga
+        .field
+          label(for="streetAddress") Street address
+          input#streetAddress(type="text" name="streetAddress" value=values.streetAddress required autocomplete="street-address")
+          if errors.streetAddress
+            p.field-error= errors.streetAddress
+        .field
+          label(for="postalCode") Postal code (optional)
+          input#postalCode(type="text" name="postalCode" value=values.postalCode autocomplete="postal-code")
+        button.btn.btn-primary(type="submit") Continue
