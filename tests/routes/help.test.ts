@@ -62,7 +62,9 @@ describe("help content", () => {
     const networks = HELP_ARTICLES.find((a) => a.slug === "choosing-the-right-network")
     expect(networks).toBeDefined()
     const text = networks!.sections.flatMap((s) => s.body).join(" ").toLowerCase()
-    expect(text).toContain("permanently")
+    // Must state that funds are unrecoverable, however it is worded.
+    expect(text).toContain("permanent")
+    expect(text).toContain("reverse")
   })
 
   test("copy contains no em dashes", () => {

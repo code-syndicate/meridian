@@ -96,7 +96,7 @@ describe("keyboard shortcuts", () => {
 
   test("the sheet says shortcuts are only an accelerator", async () => {
     const html = await (await app.inject("/")).text()
-    expect(html.toLowerCase()).toContain("also a normal link")
+    expect(html.toLowerCase()).toContain("equivalent links")
   })
 })
 

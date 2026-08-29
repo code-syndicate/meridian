@@ -17,7 +17,7 @@ block content
           h1
             | Custody you can 
             span.headline-accent actually examine.
-          p.lead Every reserve, every fee, and exactly where our licensing stands. Published in full, because those are the things that should decide whether you trust a platform.
+          p.lead Buy, hold, and transfer digital assets in Nigeria. Reserves, fees, and licensing status published in full.
           .actions
             a.btn.btn-primary.btn-lg(href="/regulatory")
               | Read our regulatory status
@@ -53,7 +53,7 @@ block content
       .section-head
         .eyebrow Markets
         h2 Cryptocurrency prices today
-        p Reference data from public sources, refreshed every ten seconds. Indicative only, not a quote and not tradable.
+        p Indicative prices from public market data, updated every 10 seconds.
       .table-scroll
         table.table
           thead
@@ -84,30 +84,30 @@ block content
         .section-head
           .eyebrow Movers
           h2 Top gainers and losers
-          p The biggest 24 hour moves among the assets we support.
+          p Largest 24 hour price moves across supported assets.
         +movers(gainers, losers)
 
     .section.section-line
       .section-head
         .eyebrow How custody works
         h2 How custody works
-        p This is how every centralized exchange operates. It is worth understanding rather than glossing over, so here it is in full.
+        p Client assets are pooled. Balances are tracked in an internal double-entry ledger and reconciled continuously.
       .grid-3
         .feature
           .feature-icon
             +icon("vault", 18)
           h3 Pooled reserves
-          p Client assets sit together in platform-controlled wallets. What each client is owed is tracked separately in an internal double-entry ledger, and the two are reconciled against each other continuously.
+          p Client assets are held in pooled wallets. Your balance is tracked separately in our ledger and reconciled against reserves continuously.
         .feature
           .feature-icon
             +icon("ledger", 18)
           h3 An append-only ledger
-          p Ledger records cannot be edited or deleted. A correction is a new, opposing entry that leaves the original visible. The database itself enforces this, not a policy.
+          p Ledger records cannot be edited or deleted. Corrections are posted as new entries. Enforced at the database level.
         .feature
           .feature-icon
             +icon("key", 18)
           h3 Third-party custody
-          p Private keys are held by a licensed custody provider under multi-party controls, not on our own servers. No single person here can move client assets.
+          p Private keys are held by a licensed custody provider under multi-party controls. No single employee can move client assets.
 
     .section.section-line
       .stats
@@ -126,7 +126,7 @@ block content
         .section-head
           .eyebrow Market news
           h2 Crypto news
-          p Headlines from public crypto press. We do not write these and we do not endorse them.
+          p Headlines from third-party sources. Not investment advice.
         +newsList(news)
         p.field-hint
           a(href="/resources") More resources and reading
@@ -134,8 +134,8 @@ block content
     .section-tight
       .section-head
         .eyebrow Fees
-        h2 Fees, published in full
-        p Deposits are free. Withdrawals cost the network fee plus a fixed amount per asset. Trading carries a spread shown before you confirm anything. Every number is on one page.
+        h2 Fees
+        p Free deposits. Withdrawals cost the network fee plus a fixed amount per asset. Trading spread shown before you confirm.
       .actions
         a.btn(href="/fees")
           | See the fee schedule
@@ -145,8 +145,8 @@ block content
       .section-head
         .eyebrow Regulatory status
         h2 Regulatory status
-        p Meridian is not registered with the Securities and Exchange Commission of Nigeria. We are preparing an application under the Accelerated Regulatory Incubation Programme, the supervised pathway toward full registration. We are not accepting deposits and not offering trading until that is in place.
-        p We would rather publish the unflattering version and be checkable.
+        p Meridian is not registered with the Securities and Exchange Commission of Nigeria. An application is in preparation under the Accelerated Regulatory Incubation Programme.
+        p Trading is not available until registration completes.
       .actions
         a.btn(href="/regulatory")
           | Read the detail

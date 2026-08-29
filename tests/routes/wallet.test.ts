@@ -101,7 +101,7 @@ describe("deposit", () => {
   test("warns about the network before anything else", async () => {
     const html = await (await get("/wallet/deposit/usdt_trc20")).text()
     expect(html).toContain("Send only USDT on Tron (TRC20)")
-    expect(html.toLowerCase()).toContain("lose the funds permanently")
+    expect(html.toLowerCase()).toContain("permanent loss")
   })
 
   test("returns the same address on a second visit", async () => {
@@ -220,7 +220,7 @@ describe("transactions", () => {
   test("shows an honest empty state", async () => {
     await signIn(true, true)
     const html = await (await get("/wallet/transactions")).text()
-    expect(html.toLowerCase()).toContain("nothing has moved yet")
+    expect(html.toLowerCase()).toContain("no transactions yet")
   })
 
   test("lists a deposit once it is credited", async () => {

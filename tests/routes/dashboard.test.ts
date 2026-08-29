@@ -83,7 +83,7 @@ describe("dashboard portfolio", () => {
 
   test("shows an honest empty state rather than a fake chart", async () => {
     const page = await html()
-    expect(page.toLowerCase()).toContain("nothing here yet")
+    expect(page.toLowerCase()).toContain("no balances yet")
     expect(page).not.toContain("<canvas")
     // Interface icons are fine. A performance chart of a portfolio holding
     // nothing would be a fabrication, so no sparkline may appear here.
@@ -119,8 +119,8 @@ describe("dashboard with no prices", () => {
     await build(new Dead())
     creditBtc(100000000n)
     const page = await html()
-    expect(page.toLowerCase()).toContain("prices are unavailable")
-    expect(page.toLowerCase()).toContain("balances below are still correct")
+    expect(page.toLowerCase()).toContain("price data unavailable")
+    expect(page.toLowerCase()).toContain("balances below are accurate")
   })
 
   test("still shows the correct balances", async () => {

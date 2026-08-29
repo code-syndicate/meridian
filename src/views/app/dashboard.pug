@@ -21,9 +21,9 @@ block content
               if !pricesUnavailable
                 span.pf-delta.flat 0.00% today
             if pricesUnavailable
-              p.app-sub Prices are unavailable, so we cannot value your holdings. Balances below are still correct.
+              p.app-sub Price data unavailable. Balances below are accurate.
             else
-              p.app-sub Valued at indicative prices. Not a quote.
+              p.app-sub Valued at indicative market prices.
           .pf-actions
             a.btn(href="/wallet/deposit") Deposit
             a.btn(href="/wallet/withdraw") Withdraw
@@ -55,7 +55,7 @@ block content
             span.app-sub #{assetCount} assets
           if empty
             .empty-note
-              p Nothing here yet. Your balances appear once deposits are enabled, which happens when our registration completes.
+              p No balances yet. Deposit an asset to get started.
               a.btn(href="/account/verification") Check your verification
           .table-scroll
             table.table
