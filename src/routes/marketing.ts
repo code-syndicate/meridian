@@ -12,11 +12,27 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
   const router = express.Router()
 
   router.get("/", (req, res) => {
+    const quotes = new Map(deps.feed.snapshot().map((q) => [q.symbol, q]))
+    const strip = deps.assets
+      .all()
+      .filter((asset) => quotes.has(asset.symbol))
+      .slice(0, 6)
+      .map((asset) => {
+        const quote = quotes.get(asset.symbol)!
+        return {
+          name: asset.name,
+          displaySymbol: asset.displaySymbol,
+          price: formatUsd(quote.priceUsd),
+          change: formatChange(quote.change24h),
+          direction: directionOf(quote.change24h),
+        }
+      })
+
     res.render("marketing/home", {
       title: "Meridian",
       description: "Custody and execution for digital assets, built to be examined.",
       path: req.path,
-      strip: [],
+      strip,
     })
   })
 
