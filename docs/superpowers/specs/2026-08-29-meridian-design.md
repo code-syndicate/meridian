@@ -241,7 +241,8 @@ Consequences that must be handled, not papered over:
 
 - **Deposit truncation.** An inbound ETH transfer carries 18 decimals. Credit is truncated *down* to 8 decimals and the remainder is recorded in a `dust_remainders` table against the user and asset. Dust accumulates and is credited once it exceeds one base unit. It is never silently discarded, because silently discarding user funds is theft regardless of magnitude.
 - **Withdrawal expansion.** An 8-decimal internal amount is expanded to native chain precision at broadcast time, in the custody layer, using the asset's `decimals` field.
-- **Display.** Assets are displayed at their conventional precision (BTC 8, ETH 6, USDT 2), never at internal precision. Rounding for display is half-even and never mutates the stored value.
+- **Display.** Assets are displayed at their conventional precision (BTC 8, ETH 6, USDT 2), never at internal precision. Rounding never mutates the stored value, and the mode differs by intent: **balances round down**, so the interface never shows a user more than they hold, while **prices round half-even**. These are two separate functions, `formatBalance` and `formatPrice`, and using the wrong one is a bug.
+- **Withdrawals below native precision.** USDT carries 6 native decimals against our internal 8, so an internal amount can be finer than the chain can express. Conversion to native precision throws on an unrepresentable amount rather than truncating, and a withdrawal amount must be validated as exactly representable before a hold is placed.
 - **The boundary is the custody layer.** Native-precision arithmetic exists only in Slice 2's chain adapters. The ledger, the API, and the UI see only base units.
 
 Arithmetic on base units uses `BigInt` in application code even though values fit in a `Number`, because `Number` silently loses precision above 2^53 and the failure mode is a wrong balance rather than an exception.
@@ -337,9 +338,13 @@ Specified before subsystem B because B depends on it for account provisioning.
 
 ### 7.1 Asset registry
 
+`symbol` is a **chain-qualified** key, not a bare ticker, because USDT exists on Ethereum, Tron, and BNB Chain as three distinct assets with different contracts and confirmation policies. `USDT_TRC20` is the key; `display_symbol` carries the "USDT" a user sees and `network_label` carries the network they must not get wrong.
+
 ```sql
 CREATE TABLE assets (
-  symbol                  TEXT PRIMARY KEY,
+  symbol                  TEXT PRIMARY KEY,   -- chain-qualified, e.g. USDT_TRC20
+  display_symbol          TEXT NOT NULL,      -- e.g. USDT
+  network_label           TEXT NOT NULL,      -- e.g. Tron (TRC20)
   name                    TEXT NOT NULL,
   kind                    TEXT NOT NULL CHECK (kind IN ('native','token')),
   chain                   TEXT,
@@ -465,6 +470,8 @@ This table is mutable, unlike the journal, because it is an index over the journ
 
 ### 7.7 Public interface
 
+`bun:sqlite` is synchronous, so these methods are synchronous. Callers must not `await` them.
+
 ```ts
 interface Ledger {
   post(tx: {
@@ -473,15 +480,25 @@ interface Ledger {
     entries: Array<{ accountId: number; asset: string; amount: bigint }>
     externalRef?: string
     metadata?: Record<string, unknown>
-  }): Promise<{ transactionId: number }>
+  }): { transactionId: number; replayed: boolean }
 
-  balance(userId: number, asset: string): Promise<{ available: bigint; held: bigint }>
-  balances(userId: number): Promise<Map<string, { available: bigint; held: bigint }>>
-  history(userId: number, opts: { asset?: string; cursor?: number; limit: number }): Promise<Entry[]>
-  hold(userId: number, asset: string, amount: bigint, ref: string): Promise<{ holdId: number }>
-  release(holdId: number): Promise<void>
+  balance(userId: number, asset: string): { available: bigint; held: bigint }
+  balances(userId: number): Map<string, { available: bigint; held: bigint }>
+  history(
+    userId: number,
+    opts: { asset?: string; cursor?: number; limit: number },
+  ): { entries: LedgerEntry[]; nextCursor: number | null }
+
+  hold(
+    userId: number, asset: string, amount: bigint,
+    reference: string, idempotencyKey: string,
+  ): { holdId: number }
+  release(holdId: number, idempotencyKey: string): void
+  consume(holdId: number, destinationAccountId: number, idempotencyKey: string): void
 }
 ```
+
+`post` returning `replayed` lets a caller distinguish a fresh posting from an idempotent retry, which matters for the chain callbacks in Slice 2. `hold` takes its own idempotency key because placing a hold is itself a posting.
 
 `post` is the only write path into the ledger. Nothing else in the codebase writes to `ledger_entries`, and that is enforced by keeping the tables accessible only through `src/db/repositories/ledger.ts`.
 
@@ -671,3 +688,4 @@ The ledger is the component where bugs are unrecoverable, so it is written test-
 | Date | Change |
 |---|---|
 | 2026-08-29 | Initial draft. |
+| 2026-08-29 | Four corrections found while writing plan 1. §7.1: `assets.symbol` is chain-qualified, with new `display_symbol` and `network_label` columns, because USDT exists on three chains. §5.4: display rounding split into `formatBalance` (rounds down) and `formatPrice` (half-even), and unrepresentable withdrawal amounts throw rather than truncate. §7.7: ledger interface is synchronous, since `bun:sqlite` is, and gains `replayed` and `consume`. §3: added a note distinguishing Slice 1's display-only reference price feed from Slice 3's execution-grade market data. §7.6: added the `holds` table definition, which the interface referenced but the schema omitted. |
