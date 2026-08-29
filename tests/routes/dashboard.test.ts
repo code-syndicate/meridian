@@ -20,7 +20,7 @@ const PASSWORD = "correct horse battery staple"
 
 class Priced implements PriceSource {
   async fetch(): Promise<Map<string, RawPrice>> {
-    return new Map([["bitcoin", { usd: 67412.08, change24h: 2.41 }]])
+    return new Map([["bitcoin", { usd: 67412.08, change24h: 2.41, sparkline: [] }]])
   }
 }
 class Dead implements PriceSource {
@@ -85,7 +85,9 @@ describe("dashboard portfolio", () => {
     const page = await html()
     expect(page.toLowerCase()).toContain("nothing here yet")
     expect(page).not.toContain("<canvas")
-    expect(page).not.toContain("<svg")
+    // Interface icons are fine. A performance chart of a portfolio holding
+    // nothing would be a fabrication, so no sparkline may appear here.
+    expect(page).not.toContain('class="spark')
   })
 
   test("values a seeded balance at the indicative price", async () => {

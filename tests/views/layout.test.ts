@@ -29,7 +29,7 @@ describe("base layout", () => {
   })
 
   test("links the stylesheet rather than inlining styles", () => {
-    expect(html).toContain('href="/static/css/app.css"')
+    expect(html).toContain('href="/static/css/app.css?v=')
   })
 
   test("has no inline style attribute anywhere", () => {

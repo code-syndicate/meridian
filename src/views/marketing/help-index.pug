@@ -2,17 +2,29 @@ extends ../layouts/base.pug
 
 block content
   .shell
-    .section
+    .docs-head
       .eyebrow Help centre
       h1 How Meridian works.
-    each group in groups
-      .section
-        h2= group.category
-        .table-scroll
-          table.table
-            tbody
-              each article in group.articles
-                tr
-                  td
-                    a(href="/help/" + article.slug)= article.title
-                  td= article.summary
+      p.lead Short guides on the things that cost people money or time. If something you need is missing, that is a gap worth telling us about.
+
+    .section-tight
+      each group in groups
+        .app-block
+          .docs-nav-label= group.category
+          .card-grid
+            each article in group.articles
+              a.res-card(href="/help/" + article.slug)
+                h2.res-title= article.title
+                p= article.summary
+
+    .docs-foot
+      .docs-foot-label Next
+      .card-grid
+        a.res-card(href="/get-started")
+          span.res-kicker Start here
+          h2.res-title Get started
+          p The five steps from opening an account to verified.
+        a.res-card(href="/fees")
+          span.res-kicker Costs
+          h2.res-title Fee schedule
+          p Every number on one page, with no asterisks.

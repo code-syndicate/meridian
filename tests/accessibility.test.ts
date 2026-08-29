@@ -35,6 +35,8 @@ const ROUTES = [
   "/legal/risk",
   "/legal/aml",
   "/legal/cookies",
+  "/get-started",
+  "/resources",
   "/login",
   "/register",
   "/check-email",

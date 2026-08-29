@@ -1,0 +1,5 @@
+mixin sparkline(spark, label)
+  if spark
+    svg.spark(class=spark.direction viewBox=`0 0 ${spark.width} ${spark.height}` width=spark.width height=spark.height role="img" aria-label=label preserveAspectRatio="none")
+      path.spark-area(d=spark.area)
+      path.spark-line(d=spark.path)

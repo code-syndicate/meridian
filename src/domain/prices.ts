@@ -7,6 +7,7 @@ export interface Quote {
   priceUsd: bigint
   change24h: number
   updatedAt: string
+  sparkline: number[]
 }
 
 export interface TickerRow {

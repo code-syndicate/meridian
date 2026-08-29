@@ -1,12 +1,44 @@
 extends ../layouts/base.pug
+include ../components/icons.pug
 
 block content
   .shell
-    .section
+    .docs-head
       .eyebrow= page.eyebrow
       h1= page.heading
-    each section in page.sections
-      .section
-        h2= section.heading
-        each paragraph in section.body
-          p= paragraph
+      if page.sections.length && page.sections[0].body.length
+        p.lead= page.sections[0].body[0]
+
+    .docs-grid
+      aside.docs-nav(aria-label="On this page")
+        .docs-nav-label On this page
+        ol
+          each section in page.sections
+            - var slug = section.heading.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+            li: a(href="#" + slug)= section.heading
+
+      .docs-body
+        each section, index in page.sections
+          - var slug = section.heading.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+          section.docs-section(id=slug)
+            h2
+              span.idx= String(index + 1).padStart(2, "0")
+              = section.heading
+            each paragraph in section.body
+              p= paragraph
+
+    .docs-foot
+      .docs-foot-label Keep reading
+      .card-grid
+        a.res-card(href="/get-started")
+          span.res-kicker Start here
+          h2.res-title Open an account
+          p Five steps from nothing to verified. Nothing moves money yet.
+        a.res-card(href="/resources")
+          span.res-kicker Reading
+          h2.res-title All resources
+          p Guides, policies, fees, and market news in one place.
+        a.res-card(href="/legal/risk")
+          span.res-kicker Risk
+          h2.res-title What can go wrong
+          p Volatility, irreversible transfers, and custody risk, in plain language.

@@ -2,6 +2,8 @@ import express from "express"
 import helmet from "helmet"
 import cookieParser from "cookie-parser"
 import { join } from "node:path"
+import { readFileSync } from "node:fs"
+import { createHash } from "node:crypto"
 import type { AddressInfo } from "node:net"
 import type { Database } from "bun:sqlite"
 import type { Config } from "./config"
@@ -23,6 +25,7 @@ import { createMarketingRoutes } from "./routes/marketing"
 import { createAuthRoutes } from "./routes/auth"
 import { createAccountRoutes } from "./routes/account"
 import { createOnboardingRoutes } from "./routes/onboarding"
+import { NewsFeed, RssNewsSource } from "./services/news-feed"
 import { SandboxKycProvider, type KycProvider } from "./services/kyc-provider"
 import { csrfMiddleware } from "./middleware/csrf"
 import { sessionMiddleware } from "./middleware/session"
@@ -38,6 +41,24 @@ export interface AppDeps {
   email?: EmailSender
   breach?: BreachCheck
   kycProvider?: KycProvider
+  newsFeed?: NewsFeed
+}
+
+/**
+ * Content hash of the static assets, appended to their URLs. Without this the
+ * immutable cache header below means a returning browser never re-requests a
+ * changed stylesheet, so CSS edits are simply invisible.
+ */
+function assetVersion(root: string): string {
+  const hash = createHash("sha256")
+  for (const rel of ["css/app.css", "js/alpine-components.js", "js/alpine.js"]) {
+    try {
+      hash.update(readFileSync(join(root, rel)))
+    } catch {
+      // A missing asset is caught by the static handler, not here.
+    }
+  }
+  return hash.digest("hex").slice(0, 10)
 }
 
 export function createApp(config: Config, deps: AppDeps = {}): App {
@@ -70,9 +91,13 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
     }),
   )
 
+  const publicRoot = join(import.meta.dir, "..", "public")
+  const version = assetVersion(publicRoot)
+  app.locals.assetVersion = version
+
   app.use(
     "/static",
-    express.static(join(import.meta.dir, "..", "public"), {
+    express.static(publicRoot, {
       maxAge: "1y",
       immutable: true,
       fallthrough: false,
@@ -108,8 +133,10 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   const email = deps.email ?? createEmailSender(config)
   const breach = deps.breach ?? new HibpBreachCheck()
   const kycProvider = deps.kycProvider ?? new SandboxKycProvider()
+  const newsFeed = deps.newsFeed ?? new NewsFeed(new RssNewsSource())
 
   app.locals.priceFeed = priceFeed
+  app.locals.newsFeed = newsFeed
 
   const secure = config.env === "production"
   app.use(csrfMiddleware(secure))
@@ -121,6 +148,8 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   const PUBLIC_DESTINATIONS = [
     { href: "/", label: "Home" },
     { href: "/markets", label: "Markets" },
+    { href: "/get-started", label: "Get started" },
+    { href: "/resources", label: "Resources" },
     { href: "/fees", label: "Fees" },
     { href: "/security", label: "Security" },
     { href: "/regulatory", label: "Regulatory status" },
@@ -142,6 +171,7 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   ]
 
   app.use((req, res, next) => {
+    res.locals.newsTicker = newsFeed.snapshot().slice(0, 12)
     res.locals.destinations = req.user
       ? [...ACCOUNT_DESTINATIONS, ...PUBLIC_DESTINATIONS]
       : PUBLIC_DESTINATIONS
@@ -170,7 +200,7 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   )
   app.use(createAccountRoutes({ users, sessions, audit, assets, ledger, feed: priceFeed, recoveryCodes, kyc, config }))
   app.use(createOnboardingRoutes({ kyc, audit, provider: kycProvider, config }))
-  app.use(createMarketingRoutes({ assets, feed: priceFeed }))
+  app.use(createMarketingRoutes({ assets, feed: priceFeed, news: newsFeed }))
 
   app.use((_req, res) => {
     res.status(404).json({ error: "not_found" })

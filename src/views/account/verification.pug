@@ -2,8 +2,17 @@ extends ../layouts/base.pug
 
 block content
   .shell
-    .section
-      .eyebrow Verification
+    .app
+      .app-head
+        div
+          h1.app-title Verification
+          p.app-sub Your identity verification status and limits
+        nav.app-tabs(aria-label="Account")
+          a(href="/dashboard") Overview
+          a(href="/account/verification" aria-current="page") Verification
+          a(href="/account/security") Security
+          a(href="/account/activity") Activity
+      .app-block
       if status === null
         h1 You have not started verification.
         p Verifying your identity is required before you can deposit, withdraw, or trade. It takes a few minutes and you can leave and come back.

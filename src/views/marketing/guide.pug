@@ -1,0 +1,43 @@
+extends ../layouts/base.pug
+include ../components/icons.pug
+
+block content
+  .shell
+    .section
+      .section-head
+        .eyebrow Get started
+        h1 From nothing to verified, in five steps.
+        p Every step is resumable. Nothing here moves money, because deposits are not open yet.
+      ol.steps-list
+        each step, index in steps
+          li.step-card
+            .step-num= index + 1
+            div
+              h2.step-title= step.title
+              p= step.body
+      .actions
+        a.btn.btn-primary.btn-lg(href="/register")
+          | Open an account
+          +icon("arrow", 16)
+        a.btn.btn-lg(href="/resources") Browse resources
+
+    .section.section-line
+      .section-head
+        .eyebrow Before you start
+        h2 Three things worth knowing.
+      .grid-3
+        .feature
+          .feature-icon
+            +icon("key", 18)
+          h3 Networks are not interchangeable
+          p The same ticker can exist on several networks. Sending over the wrong one loses the funds permanently, and nobody can reverse it.
+        .feature
+          .feature-icon
+            +icon("vault", 18)
+          h3 We hold your assets, pooled
+          p Your entitlement is tracked in our ledger, not in a wallet of your own. That is the trade a centralized exchange asks you to make.
+        .feature
+          .feature-icon
+            +icon("ledger", 18)
+          h3 Nothing is live yet
+          p You can open an account and verify today. Deposits, withdrawals, and trading switch on when our registration does.

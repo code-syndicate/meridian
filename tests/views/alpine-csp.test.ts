@@ -76,12 +76,12 @@ describe("rendered pages", () => {
   })
 
   test("load alpine from our own origin", () => {
-    expect(html).toContain('src="/static/js/alpine.js"')
+    expect(html).toContain('src="/static/js/alpine.js?v=')
     expect(html).not.toContain("unpkg.com")
     expect(html).not.toContain("jsdelivr")
   })
 
   test("load the component registrations before alpine itself", () => {
-    expect(html.indexOf("alpine-components.js")).toBeLessThan(html.indexOf('"/static/js/alpine.js"'))
+    expect(html.indexOf("alpine-components.js")).toBeLessThan(html.indexOf('/static/js/alpine.js?v='))
   })
 })

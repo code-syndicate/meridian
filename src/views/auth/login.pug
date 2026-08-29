@@ -1,21 +1,26 @@
 extends ../layouts/base.pug
+include ../components/icons.pug
 
 block content
   .shell
-    .section
-      .eyebrow Sign in
-      h1 Sign in to Meridian.
-      if error
-        p.form-error= error
-      form(method="post" action="/login")
-        input(type="hidden" name="_csrf" value=csrfToken)
-        .field
-          label(for="email") Email address
-          input#email(type="email" name="email" value=email required autocomplete="email")
-        .field
-          label(for="password") Password
-          input#password(type="password" name="password" required autocomplete="current-password")
-        button.btn.btn-primary(type="submit") Sign in
-      p New here?
-        |  
-        a(href="/register") Open an account
+    .auth
+      .auth-card
+        .auth-mark
+          +icon("mark", 26)
+        h1 Sign in to Meridian.
+        p.lead Deposits and trading are not live yet. You can still verify your identity so your account is ready.
+        if error
+          p.form-error= error
+        form(method="post" action="/login")
+          input(type="hidden" name="_csrf" value=csrfToken)
+          .field
+            label(for="email") Email address
+            input#email(type="email" name="email" value=email required autocomplete="email")
+          .field
+            label(for="password") Password
+            input#password(type="password" name="password" required autocomplete="current-password")
+          button.btn.btn-primary(type="submit") Sign in
+        p.auth-foot
+          | New here?
+          |  
+          a(href="/register") Open an account

@@ -14,7 +14,7 @@ const config = loadConfig({
 
 class FakeSource implements PriceSource {
   async fetch(): Promise<Map<string, RawPrice>> {
-    return new Map([["bitcoin", { usd: 67412.08, change24h: 2.41 }]])
+    return new Map([["bitcoin", { usd: 67412.08, change24h: 2.41, sparkline: [] }]])
   }
 }
 
@@ -75,7 +75,7 @@ describe("GET /markets/:symbol", () => {
     expect(res.status).toBe(200)
     const html = await res.text()
     expect(html).toContain("Bitcoin")
-    expect(html).toContain("2 confirmations")
+    expect(html).toContain("2 required")
   })
 
   test("is case insensitive on the symbol", async () => {

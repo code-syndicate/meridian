@@ -13,7 +13,7 @@ function assets() {
 function quote(symbol: string, priceUsd: bigint): Quote {
   return {
     symbol, displaySymbol: symbol, name: symbol, priceUsd,
-    change24h: 0, updatedAt: "2026-08-29T00:00:00.000Z",
+    change24h: 0, sparkline: [], updatedAt: "2026-08-29T00:00:00.000Z",
   }
 }
 

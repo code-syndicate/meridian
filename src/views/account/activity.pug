@@ -2,10 +2,17 @@ extends ../layouts/base.pug
 
 block content
   .shell
-    .section
-      .eyebrow Account
-      h1 Activity.
-      p Every sign in and security change on your account. If something here was not you, change your password and turn on two-factor authentication.
+    .app
+      .app-head
+        div
+          h1.app-title Activity
+          p.app-sub Every sign in and security change on your account
+        nav.app-tabs(aria-label="Account")
+          a(href="/dashboard") Overview
+          a(href="/account/verification") Verification
+          a(href="/account/security") Security
+          a(href="/account/activity" aria-current="page") Activity
+      p.app-sub If something here was not you, change your password and turn on two-factor authentication.
       .table-scroll
         table.table
           thead

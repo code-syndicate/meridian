@@ -1,0 +1,24 @@
+extends ../layouts/base.pug
+include ../components/news.pug
+
+block content
+  .shell
+    .section
+      .section-head
+        .eyebrow Resources
+        h1 Everything we publish, in one place.
+        p Guides, policies, and the numbers. If something you need is missing, it is a gap worth telling us about.
+      .card-grid
+        each item in resources
+          a.res-card(href=item.href)
+            span.res-kicker= item.kicker
+            h2.res-title= item.title
+            p= item.body
+
+    if news && news.length
+      .section.section-line
+        .section-head
+          .eyebrow Market news
+          h2 What is happening elsewhere.
+          p Headlines from public crypto press. We do not write these, we do not endorse them, and none of it is advice.
+        +newsList(news)

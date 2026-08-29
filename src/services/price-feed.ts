@@ -55,6 +55,7 @@ export class PriceFeed {
         name: asset.name,
         priceUsd: priceFromFeed(price.usd),
         change24h: price.change24h,
+        sparkline: price.sparkline,
         updatedAt,
       })
     }

@@ -1,0 +1,29 @@
+mixin newsStrip(items)
+  if items && items.length
+    .newsbar(role="region" aria-label="Latest crypto news")
+      .newsbar-label
+        span.newsbar-dot
+        | NEWS
+      .newsbar-viewport
+        .newsbar-track
+          each item in items
+            a.newsbar-item(href=item.link target="_blank" rel="noopener noreferrer nofollow")
+              span.newsbar-src= item.source
+              span.newsbar-title= item.title
+          //- Duplicated once so the marquee wraps with no visible seam.
+          each item in items
+            a.newsbar-item(aria-hidden="true" tabindex="-1" href=item.link target="_blank" rel="noopener noreferrer nofollow")
+              span.newsbar-src= item.source
+              span.newsbar-title= item.title
+
+mixin newsList(items)
+  .news-list
+    each item in items
+      a.news-row(href=item.link target="_blank" rel="noopener noreferrer nofollow")
+        .news-row-main
+          span.news-row-title= item.title
+          span.news-row-meta
+            = item.source
+            if item.ago
+              |  · #{item.ago}
+        span.news-row-arrow ↗

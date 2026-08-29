@@ -15,8 +15,8 @@ const config = loadConfig({
 class FakeSource implements PriceSource {
   async fetch(): Promise<Map<string, RawPrice>> {
     return new Map([
-      ["bitcoin", { usd: 67412.08, change24h: 2.41 }],
-      ["ethereum", { usd: 3120.5, change24h: -1.2 }],
+      ["bitcoin", { usd: 67412.08, change24h: 2.41, sparkline: [] }],
+      ["ethereum", { usd: 3120.5, change24h: -1.2, sparkline: [] }],
     ])
   }
 }

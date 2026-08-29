@@ -1,16 +1,19 @@
 extends ../layouts/base.pug
+include ../components/icons.pug
 
 block content
   .shell
-    .section
-      .eyebrow Two-factor
-      h1 Enter your code.
-      p Open your authenticator app and enter the six digit code for Meridian.
-      if error
-        p.form-error= error
-      form(method="post" action="/login/verify")
-        input(type="hidden" name="_csrf" value=csrfToken)
-        .field
-          label(for="token") Authentication code
-          input#token(type="text" name="token" required autocomplete="one-time-code" inputmode="numeric" autofocus)
-        button.btn.btn-primary(type="submit") Verify
+    .auth
+      .auth-card
+        .auth-mark
+          +icon("key", 26)
+        h1 Enter your code.
+        p.lead Open your authenticator app and enter the six digit code for Meridian.
+        if error
+          p.form-error= error
+        form(method="post" action="/login/verify")
+          input(type="hidden" name="_csrf" value=csrfToken)
+          .field
+            label(for="token") Authentication code
+            input#token(type="text" name="token" required autocomplete="one-time-code" inputmode="numeric" autofocus)
+          button.btn.btn-primary(type="submit") Verify

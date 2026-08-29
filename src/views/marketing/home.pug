@@ -1,61 +1,144 @@
 extends ../layouts/base.pug
 include ../components/amount.pug
+include ../components/spark.pug
+include ../components/icons.pug
+include ../components/news.pug
 
 block content
   .shell
     .hero
-      h1 Execution infrastructure for digital assets.
-      p A custody and execution platform for Nigerian investors, built to be examined. We publish how we hold assets, what we charge, and where our licensing actually stands.
-      .actions
-        a.btn.btn-primary(href="/regulatory") Read our regulatory status
-        a.btn(href="/markets") View supported assets
+      .hero-glow(aria-hidden="true")
+      .hero-grid
+        div
+          .eyebrow-hero
+            span.dot
+            | Preparing SEC Nigeria registration
+          h1
+            | Custody you can 
+            span.headline-accent actually examine.
+          p.lead Every reserve, every fee, and exactly where our licensing stands. Published in full, because those are the things that should decide whether you trust a platform.
+          .actions
+            a.btn.btn-primary.btn-lg(href="/regulatory")
+              | Read our regulatory status
+              +icon("arrow", 16)
+            a.btn.btn-lg(href="/markets") View supported assets
+        .preview.reveal(x-data="reveal")
+          .preview-bar
+            .preview-dots
+              i
+              i
+              i
+            span.preview-title PORTFOLIO
+          .preview-body
+            .preview-total-label Total value, USD
+            .preview-total.num
+              = preview.total.whole
+              span.num-frac .#{preview.total.fraction}
+            .preview-delta(class=preview.direction)= preview.change + " today"
+            if preview.spark
+              .preview-chart
+                +sparkline(preview.spark, "Portfolio value over the last week")
+            .preview-rows
+              each row in preview.rows
+                .preview-row
+                  .who
+                    strong= row.name
+                    span.sym= row.symbol
+                  span.amt= row.amount
+                  span.val= row.value
+          p.preview-caption Illustrative. Balances are zero until deposits open.
 
-    .section
-      .eyebrow Indicative prices
+    .section.section-line
+      .section-head
+        .eyebrow Markets
+        h2 Live indicative prices.
+        p Reference data from public sources, refreshed every ten seconds. Not a quote and not tradable.
       .table-scroll
         table.table
           thead
             tr
               th Asset
+              th Network
               th.n Price (USD)
               th.n 24h
+              th 7 days
           tbody
             each row in strip
               tr(data-strip-row)
                 td
-                  strong= row.name
-                  |
-                  span.num-frac= row.displaySymbol
+                  .asset-name
+                    strong= row.name
+                    span.asset-ticker= row.displaySymbol
+                td: span.network-tag= row.networkLabel
                 td.n
                   +amount(row.price)
                 td.n.num(class=row.direction)= row.change
-      p Reference data from public sources, refreshed every ten seconds. Not a quote and not tradable.
+                td.spark-cell
+                  +sparkline(row.spark, row.displaySymbol + " price over the last week")
+      p.field-hint
+        a(href="/markets") See every supported asset and network
 
-    .section
-      .eyebrow How custody works
-      h2 Your assets are pooled, and the accounting is not.
+    .section.section-line
+      .section-head
+        .eyebrow How custody works
+        h2 Your assets are pooled. The accounting is not.
+        p This is how every centralized exchange operates. It is worth understanding rather than glossing over, so here it is in full.
       .grid-3
-        div
+        .feature
+          .feature-icon
+            +icon("vault", 18)
           h3 Pooled reserves
-          p Client assets are held together in platform-controlled wallets, which is how every centralized exchange operates. What each client is owed is tracked separately in an internal double-entry ledger.
-        div
+          p Client assets sit together in platform-controlled wallets. What each client is owed is tracked separately in an internal double-entry ledger, and the two are reconciled against each other continuously.
+        .feature
+          .feature-icon
+            +icon("ledger", 18)
           h3 An append-only ledger
-          p Ledger records cannot be edited or deleted. A correction is a new, opposing entry that leaves the original visible. Balances are reconciled against the journal continuously.
-        div
+          p Ledger records cannot be edited or deleted. A correction is a new, opposing entry that leaves the original visible. The database itself enforces this, not a policy.
+        .feature
+          .feature-icon
+            +icon("key", 18)
           h3 Third-party custody
-          p Private keys are held by a licensed custody provider under multi-party controls, not by our own servers. No single person can move client assets.
+          p Private keys are held by a licensed custody provider under multi-party controls, not on our own servers. No single person here can move client assets.
 
-    .section
-      .eyebrow Fees
-      h2 Published in full, with no asterisks.
-      p Deposits are free. Withdrawals cost the network fee plus a fixed amount per asset. Trading carries a spread that is shown before you confirm anything. Every number is on one page.
-      .actions
-        a.btn(href="/fees") See the fee schedule
+    .section.section-line
+      .stats
+        .stat
+          .stat-label Deposit fee
+          .stat-value 0.00%
+        .stat
+          .stat-label Assets supported
+          .stat-value 10
+        .stat
+          .stat-label Networks
+          .stat-value 5
 
-    .section
-      .eyebrow Regulatory status
-      h2 Where we actually stand.
-      p Meridian is not registered with the Securities and Exchange Commission of Nigeria. We are preparing an application under the Accelerated Regulatory Incubation Programme, which is the supervised pathway toward full registration. We are not accepting deposits and not offering trading until that is in place.
-      p We would rather tell you this plainly than imply otherwise.
+    if news && news.length
+      .section.section-line
+        .section-head
+          .eyebrow Market news
+          h2 What is happening elsewhere.
+          p Headlines from public crypto press. We do not write these and we do not endorse them.
+        +newsList(news)
+        p.field-hint
+          a(href="/resources") More resources and reading
+
+    .section-tight
+      .section-head
+        .eyebrow Fees
+        h2 Published in full, with no asterisks.
+        p Deposits are free. Withdrawals cost the network fee plus a fixed amount per asset. Trading carries a spread shown before you confirm anything. Every number is on one page.
       .actions
-        a.btn(href="/regulatory") Read the detail
+        a.btn(href="/fees")
+          | See the fee schedule
+          +icon("arrow", 15)
+
+    .section.section-line
+      .section-head
+        .eyebrow Regulatory status
+        h2 Where we actually stand.
+        p Meridian is not registered with the Securities and Exchange Commission of Nigeria. We are preparing an application under the Accelerated Regulatory Incubation Programme, the supervised pathway toward full registration. We are not accepting deposits and not offering trading until that is in place.
+        p We would rather publish the unflattering version and be checkable.
+      .actions
+        a.btn(href="/regulatory")
+          | Read the detail
+          +icon("arrow", 15)

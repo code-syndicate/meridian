@@ -127,13 +127,42 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
       quotes: deps.feed.snapshot(),
     })
 
+    const assets = deps.assets.all()
+    const limits = limitsFor(kycTier)
+    let availableUsd = 0n
+    let heldUsd = 0n
+    for (const row of portfolio.rows) {
+      if (row.priceUsd === null) continue
+      availableUsd += (row.available * row.priceUsd) / 100000000n
+      heldUsd += (row.held * row.priceUsd) / 100000000n
+    }
+
+    // Allocation is bucketed into ten steps so the bar needs a class rather
+    // than an inline style, which the CSP forbids.
+    const allocClassFor = (value: bigint): string => {
+      if (portfolio.totalUsd === 0n || value === 0n) return "w-0"
+      const pct = Number((value * 100n) / portfolio.totalUsd)
+      return `w-${Math.min(100, Math.max(10, Math.round(pct / 10) * 10))}`
+    }
+    const allocLabelFor = (value: bigint): string => {
+      if (portfolio.totalUsd === 0n || value === 0n) return "0%"
+      return `${Number((value * 1000n) / portfolio.totalUsd) / 10}%`
+    }
+
     res.render("app/dashboard", {
-      title: "Dashboard | Meridian",
+      title: "Portfolio | Meridian",
       description: "Your Meridian account.",
       path: req.path,
       tier: kycTier,
+      tierNote: kycTier === 0 ? "Not verified yet" : "Verified",
+      withdrawalLimit:
+        limits.dailyWithdrawalUsd === null ? "None" : limits.dailyWithdrawalUsd.toLocaleString("en-US"),
+      assetCount: assets.length,
+      networkCount: new Set(assets.map((a) => a.chain)).size,
       actionReason: actionReason(kycTier),
       total: usdParts(portfolio.totalUsd),
+      availableTotal: (() => { const p = usdParts(availableUsd); return `${p.whole}.${p.fraction}` })(),
+      heldTotal: (() => { const p = usdParts(heldUsd); return `${p.whole}.${p.fraction}` })(),
       empty: portfolio.empty,
       pricesUnavailable: portfolio.pricesUnavailable,
       balances: portfolio.rows.map((row) => ({
@@ -142,8 +171,11 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
         networkLabel: row.networkLabel,
         available: balanceParts(row.available, row.displayDecimals),
         held: balanceParts(row.held, row.displayDecimals),
+        hasBalance: row.available > 0n,
         hasHold: row.held > 0n,
         value: row.priceUsd === null ? null : usdParts(row.valueUsd),
+        allocClass: allocClassFor(row.valueUsd),
+        allocLabel: allocLabelFor(row.valueUsd),
       })),
     })
   })

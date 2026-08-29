@@ -2,14 +2,22 @@ extends ../layouts/base.pug
 
 block content
   .shell
-    .section
-      .eyebrow Account
-      h1 Security.
+    .app
+      .app-head
+        div
+          h1.app-title Security
+          p.app-sub Password, two-factor authentication, and where you are signed in
+        nav.app-tabs(aria-label="Account")
+          a(href="/dashboard") Overview
+          a(href="/account/verification") Verification
+          a(href="/account/security" aria-current="page") Security
+          a(href="/account/activity") Activity
       if error
         p.form-error= error
 
-    .section
-      h2 Password
+      .app-block
+        .form-card
+          h2 Password
       form(method="post" action="/account/password")
         input(type="hidden" name="_csrf" value=csrfToken)
         .field
@@ -21,8 +29,9 @@ block content
         button.btn(type="submit") Change password
       p.field-hint Changing your password signs you out everywhere else.
 
-    .section
-      h2 Two-factor authentication
+      .app-block
+        .form-card
+          h2 Two-factor authentication
       if totpEnabled
         p Two-factor authentication is on. It will be required before any withdrawal.
         form(method="post" action="/account/2fa/disable")
@@ -32,8 +41,10 @@ block content
         p Two-factor authentication is off. Turn it on now: it will be required before any withdrawal.
         a.btn.btn-primary(href="/account/2fa") Turn on
 
-    .section
-      h2 Where you are signed in
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 Where you are signed in
       .table-scroll
         table.table
           thead

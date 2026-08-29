@@ -2,16 +2,28 @@ import express from "express"
 import type { AssetRepository } from "../db/repositories/assets"
 import type { PriceFeed } from "../services/price-feed"
 import { usdParts, formatChange, directionOf } from "../domain/prices"
+import { buildSparkline } from "../domain/sparkline"
 import { CONTENT_PAGES, LEGAL_PAGES } from "../content/pages"
 import { HELP_ARTICLES } from "../content/help"
+import { GET_STARTED_STEPS, RESOURCES } from "../content/guides"
+import { relativeTime } from "../domain/rss"
+import type { NewsFeed } from "../services/news-feed"
 
 export interface MarketingDeps {
   assets: AssetRepository
   feed: PriceFeed
+  news: NewsFeed
 }
 
 export function createMarketingRoutes(deps: MarketingDeps): express.Router {
   const router = express.Router()
+
+  function newsRows(limit: number) {
+    return deps.news.snapshot().slice(0, limit).map((item) => ({
+      ...item,
+      ago: relativeTime(item.publishedAt),
+    }))
+  }
 
   router.get("/", (req, res) => {
     const quotes = new Map(deps.feed.snapshot().map((q) => [q.symbol, q]))
@@ -24,17 +36,93 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
         return {
           name: asset.name,
           displaySymbol: asset.displaySymbol,
+          networkLabel: asset.networkLabel,
           price: usdParts(quote.priceUsd),
           change: formatChange(quote.change24h),
           direction: directionOf(quote.change24h),
+          spark: buildSparkline(quote.sparkline),
         }
       })
+
+    // The hero carries one asset at size. Bitcoin is the one people look for.
+    const leadQuote = quotes.get("BTC") ?? deps.feed.snapshot()[0]
+    const lead = leadQuote
+      ? {
+          name: leadQuote.name,
+          displaySymbol: leadQuote.displaySymbol,
+          price: usdParts(leadQuote.priceUsd),
+          change: formatChange(leadQuote.change24h),
+          direction: directionOf(leadQuote.change24h),
+          spark: buildSparkline(leadQuote.sparkline, 260, 72),
+        }
+      : null
+
+    // An illustrative portfolio rendered from live prices at fixed notional
+    // holdings. Labelled as illustrative on the page: it shows the product,
+    // it does not claim anyone holds this.
+    const NOTIONAL: Record<string, number> = { BTC: 0.164, ETH: 2.41, SOL: 18.5 }
+    // Used only when the feed is unavailable, so the hero never renders as an
+    // empty shell. The panel is labelled illustrative either way.
+    const FALLBACK_USD: Record<string, bigint> = {
+      BTC: 7800000000000n,
+      ETH: 244000000000n,
+      SOL: 10400000000n,
+    }
+    const previewRows = deps.assets
+      .all()
+      .filter((a) => NOTIONAL[a.symbol] !== undefined)
+      .map((asset) => {
+        const units = NOTIONAL[asset.symbol]!
+        const price = quotes.get(asset.symbol)?.priceUsd ?? FALLBACK_USD[asset.symbol]!
+        const base = BigInt(Math.round(units * 1e8))
+        return {
+          name: asset.name,
+          symbol: asset.displaySymbol,
+          amount: units.toString(),
+          valueUsd: (base * price) / 100000000n,
+        }
+      })
+
+    const previewTotal = previewRows.reduce((sum, r) => sum + r.valueUsd, 0n)
+    const previewLead = quotes.get("BTC") ?? deps.feed.snapshot()[0]
+    const preview = {
+      total: usdParts(previewTotal),
+      change: previewLead ? formatChange(previewLead.change24h) : "0.00%",
+      direction: previewLead ? directionOf(previewLead.change24h) : "flat",
+      spark: previewLead ? buildSparkline(previewLead.sparkline, 300, 84) : null,
+      rows: previewRows.map((r) => {
+        const parts = usdParts(r.valueUsd)
+        return { name: r.name, symbol: r.symbol, amount: r.amount, value: `${parts.whole}.${parts.fraction}` }
+      }),
+    }
 
     res.render("marketing/home", {
       title: "Meridian",
       description: "Custody and execution for digital assets, built to be examined.",
       path: req.path,
       strip,
+      lead,
+      preview,
+      news: newsRows(6),
+    })
+  })
+
+  router.get("/get-started", (req, res) => {
+    res.render("marketing/guide", {
+      title: "Get started | Meridian",
+      description: "From opening an account to verified, in five steps.",
+      path: req.path,
+      steps: GET_STARTED_STEPS,
+    })
+  })
+
+  router.get("/resources", (req, res) => {
+    res.render("marketing/resources", {
+      title: "Resources | Meridian",
+      description: "Guides, policies, and market news.",
+      path: req.path,
+      resources: RESOURCES,
+      news: newsRows(10),
     })
   })
 
@@ -50,6 +138,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
         price: quote ? usdParts(quote.priceUsd) : null,
         change: quote ? formatChange(quote.change24h) : "-",
         direction: quote ? directionOf(quote.change24h) : "flat",
+        spark: quote ? buildSparkline(quote.sparkline) : null,
       }
     })
 

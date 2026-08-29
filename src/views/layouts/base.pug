@@ -1,6 +1,8 @@
 include ../components/ticker.pug
 include ../components/palette.pug
 include ../components/flash.pug
+include ../components/icons.pug
+include ../components/news.pug
 
 doctype html
 html(lang="en")
@@ -11,21 +13,29 @@ html(lang="en")
     meta(name="description" content=description)
     link(rel="preload" href="/static/fonts/inter-variable.woff2" as="font" type="font/woff2" crossorigin)
     link(rel="preload" href="/static/fonts/jetbrains-mono-400.woff2" as="font" type="font/woff2" crossorigin)
-    link(rel="stylesheet" href="/static/css/app.css")
-    script(src="/static/js/alpine-components.js" defer)
-    script(src="/static/js/alpine.js" defer)
+    link(rel="stylesheet" href="/static/css/app.css?v=" + assetVersion)
+    script(src="/static/js/alpine-components.js?v=" + assetVersion defer)
+    script(src="/static/js/alpine.js?v=" + assetVersion defer)
   body
     a.skip(href="#main") Skip to content
     header.rail
       .shell.rail-inner
-        a.wordmark(href="/" aria-label="Meridian home") MERIDIAN
+        a.wordmark(href="/" aria-label="Meridian home")
+          +icon("mark", 16)
+          | MERIDIAN
         nav.nav(aria-label="Primary")
           a(href="/markets" aria-current=(path.startsWith("/markets") ? "page" : false)) Markets
+          a(href="/get-started" aria-current=(path === "/get-started" ? "page" : false)) Get started
+          a(href="/resources" aria-current=(path === "/resources" ? "page" : false)) Resources
           a(href="/fees" aria-current=(path === "/fees" ? "page" : false)) Fees
           a(href="/security" aria-current=(path === "/security" ? "page" : false)) Security
           a(href="/regulatory" aria-current=(path === "/regulatory" ? "page" : false)) Regulatory
-          a(href="/help") Help
+          if user
+            a(href="/dashboard") Dashboard
+          else
+            a.btn(href="/login") Sign in
       +ticker()
+      +newsStrip(newsTicker)
     +palette(destinations)
     +shortcutSheet()
     main#main
@@ -35,6 +45,11 @@ html(lang="en")
     footer.footer
       .shell
         .footer-cols
+          .footer-brand
+            .wordmark
+              +icon("mark", 16)
+              | MERIDIAN
+            p Custody and execution for digital assets, built to be examined.
           div
             h2.footer-heading Product
             ul
@@ -50,6 +65,8 @@ html(lang="en")
           div
             h2.footer-heading Support
             ul
+              li: a(href="/get-started") Get started
+              li: a(href="/resources") Resources
               li: a(href="/help") Help centre
           div
             h2.footer-heading Legal

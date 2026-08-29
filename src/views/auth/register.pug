@@ -1,22 +1,27 @@
 extends ../layouts/base.pug
+include ../components/icons.pug
 
 block content
   .shell
-    .section
-      .eyebrow Open an account
-      h1 Create your account.
-      if error
-        p.form-error= error
-      form(method="post" action="/register")
-        input(type="hidden" name="_csrf" value=csrfToken)
-        .field
-          label(for="email") Email address
-          input#email(type="email" name="email" value=email required autocomplete="email")
-        .field
-          label(for="password") Password
-          input#password(type="password" name="password" required autocomplete="new-password" minlength="12")
-          p.field-hint At least 12 characters. Length matters more than symbols, so a phrase you can remember beats something you cannot.
-        button.btn.btn-primary(type="submit") Create account
-      p Already have an account?
-        |  
-        a(href="/login") Sign in
+    .auth
+      .auth-card
+        .auth-mark
+          +icon("mark", 26)
+        h1 Create your account.
+        p.lead Takes a minute. Nothing moves money, because deposits are not open yet.
+        if error
+          p.form-error= error
+        form(method="post" action="/register")
+          input(type="hidden" name="_csrf" value=csrfToken)
+          .field
+            label(for="email") Email address
+            input#email(type="email" name="email" value=email required autocomplete="email")
+          .field
+            label(for="password") Password
+            input#password(type="password" name="password" required autocomplete="new-password" minlength="12")
+            p.field-hint At least 12 characters. Length matters more than symbols, so a phrase you can remember beats something you cannot. We check it against known breach lists.
+          button.btn.btn-primary(type="submit") Create account
+        p.auth-foot
+          | Already have an account?
+          |  
+          a(href="/login") Sign in

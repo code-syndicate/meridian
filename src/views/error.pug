@@ -1,8 +1,12 @@
 extends layouts/base.pug
+include components/icons.pug
 
 block content
   .shell
-    .section
-      .eyebrow Error
-      h1= heading
-      p= message
+    .auth
+      .auth-card
+        .auth-mark
+          +icon("mark", 26)
+        h1= heading
+        p.lead= message
+        a.btn(href="/") Back to the home page

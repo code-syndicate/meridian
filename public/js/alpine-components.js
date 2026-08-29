@@ -130,3 +130,26 @@ document.addEventListener("alpine:init", () => {
     },
   }))
 })
+
+document.addEventListener("alpine:init", () => {
+  Alpine.data("reveal", () => ({
+    init() {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        this.$el.classList.add("shown")
+        return
+      }
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("shown")
+              observer.unobserve(entry.target)
+            }
+          }
+        },
+        { threshold: 0.12 },
+      )
+      observer.observe(this.$el)
+    },
+  }))
+})

@@ -18,6 +18,7 @@ function quote(overrides: Partial<Quote> = {}): Quote {
     name: "Bitcoin",
     priceUsd: 6741208000000n,
     change24h: 2.41,
+    sparkline: [],
     updatedAt: "2026-08-29T00:00:00.000Z",
     ...overrides,
   }

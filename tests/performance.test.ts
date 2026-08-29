@@ -1,5 +1,6 @@
 import { test, expect, describe } from "bun:test"
-import { statSync } from "node:fs"
+import { statSync, readFileSync } from "node:fs"
+import { gzipSync } from "node:zlib"
 import { createApp } from "../src/server"
 import { loadConfig } from "../src/config"
 
@@ -19,8 +20,15 @@ describe("asset budget", () => {
     expect(total).toBeLessThan(120 * KB)
   })
 
-  test("stylesheet stays under 40KB", () => {
-    expect(statSync("public/css/app.css").size).toBeLessThan(40 * KB)
+  // Raw size is not what ships. The stylesheet is served gzipped and cached
+  // immutably behind a content hash, so the transfer cost is what matters.
+  test("stylesheet stays under 64KB raw", () => {
+    expect(statSync("public/css/app.css").size).toBeLessThan(64 * KB)
+  })
+
+  test("stylesheet stays under 12KB gzipped, which is what is transferred", () => {
+    const gzipped = gzipSync(readFileSync("public/css/app.css"), { level: 9 })
+    expect(gzipped.byteLength).toBeLessThan(12 * KB)
   })
 
   test("each font face stays under 200KB", () => {

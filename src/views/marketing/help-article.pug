@@ -2,13 +2,38 @@ extends ../layouts/base.pug
 
 block content
   .shell
-    .section
+    .docs-head
       .eyebrow
         a(href="/help") Help centre
       h1= article.title
-      p= article.summary
-    each section in article.sections
-      .section
-        h2= section.heading
-        each paragraph in section.body
-          p= paragraph
+      p.lead= article.summary
+
+    .docs-grid
+      aside.docs-nav(aria-label="On this page")
+        .docs-nav-label On this page
+        ol
+          each section in article.sections
+            - var slug = section.heading.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+            li: a(href="#" + slug)= section.heading
+
+      .docs-body
+        each section, index in article.sections
+          - var slug = section.heading.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+          section.docs-section(id=slug)
+            h2
+              span.idx= String(index + 1).padStart(2, "0")
+              = section.heading
+            each paragraph in section.body
+              p= paragraph
+
+    .docs-foot
+      .docs-foot-label More help
+      .card-grid
+        a.res-card(href="/help")
+          span.res-kicker Index
+          h2.res-title All help articles
+          p Deposits, networks, verification, and account security.
+        a.res-card(href="/resources")
+          span.res-kicker Reading
+          h2.res-title Resources
+          p Guides, policies, and market news.

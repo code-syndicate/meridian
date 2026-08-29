@@ -1,62 +1,103 @@
 extends ../layouts/base.pug
 include ../components/amount.pug
+include ../components/icons.pug
 
 block content
   .shell
-    .section
-      .eyebrow Portfolio
-      h1 Your account.
-      if pricesUnavailable
-        p Prices are unavailable right now, so we cannot value your holdings. Your balances below are still correct.
-      else
-        p.total
-          span.total-currency USD
-          +amount(total)
-        p.field-hint Valued at indicative prices from public market data. Not a quote.
-      .actions
-        a.btn(href="/account/verification") Verification
-        a.btn(href="/account/security") Security
-        a.btn(href="/account/activity") Activity
+    .app
+      .app-head
+        div
+          h1.app-title Portfolio
+          p.app-sub Tier #{tier} · #{assetCount} assets across #{networkCount} networks
+        nav.app-tabs(aria-label="Account")
+          a(href="/dashboard" aria-current="page") Overview
+          a(href="/account/verification") Verification
+          a(href="/account/security") Security
+          a(href="/account/activity") Activity
 
-    .section
-      h2 Balances
-      if empty
-        p Nothing here yet. Your balances appear once deposits are enabled.
-      .table-scroll
-        table.table
-          thead
-            tr
-              th Asset
-              th Network
-              th.n Available
-              th.n On hold
-              th.n Value (USD)
-          tbody
-            each row in balances
-              tr
-                td
-                  strong= row.name
-                  |  
-                  span.num-frac= row.displaySymbol
-                td= row.networkLabel
-                td.n
-                  +amount(row.available)
-                td.n
-                  if row.hasHold
-                    +amount(row.held)
-                  else
-                    span.num-frac 0
-                td.n
-                  if row.value
-                    +amount(row.value)
-                  else
-                    span.num-frac unpriced
+      .app-block
+        .pf
+          .pf-value
+            .pf-label Total value, USD
+            .pf-amount
+              +amount(total)
+              if !pricesUnavailable
+                span.pf-delta.flat 0.00% today
+            if pricesUnavailable
+              p.app-sub Prices are unavailable, so we cannot value your holdings. Balances below are still correct.
+            else
+              p.app-sub Valued at indicative prices. Not a quote.
+          .pf-actions
+            button.btn(type="button" disabled title=actionReason) Deposit
+            button.btn(type="button" disabled title=actionReason) Withdraw
+            button.btn(type="button" disabled title=actionReason) Trade
 
-    .section
-      h2 Move money
-      p Deposit, withdraw, and trade appear here. They are switched off, and this is why.
-      .actions
-        button.btn(type="button" disabled title=actionReason) Deposit
-        button.btn(type="button" disabled title=actionReason) Withdraw
-        button.btn(type="button" disabled title=actionReason) Trade
-      p.field-hint= actionReason
+      .app-block
+        .tiles
+          .tile
+            .tile-label Available
+            .tile-value.num= availableTotal
+            .tile-note Free to trade or withdraw
+          .tile
+            .tile-label On hold
+            .tile-value.num= heldTotal
+            .tile-note Reserved by pending activity
+          .tile
+            .tile-label Verification
+            .tile-value Tier #{tier}
+            .tile-note= tierNote
+          .tile
+            .tile-label Withdrawal limit
+            .tile-value.num= withdrawalLimit
+            .tile-note Per day at this tier
+
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 Balances
+            span.app-sub #{assetCount} assets
+          if empty
+            .empty-note
+              p Nothing here yet. Your balances appear once deposits are enabled, which happens when our registration completes.
+              a.btn(href="/account/verification") Check your verification
+          .table-scroll
+            table.table
+              thead
+                tr
+                  th Asset
+                  th Network
+                  th.n Available
+                  th.n On hold
+                  th.n Value (USD)
+                  th.n Allocation
+              tbody
+                each row in balances
+                  tr
+                    td
+                      .asset-name
+                        strong= row.name
+                        span.asset-ticker= row.displaySymbol
+                    td: span.network-tag= row.networkLabel
+                    td.n
+                      if row.hasBalance
+                        +amount(row.available)
+                      else
+                        span.num.zero= row.available.whole + "." + row.available.fraction
+                    td.n
+                      if row.hasHold
+                        +amount(row.held)
+                      else
+                        span.num.zero 0
+                    td.n
+                      if row.value
+                        +amount(row.value)
+                      else
+                        span.num.zero unpriced
+                    td.n
+                      .alloc
+                        .alloc-bar
+                          span.alloc-fill(class=row.allocClass)
+                        span.alloc-pct= row.allocLabel
+
+      .app-block
+        p.app-sub= actionReason

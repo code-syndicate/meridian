@@ -14,7 +14,7 @@ const config = loadConfig({
 
 class FakeSource implements PriceSource {
   async fetch(): Promise<Map<string, RawPrice>> {
-    return new Map([["bitcoin", { usd: 67412.08, change24h: 2.41 }]])
+    return new Map([["bitcoin", { usd: 67412.08, change24h: 2.41, sparkline: [] }]])
   }
 }
 
@@ -30,7 +30,19 @@ beforeAll(async () => {
 
 describe("home page", () => {
   test("carries the positioning headline", () => {
-    expect(html).toContain("Execution infrastructure")
+    // Split so the second clause can take the gradient treatment.
+    expect(html).toContain("Custody you can")
+    expect(html).toContain('class="headline-accent">actually examine.')
+  })
+
+  test("shows a product preview in the hero rather than describing one", () => {
+    expect(html).toContain('class="preview')
+    expect(html).toContain("Total value, USD")
+    expect(html).toContain("preview-rows")
+  })
+
+  test("labels the preview as illustrative, because it is not a real balance", () => {
+    expect(html.toLowerCase()).toContain("illustrative")
   })
 
   test("leads with custody rather than features", () => {

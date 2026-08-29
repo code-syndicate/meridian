@@ -1,43 +1,57 @@
 extends ../layouts/base.pug
 include ../components/amount.pug
+include ../components/spark.pug
 
 block content
   .shell
-    .section
-      .eyebrow= asset.networkLabel
-      h1 #{asset.name} (#{asset.displaySymbol})
-      p
-        | Indicative price 
+    .asset-head
+      div
+        .eyebrow= asset.networkLabel
+        h1 #{asset.name} (#{asset.displaySymbol})
+      .asset-price
         if price
           +amount(price)
         else
           span.num unavailable
-        |  #{change}. Reference only.
+        span.num(class=direction)= change
+    p.app-sub Indicative price from public market data. Reference only, not a quote.
 
-      .table-scroll
-        table.table
-          tbody
-            tr
-              td Network
-              td.n= asset.networkLabel
-            tr
-              td Confirmations required
-              td.n #{asset.confirmationsRequired} confirmations
-            tr
-              td Deposits
-              td.n= asset.depositEnabled ? "Enabled" : "Not yet enabled"
-            tr
-              td Withdrawals
-              td.n= asset.withdrawalEnabled ? "Enabled" : "Not yet enabled"
-            tr
-              td Trading
-              td.n= asset.tradingEnabled ? "Enabled" : "Not yet enabled"
-            if asset.contractAddress
-              tr
-                td Contract address
-                td.n.num= asset.contractAddress
+    .app-block
+      dl.asset-facts
+        .asset-fact
+          dt Network
+          dd= asset.networkLabel
+        .asset-fact
+          dt Confirmations
+          dd #{asset.confirmationsRequired} required
+        .asset-fact
+          dt Deposits
+          dd= asset.depositEnabled ? "Enabled" : "Not yet enabled"
+        .asset-fact
+          dt Withdrawals
+          dd= asset.withdrawalEnabled ? "Enabled" : "Not yet enabled"
+        .asset-fact
+          dt Trading
+          dd= asset.tradingEnabled ? "Enabled" : "Not yet enabled"
+        if asset.contractAddress
+          .asset-fact
+            dt Contract address
+            dd= asset.contractAddress
 
     if asset.kind === "token"
-      .section
-        h2 Network matters
-        p #{asset.displaySymbol} exists on more than one network. Sending #{asset.displaySymbol} to a #{asset.networkLabel} address over the wrong network will lose the funds permanently, and nobody can reverse it. Always check the network before you send.
+      .app-block
+        .warn-note
+          h2 Network matters
+          p #{asset.displaySymbol} exists on more than one network. Sending #{asset.displaySymbol} to a #{asset.networkLabel} address over the wrong network will lose the funds permanently, and nobody can reverse it. Always check the network before you send.
+
+    .docs-foot
+      .docs-foot-label Elsewhere
+      .card-grid
+        a.res-card(href="/markets")
+          span.res-kicker Markets
+          h2.res-title All supported assets
+          p Every asset and network we support, with live indicative prices.
+        a.res-card(href="/help/choosing-the-right-network")
+          span.res-kicker Guide
+          h2.res-title Choosing the right network
+          p The mistake that costs people the most money, and how to avoid it.
