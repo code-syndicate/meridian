@@ -1,0 +1,122 @@
+import { test, expect, describe } from "bun:test"
+import {
+  priceFromFeed,
+  formatUsd,
+  formatChange,
+  directionOf,
+  toTickerRow,
+  type Quote,
+} from "../../src/domain/prices"
+
+function quote(overrides: Partial<Quote> = {}): Quote {
+  return {
+    symbol: "BTC",
+    displaySymbol: "BTC",
+    name: "Bitcoin",
+    priceUsd: 6741208000000n,
+    change24h: 2.41,
+    updatedAt: "2026-08-29T00:00:00.000Z",
+    ...overrides,
+  }
+}
+
+describe("priceFromFeed", () => {
+  test("converts a float price to base units", () => {
+    expect(priceFromFeed(67412.08)).toBe(6741208000000n)
+  })
+
+  test("converts a sub-cent price without losing significant digits", () => {
+    expect(priceFromFeed(0.00002341)).toBe(2341n)
+  })
+
+  test("converts an integer price", () => {
+    expect(priceFromFeed(1)).toBe(100000000n)
+  })
+
+  test("converts zero", () => {
+    expect(priceFromFeed(0)).toBe(0n)
+  })
+
+  test("returns bigint, never number", () => {
+    expect(typeof priceFromFeed(67412.08)).toBe("bigint")
+  })
+
+  test("rejects a negative price", () => {
+    expect(() => priceFromFeed(-1)).toThrow()
+  })
+
+  test("rejects a non-finite price", () => {
+    expect(() => priceFromFeed(Number.NaN)).toThrow()
+    expect(() => priceFromFeed(Number.POSITIVE_INFINITY)).toThrow()
+  })
+})
+
+describe("formatUsd", () => {
+  test("groups thousands and shows two decimals", () => {
+    expect(formatUsd(6741208000000n)).toBe("67,412.08")
+  })
+
+  test("does not group below a thousand", () => {
+    expect(formatUsd(99999999n)).toBe("0.99999999")
+  })
+
+  test("shows more precision for sub-dollar prices", () => {
+    expect(formatUsd(2341n)).toBe("0.00002341")
+  })
+
+  test("formats zero", () => {
+    expect(formatUsd(0n)).toBe("0.00")
+  })
+
+  test("groups millions", () => {
+    expect(formatUsd(123456789000000000n)).toBe("1,234,567,890.00")
+  })
+})
+
+describe("formatChange", () => {
+  test("prefixes a positive change with an up glyph and a sign", () => {
+    expect(formatChange(2.41)).toBe("▲2.41%")
+  })
+
+  test("prefixes a negative change with a down glyph and a sign", () => {
+    expect(formatChange(-1.2)).toBe("▼1.20%")
+  })
+
+  test("marks a flat change without a direction glyph", () => {
+    expect(formatChange(0)).toBe("0.00%")
+  })
+
+  test("rounds to two decimals", () => {
+    expect(formatChange(2.4567)).toBe("▲2.46%")
+  })
+})
+
+describe("directionOf", () => {
+  test("classifies positive, negative, and flat", () => {
+    expect(directionOf(0.1)).toBe("up")
+    expect(directionOf(-0.1)).toBe("down")
+    expect(directionOf(0)).toBe("flat")
+  })
+})
+
+describe("toTickerRow", () => {
+  test("builds a row carrying both glyph and colour class", () => {
+    expect(toTickerRow(quote())).toEqual({
+      symbol: "BTC",
+      price: "67,412.08",
+      change: "▲2.41%",
+      direction: "up",
+    })
+  })
+
+  test("uses the display symbol rather than the qualified symbol", () => {
+    const row = toTickerRow(quote({ symbol: "USDT_TRC20", displaySymbol: "USDT" }))
+    expect(row.symbol).toBe("USDT")
+  })
+
+  test("never conveys direction by colour alone", () => {
+    const down = toTickerRow(quote({ change24h: -3 }))
+    expect(down.change).toContain("▼")
+    expect(down.direction).toBe("down")
+  })
+})
