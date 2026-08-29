@@ -2,6 +2,7 @@ import express from "express"
 import type { AssetRepository } from "../db/repositories/assets"
 import type { PriceFeed } from "../services/price-feed"
 import { formatUsd, formatChange, directionOf } from "../domain/prices"
+import { CONTENT_PAGES, LEGAL_PAGES } from "../content/pages"
 
 export interface MarketingDeps {
   assets: AssetRepository
@@ -73,6 +74,28 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
       change: quote ? formatChange(quote.change24h) : "",
     })
   })
+
+  for (const page of CONTENT_PAGES) {
+    router.get(`/${page.slug}`, (req, res) => {
+      res.render("marketing/content", {
+        title: page.title,
+        description: page.description,
+        path: req.path,
+        page,
+      })
+    })
+  }
+
+  for (const page of LEGAL_PAGES) {
+    router.get(`/legal/${page.slug}`, (req, res) => {
+      res.render("marketing/content", {
+        title: page.title,
+        description: page.description,
+        path: req.path,
+        page,
+      })
+    })
+  }
 
   return router
 }
