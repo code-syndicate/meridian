@@ -98,6 +98,7 @@ describe("GET /markets/:symbol", () => {
 
   test("warns about sending on the wrong network", async () => {
     const html = await (await (await build()).inject("/markets/usdt_trc20")).text()
-    expect(html.toLowerCase()).toContain("wrong network")
+    expect(html.toLowerCase()).toContain("any other network")
+    expect(html.toLowerCase()).toContain("permanent loss")
   })
 })
