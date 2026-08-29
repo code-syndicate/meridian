@@ -1,5 +1,6 @@
 import express from "express"
 import helmet from "helmet"
+import { join } from "node:path"
 import type { AddressInfo } from "node:net"
 import type { Config } from "./config"
 
@@ -10,6 +11,9 @@ export interface App extends express.Express {
 export function createApp(config: Config): App {
   const app = express() as App
   app.disable("x-powered-by")
+
+  app.set("view engine", "pug")
+  app.set("views", join(import.meta.dir, "views"))
 
   app.use(
     helmet({
@@ -33,11 +37,28 @@ export function createApp(config: Config): App {
     }),
   )
 
+  app.use(
+    "/static",
+    express.static(join(import.meta.dir, "..", "public"), {
+      maxAge: "1y",
+      immutable: true,
+      fallthrough: false,
+    }),
+  )
+
   app.use(express.urlencoded({ extended: false, limit: "64kb" }))
   app.use(express.json({ limit: "64kb" }))
 
   app.get("/health", (_req, res) => {
     res.json({ status: "ok", env: config.env })
+  })
+
+  app.get("/", (req, res) => {
+    res.render("marketing/home", {
+      title: "Meridian",
+      description: "Execution infrastructure for digital assets.",
+      path: req.path,
+    })
   })
 
   app.use((_req, res) => {

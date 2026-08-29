@@ -1,0 +1,9 @@
+mixin ticker()
+  .ticker(x-data="ticker" aria-label="Indicative prices")
+    .shell.ticker-inner
+      template(x-for="row in rows")
+        .ticker-item
+          span.ticker-sym(x-text="row.symbol")
+          span.ticker-px(x-text="row.price" x-bind:class="row.flash")
+          span.ticker-ch(x-text="row.change" x-bind:class="row.direction")
+      span.ticker-sym(x-show="rows.length === 0") Loading indicative prices
