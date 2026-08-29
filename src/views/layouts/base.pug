@@ -1,4 +1,5 @@
 include ../components/ticker.pug
+include ../components/palette.pug
 
 doctype html
 html(lang="en")
@@ -24,6 +25,8 @@ html(lang="en")
           a(href="/regulatory" aria-current=(path === "/regulatory" ? "page" : false)) Regulatory
           a(href="/help") Help
       +ticker()
+    +palette(destinations)
+    +shortcutSheet()
     main#main
       block content
     footer.footer

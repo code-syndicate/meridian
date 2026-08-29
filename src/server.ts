@@ -114,6 +114,38 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   app.use(csrfMiddleware(secure))
   app.use(sessionMiddleware({ sessions, users, secure }))
 
+  // Server-rendered so the palette needs no fetch and no inline object,
+  // which the Alpine CSP build would refuse anyway.
+  const PUBLIC_DESTINATIONS = [
+    { href: "/", label: "Home" },
+    { href: "/markets", label: "Markets" },
+    { href: "/fees", label: "Fees" },
+    { href: "/security", label: "Security" },
+    { href: "/regulatory", label: "Regulatory status" },
+    { href: "/help", label: "Help centre" },
+    { href: "/status", label: "System status" },
+    { href: "/about", label: "About" },
+    { href: "/legal/risk", label: "Risk disclosure" },
+    { href: "/legal/terms", label: "Terms of Service" },
+    { href: "/legal/privacy", label: "Privacy Policy" },
+    { href: "/legal/aml", label: "AML Policy" },
+    { href: "/legal/cookies", label: "Cookie Policy" },
+  ]
+  const ACCOUNT_DESTINATIONS = [
+    { href: "/dashboard", label: "Dashboard" },
+    { href: "/account", label: "Account details" },
+    { href: "/account/security", label: "Security settings" },
+    { href: "/account/verification", label: "Verification" },
+    { href: "/account/activity", label: "Activity" },
+  ]
+
+  app.use((req, res, next) => {
+    res.locals.destinations = req.user
+      ? [...ACCOUNT_DESTINATIONS, ...PUBLIC_DESTINATIONS]
+      : PUBLIC_DESTINATIONS
+    next()
+  })
+
   app.get("/health", (_req, res) => {
     res.json({ status: "ok", env: config.env })
   })

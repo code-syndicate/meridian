@@ -49,3 +49,84 @@ document.addEventListener("alpine:init", () => {
     },
   }))
 })
+
+document.addEventListener("alpine:init", () => {
+  function editing(target) {
+    if (!target) return false
+    const tag = target.tagName
+    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable
+  }
+
+  Alpine.data("palette", () => ({
+    closed: true,
+    query: "",
+
+    init() {
+      window.addEventListener("keydown", (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+          event.preventDefault()
+          this.toggle()
+          return
+        }
+        if (event.key === "/" && !editing(event.target) && this.closed) {
+          event.preventDefault()
+          this.toggle()
+        }
+      })
+    },
+
+    toggle() {
+      this.closed = !this.closed
+      if (!this.closed) queueMicrotask(() => this.$refs.input && this.$refs.input.focus())
+    },
+
+    close() {
+      this.closed = true
+    },
+
+    // Reads the label off the element rather than evaluating an expression
+    // over a data structure, which is what the CSP build requires.
+    matches(el) {
+      if (!this.query) return true
+      const link = el.querySelector("a")
+      const label = link ? link.dataset.label || "" : ""
+      return label.toLowerCase().includes(this.query.toLowerCase())
+    },
+  }))
+
+  Alpine.data("shortcuts", () => ({
+    closed: true,
+    pending: false,
+
+    init() {
+      window.addEventListener("keydown", (event) => {
+        if (editing(event.target)) return
+
+        if (event.key === "?") {
+          event.preventDefault()
+          this.closed = !this.closed
+          return
+        }
+
+        if (event.key === "g") {
+          this.pending = true
+          window.setTimeout(() => { this.pending = false }, 1200)
+          return
+        }
+
+        if (!this.pending) return
+        this.pending = false
+        const targets = { d: "/dashboard", m: "/markets", a: "/account" }
+        const href = targets[event.key]
+        if (href) {
+          event.preventDefault()
+          window.location.href = href
+        }
+      })
+    },
+
+    close() {
+      this.closed = true
+    },
+  }))
+})
