@@ -21,6 +21,16 @@ interface AccountRow {
   type: AccountType
 }
 
+export interface LedgerEntry {
+  id: number
+  transactionId: number
+  kind: string
+  asset: string
+  amount: bigint
+  externalRef: string | null
+  createdAt: string
+}
+
 export class LedgerRepository {
   constructor(private readonly db: Database) {}
 
@@ -136,5 +146,98 @@ export class LedgerRepository {
 
       return { transactionId, replayed: false }
     })()
+  }
+
+  balance(userId: number, asset: string): { available: bigint; held: bigint } {
+    const rows = moneyQuery<{ type: string; amount: bigint }, [number, string]>(
+      this.db,
+      `SELECT a.type, COALESCE(b.amount, 0) AS amount
+       FROM accounts a
+       LEFT JOIN account_balances b ON b.account_id = a.id
+       WHERE a.user_id = ? AND a.asset = ?`,
+    ).all(userId, asset)
+
+    let available = 0n
+    let held = 0n
+    for (const row of rows) {
+      if (row.type === "user_available") available = row.amount
+      if (row.type === "user_hold") held = row.amount
+    }
+    return { available, held }
+  }
+
+  balances(userId: number): Map<string, { available: bigint; held: bigint }> {
+    const rows = moneyQuery<{ asset: string; type: string; amount: bigint }, [number]>(
+      this.db,
+      `SELECT a.asset, a.type, COALESCE(b.amount, 0) AS amount
+       FROM accounts a
+       LEFT JOIN account_balances b ON b.account_id = a.id
+       WHERE a.user_id = ?`,
+    ).all(userId)
+
+    const result = new Map<string, { available: bigint; held: bigint }>()
+    for (const row of rows) {
+      const current = result.get(row.asset) ?? { available: 0n, held: 0n }
+      if (row.type === "user_available") current.available = row.amount
+      if (row.type === "user_hold") current.held = row.amount
+      result.set(row.asset, current)
+    }
+    return result
+  }
+
+  history(
+    userId: number,
+    opts: { asset?: string; cursor?: number; limit: number },
+  ): { entries: LedgerEntry[]; nextCursor: number | null } {
+    const conditions = ["a.user_id = ?"]
+    const params: (number | string)[] = [userId]
+
+    if (opts.asset) {
+      conditions.push("e.asset = ?")
+      params.push(opts.asset)
+    }
+    if (opts.cursor !== undefined) {
+      conditions.push("e.id < ?")
+      params.push(opts.cursor)
+    }
+    params.push(opts.limit + 1)
+
+    const rows = moneyQuery<
+      {
+        id: bigint
+        transaction_id: bigint
+        kind: string
+        asset: string
+        amount: bigint
+        external_ref: string | null
+        created_at: string
+      },
+      (number | string)[]
+    >(
+      this.db,
+      `SELECT e.id, e.transaction_id, t.kind, e.asset, e.amount, t.external_ref, e.created_at
+       FROM ledger_entries e
+       JOIN accounts a ON a.id = e.account_id
+       JOIN ledger_transactions t ON t.id = e.transaction_id
+       WHERE ${conditions.join(" AND ")}
+       ORDER BY e.id DESC
+       LIMIT ?`,
+    ).all(...params)
+
+    const hasMore = rows.length > opts.limit
+    const page = hasMore ? rows.slice(0, opts.limit) : rows
+
+    return {
+      entries: page.map((row) => ({
+        id: Number(row.id),
+        transactionId: Number(row.transaction_id),
+        kind: row.kind,
+        asset: row.asset,
+        amount: row.amount,
+        externalRef: row.external_ref,
+        createdAt: row.created_at,
+      })),
+      nextCursor: hasMore ? Number(page[page.length - 1]!.id) : null,
+    }
   }
 }
