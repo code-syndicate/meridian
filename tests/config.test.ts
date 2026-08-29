@@ -43,3 +43,47 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ ...valid, NODE_ENV: "staging" })).toThrow(/NODE_ENV/)
   })
 })
+
+describe("smtp configuration", () => {
+  test("defaults the port to 587 and leaves credentials unset", () => {
+    const config = loadConfig(valid)
+    expect(config.smtpPort).toBe(587)
+    expect(config.smtpHost).toBeNull()
+    expect(config.smtpUser).toBeNull()
+    expect(config.smtpPassword).toBeNull()
+  })
+
+  test("reads smtp settings when present", () => {
+    const config = loadConfig({
+      ...valid,
+      SMTP_HOST: "smtp.example.com",
+      SMTP_PORT: "465",
+      SMTP_USER: "postmaster",
+      SMTP_PASSWORD: "secret",
+      EMAIL_FROM: "Meridian <hello@example.com>",
+    })
+    expect(config.smtpHost).toBe("smtp.example.com")
+    expect(config.smtpPort).toBe(465)
+    expect(config.emailFrom).toBe("Meridian <hello@example.com>")
+  })
+
+  test("rejects a non-numeric smtp port", () => {
+    expect(() => loadConfig({ ...valid, SMTP_PORT: "nope" })).toThrow(/SMTP_PORT/)
+  })
+
+  test("production refuses to start without smtp credentials", () => {
+    expect(() => loadConfig({ ...valid, NODE_ENV: "production" })).toThrow(/SMTP_HOST/)
+  })
+
+  test("production starts when smtp is fully configured", () => {
+    expect(() =>
+      loadConfig({
+        ...valid,
+        NODE_ENV: "production",
+        SMTP_HOST: "smtp.example.com",
+        SMTP_USER: "postmaster",
+        SMTP_PASSWORD: "secret",
+      }),
+    ).not.toThrow()
+  })
+})

@@ -1,0 +1,18 @@
+extends ../layouts/base.pug
+
+block content
+  .shell
+    .section
+      .eyebrow Two-factor
+      h1 Turn on two-factor authentication.
+      p Add this key to an authenticator app, then enter the code it shows. Use an app rather than SMS: SIM swap fraud is common and effective.
+      if error
+        p.form-error= error
+      p.num= secret
+      p.field-hint= uri
+      form(method="post" action="/account/2fa")
+        input(type="hidden" name="_csrf" value=csrfToken)
+        .field
+          label(for="token") Code from your app
+          input#token(type="text" name="token" required inputmode="numeric" autocomplete="one-time-code" autofocus)
+        button.btn.btn-primary(type="submit") Turn on

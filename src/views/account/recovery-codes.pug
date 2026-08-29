@@ -1,0 +1,15 @@
+extends ../layouts/base.pug
+
+block content
+  .shell
+    .section
+      .eyebrow Two-factor
+      h1 Save your recovery codes.
+      p These get you back in if you lose your phone. Each one works once. Store them somewhere you can reach without your phone.
+      p
+        strong This is the only time we can show them.
+        |  We store them hashed, so we cannot display them again.
+      ul.codes
+        each code in codes
+          li= code
+      a.btn.btn-primary(href="/account/security") I have saved them

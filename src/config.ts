@@ -4,6 +4,11 @@ export interface Config {
   databasePath: string
   sessionSecret: string
   totpEncryptionKey: string
+  smtpHost: string | null
+  smtpPort: number
+  smtpUser: string | null
+  smtpPassword: string | null
+  emailFrom: string
 }
 
 const ENVIRONMENTS = ["development", "test", "production"] as const
@@ -38,11 +43,33 @@ export function loadConfig(
     throw new Error("TOTP_ENCRYPTION_KEY must be at least 32 characters")
   }
 
+  const smtpPortRaw = source.SMTP_PORT ?? "587"
+  const smtpPort = Number(smtpPortRaw)
+  if (!Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65535) {
+    throw new Error(`SMTP_PORT must be an integer between 1 and 65535, got "${smtpPortRaw}"`)
+  }
+
+  const smtpHost = source.SMTP_HOST ?? null
+  const smtpUser = source.SMTP_USER ?? null
+  const smtpPassword = source.SMTP_PASSWORD ?? null
+
+  // Production must not silently fall back to printing verification links.
+  if (env === "production" && !(smtpHost && smtpUser && smtpPassword)) {
+    throw new Error(
+      "SMTP_HOST, SMTP_USER, and SMTP_PASSWORD are all required in production",
+    )
+  }
+
   return {
     env: env as Config["env"],
     port,
     databasePath: source.DATABASE_PATH as string,
     sessionSecret,
     totpEncryptionKey,
+    smtpHost,
+    smtpPort,
+    smtpUser,
+    smtpPassword,
+    emailFrom: source.EMAIL_FROM ?? "Meridian <no-reply@meridian.example>",
   }
 }

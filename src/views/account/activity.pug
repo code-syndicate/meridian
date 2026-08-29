@@ -1,0 +1,21 @@
+extends ../layouts/base.pug
+
+block content
+  .shell
+    .section
+      .eyebrow Account
+      h1 Activity.
+      p Every sign in and security change on your account. If something here was not you, change your password and turn on two-factor authentication.
+      .table-scroll
+        table.table
+          thead
+            tr
+              th Event
+              th IP address
+              th When
+          tbody
+            each entry in entries
+              tr
+                td= entry.label
+                td.num= entry.ip
+                td.num= entry.at
