@@ -1,7 +1,9 @@
 node_modules/
 .beads/
+data/
 *.db
 *.db-wal
 *.db-shm
 .env
 .env.*
+!.env.example
