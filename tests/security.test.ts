@@ -165,6 +165,48 @@ describe("source-level guarantees", () => {
     }
   })
 
+  test("no source file logs a name, identifier, or address", () => {
+    for (const path of filesUnder("src", ".ts")) {
+      const text = readFileSync(path, "utf8")
+      const logs = text.match(/console\.(log|error|warn)\([^;]*?\)/gs) ?? []
+      for (const line of logs) {
+        const offending =
+          /\b(idNumber|governmentId|bvn|nin|firstName|lastName|dateOfBirth|streetAddress|phone)\b/i.test(
+            line,
+          )
+        expect(`${path}: ${offending}`).toBe(`${path}: false`)
+      }
+    }
+  })
+
+  test("no template renders a full government identifier", () => {
+    // An input NAMED idNumber is required: that is where the user types it.
+    // What must never happen is a template interpolating the value back out.
+    const rendering = [
+      /=\s*idNumber\b/,
+      /value\s*=\s*idNumber\b/,
+      /#\{\s*idNumber\s*\}/,
+      /\bprofile\.(bvn|nin|governmentId)\b/,
+      /\bgovernmentIdFull\b/,
+    ]
+    for (const path of filesUnder("src/views", ".pug")) {
+      const text = readFileSync(path, "utf8")
+      for (const pattern of rendering) {
+        expect(`${path} ${pattern}: ${pattern.test(text)}`).toBe(
+          `${path} ${pattern}: false`,
+        )
+      }
+    }
+  })
+
+  test("kyc consents keep their append-only triggers", () => {
+    const migrations = filesUnder("src/db/migrations", ".sql")
+      .map((p) => readFileSync(p, "utf8"))
+      .join("\n")
+    expect(migrations).toContain("kyc_consents_no_update")
+    expect(migrations).toContain("kyc_consents_no_delete")
+  })
+
   test("domain code imports neither express nor bun:sqlite", () => {
     for (const path of filesUnder("src/domain", ".ts")) {
       const text = readFileSync(path, "utf8")

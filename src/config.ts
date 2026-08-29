@@ -9,6 +9,7 @@ export interface Config {
   smtpUser: string | null
   smtpPassword: string | null
   emailFrom: string
+  kycProvider: string
 }
 
 const ENVIRONMENTS = ["development", "test", "production"] as const
@@ -60,6 +61,15 @@ export function loadConfig(
     )
   }
 
+  // A sandbox KYC provider in production approves almost every applicant.
+  // That is an AML failure, not a bug, so refuse to start rather than warn.
+  const kycProvider = source.KYC_PROVIDER ?? (env === "production" ? "" : "sandbox")
+  if (env === "production" && (!kycProvider || kycProvider === "sandbox")) {
+    throw new Error(
+      "KYC_PROVIDER must name a real provider in production. The sandbox approves almost everyone.",
+    )
+  }
+
   return {
     env: env as Config["env"],
     port,
@@ -71,5 +81,6 @@ export function loadConfig(
     smtpUser,
     smtpPassword,
     emailFrom: source.EMAIL_FROM ?? "Meridian <no-reply@meridian.example>",
+    kycProvider,
   }
 }

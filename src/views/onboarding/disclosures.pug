@@ -1,0 +1,35 @@
+extends ../layouts/base.pug
+include ../components/step-rail.pug
+
+block content
+  .shell
+    .section
+      +stepRail(stepNumber, stepTotal)
+      h1 What you are agreeing to.
+      p Read each document and agree to each one separately. Version #{version}.
+      if error
+        p.form-error= error
+      form(method="post" action="/onboarding/disclosures")
+        input(type="hidden" name="_csrf" value=csrfToken)
+        .checkbox
+          input#terms(type="checkbox" name="terms")
+          label(for="terms")
+            |  I agree to the 
+            a(href="/legal/terms" target="_blank" rel="noopener") Terms of Service
+        .checkbox
+          input#privacy(type="checkbox" name="privacy")
+          label(for="privacy")
+            |  I agree to the 
+            a(href="/legal/privacy" target="_blank" rel="noopener") Privacy Policy
+        .checkbox
+          input#risk(type="checkbox" name="risk")
+          label(for="risk")
+            |  I have read the 
+            a(href="/legal/risk" target="_blank" rel="noopener") Risk Disclosure
+            |  and understand I can lose everything I put in
+        .checkbox
+          input#aml(type="checkbox" name="aml")
+          label(for="aml")
+            |  I agree to the 
+            a(href="/legal/aml" target="_blank" rel="noopener") AML Policy
+        button.btn.btn-primary(type="submit") Submit for review

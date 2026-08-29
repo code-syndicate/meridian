@@ -1,0 +1,54 @@
+extends ../layouts/base.pug
+
+block content
+  .shell
+    .section
+      .eyebrow Verification
+      if status === null
+        h1 You have not started verification.
+        p Verifying your identity is required before you can deposit, withdraw, or trade. It takes a few minutes and you can leave and come back.
+        .actions
+          a.btn.btn-primary(href="/onboarding") Start verification
+      else if status === "draft"
+        h1 Your verification is unfinished.
+        p You stopped partway through. Pick up where you left off.
+        .actions
+          a.btn.btn-primary(href="/onboarding") Continue verification
+      else if status === "in_review" || status === "submitted"
+        h1 Your application is under review.
+        p We have everything we need and a reviewer is looking at it. You will get an email when there is a decision.
+        p We are not showing an estimated time because we do not have a measured one. When we do, it will appear here.
+      else if status === "approved"
+        h1 You are verified.
+        p Your account is at tier #{tier}.
+        .table-scroll
+          table.table
+            tbody
+              tr
+                td Deposits
+                td.n= limits.depositEnabled ? "Permitted at this tier" : "Not permitted at this tier"
+              tr
+                td Trading
+                td.n= limits.tradingEnabled ? "Permitted at this tier" : "Not permitted at this tier"
+              tr
+                td Daily withdrawal cap
+                td.n.num= limits.dailyWithdrawalUsd
+        p These limits are what your tier allows. Deposits, withdrawals, and trading are not switched on yet for anyone, and that is separate from your verification.
+      else if status === "rejected"
+        h1 Your verification was not approved.
+        if rejectionReason
+          p.form-error= rejectionReason
+        if canResubmit
+          p You can try once more. Check that every detail matches your identity document exactly.
+          .actions
+            a.btn.btn-primary(href="/onboarding") Try again
+        else
+          p You have used your resubmission. Contact support if you believe this is wrong.
+      else
+        h1 Your verification has expired.
+        p Start again to continue.
+        .actions
+          a.btn.btn-primary(href="/onboarding") Start verification
+
+      if last4
+        p.field-hint Verified identifier ending #{last4}.

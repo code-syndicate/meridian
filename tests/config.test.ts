@@ -75,7 +75,7 @@ describe("smtp configuration", () => {
     expect(() => loadConfig({ ...valid, NODE_ENV: "production" })).toThrow(/SMTP_HOST/)
   })
 
-  test("production starts when smtp is fully configured", () => {
+  test("production starts when smtp and the kyc provider are both configured", () => {
     expect(() =>
       loadConfig({
         ...valid,
@@ -83,7 +83,52 @@ describe("smtp configuration", () => {
         SMTP_HOST: "smtp.example.com",
         SMTP_USER: "postmaster",
         SMTP_PASSWORD: "secret",
+        KYC_PROVIDER: "smile_id",
       }),
     ).not.toThrow()
+  })
+})
+
+describe("kyc provider configuration", () => {
+  test("defaults to sandbox outside production", () => {
+    expect(loadConfig(valid).kycProvider).toBe("sandbox")
+  })
+
+  test("production refuses to start with the sandbox provider", () => {
+    expect(() =>
+      loadConfig({
+        ...valid,
+        NODE_ENV: "production",
+        SMTP_HOST: "smtp.example.com",
+        SMTP_USER: "u",
+        SMTP_PASSWORD: "p",
+        KYC_PROVIDER: "sandbox",
+      }),
+    ).toThrow(/KYC_PROVIDER/)
+  })
+
+  test("production refuses to start with no provider configured", () => {
+    expect(() =>
+      loadConfig({
+        ...valid,
+        NODE_ENV: "production",
+        SMTP_HOST: "smtp.example.com",
+        SMTP_USER: "u",
+        SMTP_PASSWORD: "p",
+      }),
+    ).toThrow(/KYC_PROVIDER/)
+  })
+
+  test("production starts with a named provider", () => {
+    expect(
+      loadConfig({
+        ...valid,
+        NODE_ENV: "production",
+        SMTP_HOST: "smtp.example.com",
+        SMTP_USER: "u",
+        SMTP_PASSWORD: "p",
+        KYC_PROVIDER: "smile_id",
+      }).kycProvider,
+    ).toBe("smile_id")
   })
 })

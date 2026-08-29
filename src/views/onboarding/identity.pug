@@ -1,0 +1,38 @@
+extends ../layouts/base.pug
+include ../components/step-rail.pug
+
+block content
+  .shell
+    .section
+      +stepRail(stepNumber, stepTotal)
+      h1 Your legal name and date of birth.
+      p Give these exactly as they appear on your government identification. A mismatch is the most common reason verification fails.
+      form(method="post" action="/onboarding/identity")
+        input(type="hidden" name="_csrf" value=csrfToken)
+        .field
+          label(for="firstName") First name
+          input#firstName(type="text" name="firstName" value=values.firstName required autocomplete="given-name")
+          if errors.firstName
+            p.field-error= errors.firstName
+        .field
+          label(for="middleName") Middle name (optional)
+          input#middleName(type="text" name="middleName" value=values.middleName autocomplete="additional-name")
+          if errors.middleName
+            p.field-error= errors.middleName
+        .field
+          label(for="lastName") Last name
+          input#lastName(type="text" name="lastName" value=values.lastName required autocomplete="family-name")
+          if errors.lastName
+            p.field-error= errors.lastName
+        .field
+          label(for="dateOfBirth") Date of birth
+          input#dateOfBirth(type="date" name="dateOfBirth" value=values.dateOfBirth required autocomplete="bday")
+          if errors.dateOfBirth
+            p.field-error= errors.dateOfBirth
+        .field
+          label(for="phone") Nigerian mobile number
+          input#phone(type="tel" name="phone" value=values.phone required autocomplete="tel")
+          p.field-hint For example 08031234567.
+          if errors.phone
+            p.field-error= errors.phone
+        button.btn.btn-primary(type="submit") Continue
