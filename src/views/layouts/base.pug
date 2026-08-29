@@ -23,30 +23,30 @@ html(lang="en")
           a(href="/security" aria-current=(path === "/security" ? "page" : false)) Security
           a(href="/regulatory" aria-current=(path === "/regulatory" ? "page" : false)) Regulatory
           a(href="/help") Help
-    +ticker()
+      +ticker()
     main#main
       block content
     footer.footer
       .shell
         .footer-cols
           div
-            h4 Product
+            h2.footer-heading Product
             ul
               li: a(href="/markets") Markets
               li: a(href="/fees") Fees
               li: a(href="/status") Status
           div
-            h4 Company
+            h2.footer-heading Company
             ul
               li: a(href="/about") About
               li: a(href="/security") Security
               li: a(href="/regulatory") Regulatory
           div
-            h4 Support
+            h2.footer-heading Support
             ul
               li: a(href="/help") Help centre
           div
-            h4 Legal
+            h2.footer-heading Legal
             ul
               li: a(href="/legal/terms") Terms of Service
               li: a(href="/legal/privacy") Privacy Policy

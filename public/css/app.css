@@ -195,12 +195,13 @@ a:hover { text-decoration: underline; }
 /* Footer */
 .footer { padding: calc(var(--u) * 12) 0; color: var(--text-muted); font-size: 0.8125rem; }
 .footer-cols { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--u) * 8); }
-.footer h4 {
+.footer .footer-heading {
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
   margin-bottom: calc(var(--u) * 3);
+  font-weight: 500;
 }
 .footer ul { list-style: none; margin: 0; padding: 0; }
 .footer li { margin-bottom: calc(var(--u) * 2); }
