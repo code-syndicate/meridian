@@ -1,11 +1,18 @@
 extends ../layouts/base.pug
+include ../components/amount.pug
 
 block content
   .shell
     .section
       .eyebrow= asset.networkLabel
       h1 #{asset.name} (#{asset.displaySymbol})
-      p Indicative price #{price} #{change}. Reference only.
+      p
+        | Indicative price 
+        if price
+          +amount(price)
+        else
+          span.num unavailable
+        |  #{change}. Reference only.
 
       .table-scroll
         table.table

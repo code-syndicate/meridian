@@ -44,14 +44,32 @@ const ONE_CENT = 1000000n
  * similar value looking alike, which two tiers did not: a stablecoin a hair
  * under a dollar rendered at eight decimals beside one at two.
  */
-export function formatUsd(priceUsd: bigint): string {
-  let decimals = 2
-  if (priceUsd > 0n && priceUsd < ONE_CENT) decimals = 8
-  else if (priceUsd > 0n && priceUsd < ONE_DOLLAR) decimals = 4
+export interface MoneyParts {
+  whole: string
+  fraction: string
+}
 
-  const plain = formatBalance(priceUsd, decimals)
+function decimalsFor(priceUsd: bigint): number {
+  if (priceUsd > 0n && priceUsd < ONE_CENT) return 8
+  if (priceUsd > 0n && priceUsd < ONE_DOLLAR) return 4
+  return 2
+}
+
+/** Split so a template can mute the fraction. Spec 4.4. */
+export function balanceParts(base: bigint, displayDecimals: number): MoneyParts {
+  const plain = formatBalance(base, displayDecimals)
   const [whole = "0", fraction = ""] = plain.split(".")
-  return `${group(whole)}.${fraction}`
+  return { whole: group(whole), fraction }
+}
+
+export function usdParts(priceUsd: bigint): MoneyParts {
+  return balanceParts(priceUsd, decimalsFor(priceUsd))
+}
+
+// A thin wrapper, so the split and the string can never disagree.
+export function formatUsd(priceUsd: bigint): string {
+  const { whole, fraction } = usdParts(priceUsd)
+  return fraction ? `${whole}.${fraction}` : whole
 }
 
 /**

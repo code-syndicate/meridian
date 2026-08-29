@@ -1,0 +1,5 @@
+mixin amount(parts)
+  span.num
+    = parts.whole
+    if parts.fraction
+      span.num-frac .#{parts.fraction}

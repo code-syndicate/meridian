@@ -459,6 +459,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
       ip: req.ip ?? null,
       metadata: { documentVersion: DOCUMENT_VERSION },
     })
+    res.flash("Your verification has been submitted.")
     res.redirect(303, "/onboarding/submitted")
   })
 

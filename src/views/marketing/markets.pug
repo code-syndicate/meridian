@@ -1,4 +1,5 @@
 extends ../layouts/base.pug
+include ../components/amount.pug
 
 block content
   .shell
@@ -23,6 +24,10 @@ block content
                   |  
                   span.num-frac= row.displaySymbol
                 td= row.networkLabel
-                td.n.num= row.price
+                td.n
+                  if row.price
+                    +amount(row.price)
+                  else
+                    span.num -
                 td.n.num(class=row.direction)= row.change
                 td.n.num= row.confirmations

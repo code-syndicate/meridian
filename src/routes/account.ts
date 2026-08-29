@@ -23,7 +23,8 @@ import {
   generateRecoveryCodes,
   hashRecoveryCode,
 } from "../domain/identity/totp"
-import { formatBalance } from "../domain/money"
+import { balanceParts, usdParts } from "../domain/prices"
+import { buildPortfolio } from "../domain/portfolio"
 import { IdentityError } from "../domain/identity/errors"
 import { requireAuth, setSessionCookie } from "../middleware/session"
 
@@ -33,6 +34,7 @@ export interface AccountDeps {
   audit: AuditRepository
   assets: AssetRepository
   ledger: LedgerRepository
+  feed: { snapshot(): import("../domain/prices").Quote[] }
   recoveryCodes: RecoveryCodeRepository
   kyc: KycRepository
   config: Config
@@ -119,21 +121,29 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
     const user = req.user!
     const application = deps.kyc.latestFor(user.id)
     const kycTier = application ? tierFor(application.status, application.targetTier) : 0
-    const balances = deps.ledger.balances(user.id)
+    const portfolio = buildPortfolio({
+      assets: deps.assets.all(),
+      balances: deps.ledger.balances(user.id),
+      quotes: deps.feed.snapshot(),
+    })
+
     res.render("app/dashboard", {
       title: "Dashboard | Meridian",
       description: "Your Meridian account.",
       path: req.path,
       tier: kycTier,
       actionReason: actionReason(kycTier),
-      balances: deps.assets.all().map((asset) => ({
-        name: asset.name,
-        displaySymbol: asset.displaySymbol,
-        networkLabel: asset.networkLabel,
-        available: formatBalance(
-          balances.get(asset.symbol)?.available ?? 0n,
-          asset.displayDecimals,
-        ),
+      total: usdParts(portfolio.totalUsd),
+      empty: portfolio.empty,
+      pricesUnavailable: portfolio.pricesUnavailable,
+      balances: portfolio.rows.map((row) => ({
+        name: row.name,
+        displaySymbol: row.displaySymbol,
+        networkLabel: row.networkLabel,
+        available: balanceParts(row.available, row.displayDecimals),
+        held: balanceParts(row.held, row.displayDecimals),
+        hasHold: row.held > 0n,
+        value: row.priceUsd === null ? null : usdParts(row.valueUsd),
       })),
     })
   })
@@ -219,6 +229,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
       userAgent: req.get("user-agent") ?? null,
     })
     setSessionCookie(res, fresh, secure)
+    res.flash("Password changed. You have been signed out everywhere else.")
     res.redirect(303, "/account/security")
   })
 
@@ -291,6 +302,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
     const user = req.user!
     deps.users.disableTotp(user.id)
     deps.recoveryCodes.deleteAllFor(user.id)
+    res.flash("Two-factor authentication is off.")
     deps.audit.record({
       userId: user.id,
       actorType: "user",
@@ -314,6 +326,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
       ip: req.ip ?? null,
       userAgent: req.get("user-agent") ?? null,
     })
+    res.flash("Signed out of your other devices.")
     res.redirect(303, "/account/security")
   })
 

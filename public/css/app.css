@@ -314,3 +314,70 @@ fieldset.field legend {
   font-size: 0.8125rem; color: var(--down);
   margin: calc(var(--u) * 2) 0 0;
 }
+
+/* Portfolio total */
+.total {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--u) * 3);
+  margin-bottom: calc(var(--u) * 2);
+}
+.total-currency {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+.total .num { font-size: 2.5rem; letter-spacing: -0.02em; }
+.total .num-frac { font-size: 1.5rem; }
+
+/* Command palette and shortcut sheet */
+.palette { position: fixed; inset: 0; z-index: 100; }
+.palette-backdrop { position: absolute; inset: 0; background: rgba(8, 9, 10, 0.7); }
+.palette-panel {
+  position: relative;
+  max-width: 520px;
+  margin: 12vh auto 0;
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 4px;
+  padding: calc(var(--u) * 4);
+}
+.palette-panel input {
+  width: 100%; height: 40px; padding: 0 calc(var(--u) * 3);
+  background: var(--surface-2); border: 1px solid var(--hairline-strong);
+  border-radius: 2px; color: var(--text); font: inherit;
+}
+.palette-list { list-style: none; margin: calc(var(--u) * 3) 0 0; padding: 0; max-height: 50vh; overflow-y: auto; }
+.palette-list li { border-bottom: 1px solid var(--hairline); }
+.palette-list a { display: block; padding: calc(var(--u) * 2) calc(var(--u) * 2); color: var(--text); font-size: 0.875rem; }
+.palette-list a:hover { background: var(--surface-2); text-decoration: none; }
+.shortcuts { display: grid; grid-template-columns: auto 1fr; gap: calc(var(--u) * 2) calc(var(--u) * 5); margin: calc(var(--u) * 4) 0; }
+.shortcuts dt { color: var(--text-muted); font-size: 0.8125rem; }
+.shortcuts dd { margin: 0; font-size: 0.875rem; }
+
+/* Skeletons */
+.skeleton {
+  display: inline-block;
+  height: 12px;
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 37%, var(--surface) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+  border-radius: 2px;
+}
+@keyframes shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+.ticker-skeletons { display: flex; gap: calc(var(--u) * 8); align-items: center; }
+.skel-54 { width: 54px } .skel-56 { width: 56px } .skel-58 { width: 58px }
+.skel-60 { width: 60px } .skel-62 { width: 62px } .skel-64 { width: 64px }
+
+.flash {
+  border-left: 2px solid var(--up);
+  background: var(--surface);
+  padding: calc(var(--u) * 3) calc(var(--u) * 4);
+  margin: calc(var(--u) * 6) 0 0;
+  font-size: 0.875rem;
+  max-width: 68ch;
+}

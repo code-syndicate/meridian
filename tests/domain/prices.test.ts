@@ -1,10 +1,13 @@
 import { test, expect, describe } from "bun:test"
+import { formatBalance } from "../../src/domain/money"
 import {
   priceFromFeed,
   formatUsd,
   formatChange,
   directionOf,
   toTickerRow,
+  usdParts,
+  balanceParts,
   type Quote,
 } from "../../src/domain/prices"
 
@@ -152,5 +155,39 @@ describe("toTickerRow", () => {
     const down = toTickerRow(quote({ change24h: -3 }))
     expect(down.change).toContain("▼")
     expect(down.direction).toBe("down")
+  })
+})
+
+describe("usdParts", () => {
+  test("splits a grouped price into whole and fraction", () => {
+    expect(usdParts(6741208000000n)).toEqual({ whole: "67,412", fraction: "08" })
+  })
+  test("splits a sub-dollar price at four decimals", () => {
+    expect(usdParts(33830400n)).toEqual({ whole: "0", fraction: "3383" })
+  })
+  test("splits a sub-cent price at eight decimals", () => {
+    expect(usdParts(2341n)).toEqual({ whole: "0", fraction: "00002341" })
+  })
+  test("recombines to exactly what formatUsd returns", () => {
+    for (const value of [6741208000000n, 33830400n, 2341n, 0n, 100000000n]) {
+      const parts = usdParts(value)
+      expect(`${parts.whole}.${parts.fraction}`).toBe(formatUsd(value))
+    }
+  })
+})
+
+describe("balanceParts", () => {
+  test("splits a balance at the asset's display precision", () => {
+    expect(balanceParts(150000000n, 4)).toEqual({ whole: "1", fraction: "5000" })
+  })
+  test("groups thousands in the whole part", () => {
+    expect(balanceParts(123456700000000n, 2)).toEqual({ whole: "1,234,567", fraction: "00" })
+  })
+  test("recombines to formatBalance plus grouping", () => {
+    const parts = balanceParts(150000000n, 8)
+    expect(`${parts.whole}.${parts.fraction}`.replace(/,/g, "")).toBe(formatBalance(150000000n, 8))
+  })
+  test("handles zero decimals with an empty fraction", () => {
+    expect(balanceParts(150000000n, 0)).toEqual({ whole: "1", fraction: "" })
   })
 })

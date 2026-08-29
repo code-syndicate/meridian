@@ -1,0 +1,28 @@
+mixin palette(destinations)
+  .palette(x-data="palette" x-on:keydown.escape.window="close" hidden x-bind:hidden="closed")
+    .palette-backdrop(x-on:click="close")
+    .palette-panel(role="dialog" aria-modal="true" aria-label="Go to page")
+      label.visually-hidden(for="palette-input") Search pages
+      input#palette-input(type="text" x-model="query" x-ref="input" placeholder="Go to..." autocomplete="off")
+      ul.palette-list
+        each destination in destinations
+          li(x-show="matches($el)")
+            a(href=destination.href data-label=destination.label)= destination.label
+
+mixin shortcutSheet()
+  .palette(x-data="shortcuts" x-on:keydown.escape.window="close" hidden x-bind:hidden="closed")
+    .palette-backdrop(x-on:click="close")
+    .palette-panel(role="dialog" aria-modal="true" aria-label="Keyboard shortcuts")
+      h2 Keyboard shortcuts
+      dl.shortcuts
+        dt.num Ctrl K
+        dd Open the page search
+        dt.num g then d
+        dd Go to dashboard
+        dt.num g then m
+        dd Go to markets
+        dt.num g then a
+        dd Go to account
+        dt.num ?
+        dd Show this list
+      p.field-hint Every one of these is also a normal link. Shortcuts only make it faster.

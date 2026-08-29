@@ -1,7 +1,7 @@
 import express from "express"
 import type { AssetRepository } from "../db/repositories/assets"
 import type { PriceFeed } from "../services/price-feed"
-import { formatUsd, formatChange, directionOf } from "../domain/prices"
+import { usdParts, formatChange, directionOf } from "../domain/prices"
 import { CONTENT_PAGES, LEGAL_PAGES } from "../content/pages"
 import { HELP_ARTICLES } from "../content/help"
 
@@ -24,7 +24,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
         return {
           name: asset.name,
           displaySymbol: asset.displaySymbol,
-          price: formatUsd(quote.priceUsd),
+          price: usdParts(quote.priceUsd),
           change: formatChange(quote.change24h),
           direction: directionOf(quote.change24h),
         }
@@ -47,7 +47,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
         displaySymbol: asset.displaySymbol,
         networkLabel: asset.networkLabel,
         confirmations: asset.confirmationsRequired,
-        price: quote ? formatUsd(quote.priceUsd) : "-",
+        price: quote ? usdParts(quote.priceUsd) : null,
         change: quote ? formatChange(quote.change24h) : "-",
         direction: quote ? directionOf(quote.change24h) : "flat",
       }
@@ -71,7 +71,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
       description: `${asset.name} on ${asset.networkLabel}. Network, confirmations, and indicative price.`,
       path: req.path,
       asset,
-      price: quote ? formatUsd(quote.priceUsd) : "unavailable",
+      price: quote ? usdParts(quote.priceUsd) : null,
       change: quote ? formatChange(quote.change24h) : "",
     })
   })
