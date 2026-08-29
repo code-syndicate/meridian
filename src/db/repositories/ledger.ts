@@ -1,0 +1,140 @@
+import type { Database } from "bun:sqlite"
+import { moneyQuery } from "../index"
+import { validatePosting } from "../../domain/ledger/validate"
+import { LedgerError, type PostingInput } from "../../domain/ledger/types"
+
+export type AccountType =
+  | "user_available"
+  | "user_hold"
+  | "platform_fee"
+  | "platform_treasury"
+  | "platform_dust"
+  | "external_deposit"
+  | "external_withdrawal"
+
+const USER_ACCOUNT_TYPES = new Set<AccountType>(["user_available", "user_hold"])
+
+interface AccountRow {
+  id: number
+  user_id: number | null
+  asset: string
+  type: AccountType
+}
+
+export class LedgerRepository {
+  constructor(private readonly db: Database) {}
+
+  ensureAccount(userId: number | null, asset: string, type: AccountType): number {
+    const existing = this.db
+      .query<{ id: number }, [number | null, string, string]>(
+        `SELECT id FROM accounts
+         WHERE user_id IS ? AND asset = ? AND type = ?`,
+      )
+      .get(userId, asset, type)
+    if (existing) return Number(existing.id)
+
+    const now = new Date().toISOString()
+    return this.db.transaction(() => {
+      this.db
+        .query("INSERT INTO accounts (user_id, asset, type, created_at) VALUES (?, ?, ?, ?)")
+        .run(userId, asset, type, now)
+      const id = Number(
+        this.db.query<{ id: number }, []>("SELECT last_insert_rowid() AS id").get()!.id,
+      )
+      this.db
+        .query(
+          "INSERT INTO account_balances (account_id, amount, last_entry_id, updated_at) VALUES (?, 0, 0, ?)",
+        )
+        .run(id, now)
+      return id
+    })()
+  }
+
+  post(input: PostingInput): { transactionId: number; replayed: boolean } {
+    validatePosting(input)
+
+    const existing = this.db
+      .query<{ id: number }, [string]>(
+        "SELECT id FROM ledger_transactions WHERE idempotency_key = ?",
+      )
+      .get(input.idempotencyKey)
+    if (existing) {
+      return { transactionId: Number(existing.id), replayed: true }
+    }
+
+    const now = new Date().toISOString()
+
+    return this.db.transaction(() => {
+      const accounts = new Map<number, AccountRow>()
+      for (const entry of input.entries) {
+        const row = this.db
+          .query<AccountRow, [number]>(
+            "SELECT id, user_id, asset, type FROM accounts WHERE id = ?",
+          )
+          .get(entry.accountId)
+        if (!row) {
+          throw new LedgerError("account_not_found", `Account ${entry.accountId} does not exist`)
+        }
+        if (row.asset !== entry.asset) {
+          throw new LedgerError(
+            "asset_mismatch",
+            `Account ${entry.accountId} holds ${row.asset}, entry declares ${entry.asset}`,
+          )
+        }
+        accounts.set(entry.accountId, row)
+      }
+
+      this.db
+        .query(
+          `INSERT INTO ledger_transactions (kind, idempotency_key, external_ref, metadata, created_at)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(
+          input.kind,
+          input.idempotencyKey,
+          input.externalRef ?? null,
+          JSON.stringify(input.metadata ?? {}),
+          now,
+        )
+      const transactionId = Number(
+        this.db.query<{ id: number }, []>("SELECT last_insert_rowid() AS id").get()!.id,
+      )
+
+      for (const entry of input.entries) {
+        this.db
+          .query(
+            `INSERT INTO ledger_entries (transaction_id, account_id, asset, amount, created_at)
+             VALUES (?, ?, ?, ?, ?)`,
+          )
+          .run(transactionId, entry.accountId, entry.asset, entry.amount, now)
+        const entryId = Number(
+          this.db.query<{ id: number }, []>("SELECT last_insert_rowid() AS id").get()!.id,
+        )
+
+        this.db
+          .query(
+            `UPDATE account_balances
+             SET amount = amount + ?, last_entry_id = ?, updated_at = ?
+             WHERE account_id = ?`,
+          )
+          .run(entry.amount, entryId, now, entry.accountId)
+
+        const account = accounts.get(entry.accountId)!
+        if (USER_ACCOUNT_TYPES.has(account.type)) {
+          const balance = moneyQuery<{ amount: bigint }, [number]>(
+            this.db,
+            "SELECT amount FROM account_balances WHERE account_id = ?",
+          ).get(entry.accountId)!
+          if (balance.amount < 0n) {
+            throw new LedgerError(
+              "insufficient_balance",
+              `Account ${entry.accountId} would fall to ${balance.amount}, user accounts may not go negative`,
+            )
+          }
+        }
+      }
+
+      return { transactionId, replayed: false }
+    })()
+  }
+}

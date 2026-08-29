@@ -1,6 +1,29 @@
 import { Database } from "bun:sqlite"
+import type { Statement, SQLQueryBindings } from "bun:sqlite"
 import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
+
+/**
+ * Prepare a statement that returns INTEGER columns as bigint.
+ *
+ * bun:sqlite otherwise returns them as JS numbers, which silently round above
+ * 2^53. Every read of a money column must go through this. The cast exists
+ * because safeIntegers is missing from the current bun type definitions; it is
+ * present at runtime.
+ *
+ * Note that bun caches prepared statements by SQL text, so enabling this for a
+ * given query string affects every caller of that same string.
+ */
+export function moneyQuery<Row, Params extends SQLQueryBindings[]>(
+  db: Database,
+  sql: string,
+): Statement<Row, Params> {
+  const statement = db.query(sql) as unknown as Statement<Row, Params> & {
+    safeIntegers(enabled: boolean): void
+  }
+  statement.safeIntegers(true)
+  return statement
+}
 
 export function openDatabase(path: string): Database {
   const db = new Database(path, { create: true })

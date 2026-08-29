@@ -19,6 +19,7 @@ Use `bun` for everything else: `bun install`, `bun test`, `bun run`, `bunx`. Nev
 - **No floating point for money, anywhere.** All amounts are `bigint` in code and `INTEGER` in SQLite, counted in base units where 1 unit = 10^-8 of an asset. Internal precision is fixed at 8 decimals for every asset. No `parseFloat`, no `toFixed` on a money value.
 - **The ledger is append-only.** `ledger_transactions` and `ledger_entries` have triggers that reject UPDATE and DELETE. Corrections are new opposing transactions. Never remove those triggers.
 - **`post()` in `src/db/repositories/ledger.ts` is the only write path into the journal.**
+- **Read every money column through `moneyQuery()` in `src/db/index.ts`.** `bun:sqlite` returns `INTEGER` as a JS `number`, which silently rounds above 2^53: `9000000000000000001` comes back as `...000`. `moneyQuery` sets `safeIntegers` so amounts arrive as `bigint`. A plain `db.query()` on a money column is a bug even when the test passes, because small test values do not trip it. Related trap: bun caches prepared statements by SQL text, so enabling `safeIntegers` for one query string affects every caller of that exact string.
 - **No SQL outside `src/db/repositories/`.**
 - **`src/domain/` imports neither Express nor `bun:sqlite`.** Pure logic over plain objects.
 - **CSP carries no `unsafe-inline` and no `unsafe-eval`.** So: no inline `<style>`, no `style=` attributes, no inline `<script>`. Alpine components must be registered via `Alpine.data()`, which is what the CSP build requires.
