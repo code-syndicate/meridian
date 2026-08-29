@@ -2155,17 +2155,76 @@ export interface EmailSender {
 }
 
 /**
- * No email vendor is selected yet. Development prints to the log so the
- * verification link is reachable. Replace this with a real sender before
- * anything ships, and never log the body once you do.
+ * Development fallback. Prints the body so a verification link is reachable
+ * with no vendor configured. Never selected when SMTP is configured, because
+ * printing message bodies to a log is not acceptable in production.
  */
 export class ConsoleEmailSender implements EmailSender {
   async send(email: OutboundEmail): Promise<void> {
     console.log(
-      JSON.stringify({ msg: "email_sent", to: email.to, subject: email.subject }),
+      JSON.stringify({ msg: "email_sent", transport: "console", to: email.to, subject: email.subject }),
     )
     console.log(email.text)
   }
+}
+
+export class SmtpEmailSender implements EmailSender {
+  constructor(
+    private readonly transport: import("nodemailer").Transporter,
+    private readonly from: string,
+  ) {}
+
+  async send(email: OutboundEmail): Promise<void> {
+    await this.transport.sendMail({
+      from: this.from,
+      to: email.to,
+      subject: email.subject,
+      text: email.text,
+    })
+    // Subject and recipient only. The body carries verification tokens.
+    console.log(
+      JSON.stringify({ msg: "email_sent", transport: "smtp", to: email.to, subject: email.subject }),
+    )
+  }
+}
+
+/**
+ * SMTP when it is fully configured, console otherwise. Production refuses to
+ * fall back: silently printing verification links to a log while believing
+ * mail is being delivered is worse than failing at startup.
+ */
+export function createEmailSender(config: {
+  env: string
+  smtpHost: string | null
+  smtpPort: number
+  smtpUser: string | null
+  smtpPassword: string | null
+  emailFrom: string
+}): EmailSender {
+  const configured = Boolean(config.smtpHost && config.smtpUser && config.smtpPassword)
+
+  if (!configured) {
+    if (config.env === "production") {
+      throw new Error(
+        "SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASSWORD, or run outside production.",
+      )
+    }
+    console.log(
+      JSON.stringify({ msg: "email_transport", transport: "console", reason: "smtp_not_configured" }),
+    )
+    return new ConsoleEmailSender()
+  }
+
+  const nodemailer = require("nodemailer") as typeof import("nodemailer")
+  return new SmtpEmailSender(
+    nodemailer.createTransport({
+      host: config.smtpHost!,
+      port: config.smtpPort,
+      secure: config.smtpPort === 465,
+      auth: { user: config.smtpUser!, pass: config.smtpPassword! },
+    }),
+    config.emailFrom,
+  )
 }
 
 export class CapturingEmailSender implements EmailSender {
@@ -3901,4 +3960,6 @@ Deferred to plan 4 (KYC and dashboard): the `KycProvider` interface and its sand
 
 Deferred and explicitly tracked from plan 2: the command palette, the keyboard map, skeleton loading states, toasts, and splitting `formatUsd` so the fractional part can render muted. The dashboard is the first screen that justifies them, so they belong with plan 4.
 
-Not in scope at all yet: a real email vendor. `ConsoleEmailSender` prints the verification link to the log. Selecting a sender and removing the body from the log is a launch blocker, tracked in spec §12.
+Email transport is SMTP when `SMTP_HOST`, `SMTP_USER`, and `SMTP_PASSWORD` are all set, and the console sender otherwise. Production refuses to start without SMTP rather than silently printing verification links to a log. Choosing an actual provider and verifying a sending domain remains a launch task, but no code change is needed for it.
+
+Task 2 gains these config fields, all optional except in production: `SMTP_HOST`, `SMTP_PORT` (default 587), `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM` (default `Meridian <no-reply@meridian.example>`). Add tests to `tests/config.test.ts` covering the defaults and the production guard, and a test in `tests/services/email.test.ts` asserting `createEmailSender` returns the console sender when SMTP is absent outside production and throws inside it.
