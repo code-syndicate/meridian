@@ -35,17 +35,34 @@ function group(whole: string): string {
   return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
 }
 
+const ONE_DOLLAR = 100000000n
+const ONE_CENT = 1000000n
+
+/**
+ * Precision follows magnitude, because a fixed width either wastes digits on
+ * large prices or says nothing about small ones. Three tiers keeps assets of
+ * similar value looking alike, which two tiers did not: a stablecoin a hair
+ * under a dollar rendered at eight decimals beside one at two.
+ */
 export function formatUsd(priceUsd: bigint): string {
-  // Sub-dollar assets need more than two decimals to say anything at all.
-  const decimals = priceUsd > 0n && priceUsd < 100000000n ? 8 : 2
+  let decimals = 2
+  if (priceUsd > 0n && priceUsd < ONE_CENT) decimals = 8
+  else if (priceUsd > 0n && priceUsd < ONE_DOLLAR) decimals = 4
+
   const plain = formatBalance(priceUsd, decimals)
   const [whole = "0", fraction = ""] = plain.split(".")
   return `${group(whole)}.${fraction}`
 }
 
+/**
+ * Direction is decided on the rounded figure, not the raw one. A change of
+ * -0.0004 displays as 0.00% and must not carry a down arrow: an arrow beside
+ * a zero reads as a bug to anyone looking at it.
+ */
 export function directionOf(change24h: number): "up" | "down" | "flat" {
-  if (change24h > 0) return "up"
-  if (change24h < 0) return "down"
+  const rounded = Number(change24h.toFixed(2))
+  if (rounded > 0) return "up"
+  if (rounded < 0) return "down"
   return "flat"
 }
 

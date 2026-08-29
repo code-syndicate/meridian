@@ -57,11 +57,25 @@ describe("formatUsd", () => {
   })
 
   test("does not group below a thousand", () => {
-    expect(formatUsd(99999999n)).toBe("0.99999999")
+    expect(formatUsd(150000000n)).toBe("1.50")
   })
 
-  test("shows more precision for sub-dollar prices", () => {
+  test("uses four decimals between a cent and a dollar", () => {
+    expect(formatUsd(99999000n)).toBe("0.9999")
+    expect(formatUsd(33830400n)).toBe("0.3383")
+  })
+
+  test("uses eight decimals below a cent", () => {
     expect(formatUsd(2341n)).toBe("0.00002341")
+  })
+
+  test("renders two near-identical stablecoins at the same width", () => {
+    // One a hair under a dollar, one exactly on it. They must not look
+    // like different kinds of number.
+    const justUnder = formatUsd(99999000n)
+    const exactlyOne = formatUsd(100000000n)
+    expect(justUnder.split(".")[1]!.length).toBeLessThanOrEqual(4)
+    expect(exactlyOne).toBe("1.00")
   })
 
   test("formats zero", () => {
@@ -96,6 +110,26 @@ describe("directionOf", () => {
     expect(directionOf(0.1)).toBe("up")
     expect(directionOf(-0.1)).toBe("down")
     expect(directionOf(0)).toBe("flat")
+  })
+
+  test("treats a change that rounds to zero as flat, not down", () => {
+    // Stablecoins produce these constantly. A down arrow beside 0.00% is wrong.
+    expect(directionOf(-0.0004)).toBe("flat")
+    expect(directionOf(0.0004)).toBe("flat")
+  })
+})
+
+describe("direction and magnitude agree", () => {
+  test("a change displaying as 0.00% never carries a direction glyph", () => {
+    for (const value of [-0.0004, 0.0004, -0.001, 0.004, 0]) {
+      expect(formatChange(value)).toBe("0.00%")
+      expect(directionOf(value)).toBe("flat")
+    }
+  })
+
+  test("a change that survives rounding keeps its glyph", () => {
+    expect(formatChange(-0.005)).toBe("▼0.01%")
+    expect(directionOf(-0.005)).toBe("down")
   })
 })
 
