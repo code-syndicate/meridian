@@ -1,0 +1,55 @@
+extends ../layouts/base.pug
+
+block content
+  .shell
+    .section
+      .eyebrow Account
+      h1 Security.
+      if error
+        p.form-error= error
+
+    .section
+      h2 Password
+      form(method="post" action="/account/password")
+        input(type="hidden" name="_csrf" value=csrfToken)
+        .field
+          label(for="current") Current password
+          input#current(type="password" name="current" required autocomplete="current-password")
+        .field
+          label(for="next") New password
+          input#next(type="password" name="next" required autocomplete="new-password" minlength="12")
+        button.btn(type="submit") Change password
+      p.field-hint Changing your password signs you out everywhere else.
+
+    .section
+      h2 Two-factor authentication
+      if totpEnabled
+        p Two-factor authentication is on. It will be required before any withdrawal.
+        form(method="post" action="/account/2fa/disable")
+          input(type="hidden" name="_csrf" value=csrfToken)
+          button.btn(type="submit") Turn off
+      else
+        p Two-factor authentication is off. Turn it on now: it will be required before any withdrawal.
+        a.btn.btn-primary(href="/account/2fa") Turn on
+
+    .section
+      h2 Where you are signed in
+      .table-scroll
+        table.table
+          thead
+            tr
+              th Device
+              th IP address
+              th Last active
+          tbody
+            each session in sessions
+              tr
+                td
+                  = session.label
+                  if session.current
+                    |  (this device)
+                td.num= session.ip
+                td.num= session.lastSeen
+      form(method="post" action="/account/sessions/revoke-others")
+        input(type="hidden" name="_csrf" value=csrfToken)
+        button.btn(type="submit") Sign out of other devices

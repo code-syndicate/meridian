@@ -1,20 +1,36 @@
 import express from "express"
 import helmet from "helmet"
+import cookieParser from "cookie-parser"
 import { join } from "node:path"
 import type { AddressInfo } from "node:net"
+import type { Database } from "bun:sqlite"
 import type { Config } from "./config"
-import { PriceFeed, CoinGeckoSource } from "./services/price-feed"
-import { createPriceRoutes } from "./routes/prices"
-import { createMarketingRoutes } from "./routes/marketing"
 import { openDatabase, migrate } from "./db"
 import { AssetRepository } from "./db/repositories/assets"
-
-export interface AppDeps {
-  priceFeed?: PriceFeed
-}
+import { LedgerRepository } from "./db/repositories/ledger"
+import { UserRepository } from "./db/repositories/users"
+import { SessionRepository } from "./db/repositories/sessions"
+import { AuditRepository } from "./db/repositories/audit"
+import { RateLimitRepository } from "./db/repositories/rate-limits"
+import { PriceFeed, CoinGeckoSource } from "./services/price-feed"
+import { createEmailSender, type EmailSender } from "./services/email"
+import { HibpBreachCheck, type BreachCheck } from "./services/breach-check"
+import { createPriceRoutes } from "./routes/prices"
+import { createMarketingRoutes } from "./routes/marketing"
+import { createAuthRoutes } from "./routes/auth"
+import { createAccountRoutes } from "./routes/account"
+import { csrfMiddleware } from "./middleware/csrf"
+import { sessionMiddleware } from "./middleware/session"
 
 export interface App extends express.Express {
   inject(path: string, init?: RequestInit): Promise<Response>
+}
+
+export interface AppDeps {
+  priceFeed?: PriceFeed
+  db?: Database
+  email?: EmailSender
+  breach?: BreachCheck
 }
 
 export function createApp(config: Config, deps: AppDeps = {}): App {
@@ -23,6 +39,7 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
 
   app.set("view engine", "pug")
   app.set("views", join(import.meta.dir, "views"))
+  app.set("trust proxy", true)
 
   app.use(
     helmet({
@@ -57,31 +74,57 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
 
   app.use(express.urlencoded({ extended: false, limit: "64kb" }))
   app.use(express.json({ limit: "64kb" }))
+  app.use(cookieParser())
 
-  const priceFeed =
-    deps.priceFeed ??
+  // One connection for the whole application. SQLite in WAL mode is a single
+  // writer, so a second connection buys nothing and invites confusion. This
+  // consolidates the two connections plan 2 opened.
+  const db =
+    deps.db ??
     (() => {
-      const db = openDatabase(config.databasePath)
-      migrate(db)
-      return new PriceFeed(new CoinGeckoSource(), new AssetRepository(db).all())
+      const opened = openDatabase(config.databasePath)
+      migrate(opened)
+      return opened
     })()
 
+  const assets = new AssetRepository(db)
+  const ledger = new LedgerRepository(db)
+  const users = new UserRepository(db)
+  const sessions = new SessionRepository(db)
+  const audit = new AuditRepository(db)
+  const limits = new RateLimitRepository(db)
+
+  const priceFeed = deps.priceFeed ?? new PriceFeed(new CoinGeckoSource(), assets.all())
+  const email = deps.email ?? createEmailSender(config)
+  const breach = deps.breach ?? new HibpBreachCheck()
+
   app.locals.priceFeed = priceFeed
-  app.use(createPriceRoutes(priceFeed))
+
+  const secure = config.env === "production"
+  app.use(csrfMiddleware(secure))
+  app.use(sessionMiddleware({ sessions, users, secure }))
 
   app.get("/health", (_req, res) => {
     res.json({ status: "ok", env: config.env })
   })
 
-  const assetRepository = new AssetRepository(
-    (() => {
-      const db = openDatabase(config.databasePath)
-      migrate(db)
-      return db
-    })(),
+  app.use(createPriceRoutes(priceFeed))
+  app.use(
+    createAuthRoutes({
+      users,
+      sessions,
+      audit,
+      limits,
+      assets,
+      ledger,
+      email,
+      breach,
+      config,
+      db,
+    }),
   )
-
-  app.use(createMarketingRoutes({ assets: assetRepository, feed: priceFeed }))
+  app.use(createAccountRoutes({ users, sessions, audit, assets, ledger, config, db }))
+  app.use(createMarketingRoutes({ assets, feed: priceFeed }))
 
   app.use((_req, res) => {
     res.status(404).json({ error: "not_found" })

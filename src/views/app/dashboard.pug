@@ -1,0 +1,30 @@
+extends ../layouts/base.pug
+
+block content
+  .shell
+    .section
+      .eyebrow Portfolio
+      h1 Your account.
+      p Your balances appear here once deposits are enabled. Nothing is live yet, so every balance below is zero.
+      .actions
+        a.btn(href="/account/security") Account security
+        a.btn(href="/account/activity") Activity
+
+    .section
+      h2 Balances
+      .table-scroll
+        table.table
+          thead
+            tr
+              th Asset
+              th Network
+              th.n Available
+          tbody
+            each row in balances
+              tr
+                td
+                  strong= row.name
+                  |  
+                  span.num-frac= row.displaySymbol
+                td= row.networkLabel
+                td.n.num= row.available
