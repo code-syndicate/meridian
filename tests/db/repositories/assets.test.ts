@@ -69,10 +69,15 @@ describe("AssetRepository", () => {
     ])
   })
 
-  test("has every movement flag disabled in slice 1", () => {
+  test("has deposits and withdrawals enabled, since custody is built", () => {
     for (const asset of repo.all()) {
-      expect(asset.depositEnabled).toBe(false)
-      expect(asset.withdrawalEnabled).toBe(false)
+      expect(asset.depositEnabled).toBe(true)
+      expect(asset.withdrawalEnabled).toBe(true)
+    }
+  })
+
+  test("has trading disabled, because there is no execution subsystem yet", () => {
+    for (const asset of repo.all()) {
       expect(asset.tradingEnabled).toBe(false)
     }
   })

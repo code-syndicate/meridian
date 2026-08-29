@@ -1,0 +1,73 @@
+extends ../layouts/base.pug
+include ../components/amount.pug
+include ../components/apptabs.pug
+
+block content
+  .shell
+    .app
+      .app-head
+        div
+          h1.app-title Withdraw #{asset.displaySymbol}
+          p.app-sub #{asset.networkLabel}
+        +appTabs("withdraw")
+
+      if error
+        p.form-error= error
+
+      .app-block
+        .tiles
+          .tile
+            .tile-label Available
+            .tile-value
+              +amount(available)
+          .tile
+            .tile-label On hold
+            .tile-value
+              +amount(held)
+          .tile
+            .tile-label Network fee
+            .tile-value
+              +amount(fee)
+          .tile
+            .tile-label Daily limit
+            .tile-value.num= dailyLimit === null ? "None" : dailyLimit
+
+      .app-block
+        .form-card
+          h2 Send #{asset.displaySymbol}
+          form(method="post" action="/wallet/withdraw/" + asset.symbol.toLowerCase())
+            input(type="hidden" name="_csrf" value=csrfToken)
+            .field
+              label(for="destination") Destination address
+              input#destination(type="text" name="destination" value=values.destination required autocomplete="off" spellcheck="false")
+              p.field-hint Must be a #{asset.networkLabel} address. Sending to another network loses the funds.
+            .field
+              label(for="amount") Amount
+              input#amount(type="text" name="amount" value=values.amount required inputmode="decimal" autocomplete="off")
+              p.field-hint The network fee is taken on top of this amount.
+            .field
+              label(for="memo") Memo or tag (optional)
+              input#memo(type="text" name="memo" value=values.memo autocomplete="off")
+            button.btn.btn-primary(type="submit" disabled=!enabled) Request withdrawal
+            if !enabled
+              p.field-hint Withdrawals are not switched on yet.
+
+      if withdrawals.length
+        .app-block
+          .panel-table
+            .panel-table-head
+              h2 Recent #{asset.displaySymbol} withdrawals
+            .table-scroll
+              table.table
+                thead
+                  tr
+                    th Destination
+                    th.n Amount
+                    th.n Status
+                tbody
+                  each w in withdrawals
+                    tr
+                      td.num= w.destination.slice(0, 20) + "…"
+                      td.n
+                        +amount(w.amountParts)
+                      td.n= w.status

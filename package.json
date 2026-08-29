@@ -17,6 +17,7 @@
     "@types/express": "^5.0.0",
     "@types/jsdom": "^30.0.0",
     "@types/nodemailer": "^8.0.1",
+    "@types/qrcode": "^1.5.6",
     "axe-core": "^4.13.0",
     "jsdom": "^30.0.1"
   },
@@ -32,6 +33,7 @@
     "helmet": "^8.0.0",
     "nodemailer": "^9.0.6",
     "otpauth": "^9.5.1",
-    "pug": "^3.0.3"
+    "pug": "^3.0.3",
+    "qrcode": "^1.5.4"
   }
 }

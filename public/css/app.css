@@ -910,3 +910,11 @@ fieldset.field legend { font-size: var(--t-sm); color: var(--text-muted); margin
 .wizard .lead { font-size: var(--t-sm); margin-bottom: calc(var(--u) * 8); }
 .wizard .field { max-width: none; }
 .wizard .btn[type="submit"] { min-width: 160px; justify-content: center; }
+
+/* Deposit */
+.deposit-grid { display: grid; grid-template-columns: 200px minmax(0,1fr); gap: calc(var(--u) * 8); align-items: start; padding: calc(var(--u) * 6); border: 1px solid var(--hairline); border-radius: 12px; background: var(--surface); }
+.deposit-qr { padding: calc(var(--u) * 4); background: var(--surface-2); border: 1px solid var(--hairline); border-radius: 10px; }
+.deposit-qr svg { display: block; width: 100%; height: auto; }
+.deposit-detail { min-width: 0; display: grid; gap: calc(var(--u) * 2); }
+.deposit-address { font-size: var(--t-sm); word-break: break-all; background: var(--surface-2); border: 1px solid var(--hairline); border-radius: 8px; padding: calc(var(--u) * 3); margin: 0 0 calc(var(--u) * 3); }
+@media (max-width: 720px) { .deposit-grid { grid-template-columns: 1fr; gap: calc(var(--u) * 5); } .deposit-qr { max-width: 220px; } }

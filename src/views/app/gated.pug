@@ -1,0 +1,14 @@
+extends ../layouts/base.pug
+include ../components/apptabs.pug
+
+block content
+  .shell
+    .app
+      .app-head
+        div
+          h1.app-title= heading
+        +appTabs("")
+      .app-block
+        .form-card
+          p= message
+          a.btn.btn-primary(href=cta.href)= cta.label

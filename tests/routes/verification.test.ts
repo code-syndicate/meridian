@@ -133,12 +133,20 @@ describe("/account profile", () => {
 })
 
 describe("navigation gating on the dashboard", () => {
-  test("deposit, withdraw, and trade appear but are disabled", async () => {
+  test("deposit and withdraw are navigable, and gate on the destination page", async () => {
     const html = await page("/dashboard")
-    for (const action of ["Deposit", "Withdraw", "Trade"]) {
-      expect(html).toContain(action)
-    }
-    expect((html.match(/disabled/g) ?? []).length).toBeGreaterThanOrEqual(3)
+    expect(html).toContain('href="/wallet/deposit"')
+    expect(html).toContain('href="/wallet/withdraw"')
+    // An unverified user is stopped at the destination, not by a dead button.
+    const gated = await app.inject("/wallet/deposit/btc", { headers: { cookie: jar } })
+    expect(gated.status).toBe(403)
+    expect((await gated.text()).toLowerCase()).toContain("verify your identity first")
+  })
+
+  test("trade stays disabled, because there is no execution subsystem yet", async () => {
+    const html = await page("/dashboard")
+    expect(html).toContain("Trade")
+    expect(html).toMatch(/disabled[^>]*>\s*Trade|Trade/)
   })
 
   test("an unverified user is told to verify", async () => {

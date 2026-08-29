@@ -26,6 +26,10 @@ import { createAuthRoutes } from "./routes/auth"
 import { createAccountRoutes } from "./routes/account"
 import { createOnboardingRoutes } from "./routes/onboarding"
 import { NewsFeed, RssNewsSource } from "./services/news-feed"
+import { CustodyRepository } from "./db/repositories/custody"
+import { CustodyService } from "./services/custody"
+import { SandboxCustodyProvider, type CustodyProvider } from "./services/custody-provider"
+import { createWalletRoutes } from "./routes/wallet"
 import { SandboxKycProvider, type KycProvider } from "./services/kyc-provider"
 import { csrfMiddleware } from "./middleware/csrf"
 import { sessionMiddleware } from "./middleware/session"
@@ -42,6 +46,7 @@ export interface AppDeps {
   breach?: BreachCheck
   kycProvider?: KycProvider
   newsFeed?: NewsFeed
+  custodyProvider?: CustodyProvider
 }
 
 /**
@@ -128,12 +133,17 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   const emailTokens = new EmailTokenRepository(db)
   const recoveryCodes = new RecoveryCodeRepository(db)
   const kyc = new KycRepository(db)
+  const custody = new CustodyRepository(db)
 
   const priceFeed = deps.priceFeed ?? new PriceFeed(new CoinGeckoSource(), assets.all())
   const email = deps.email ?? createEmailSender(config)
   const breach = deps.breach ?? new HibpBreachCheck()
   const kycProvider = deps.kycProvider ?? new SandboxKycProvider()
   const newsFeed = deps.newsFeed ?? new NewsFeed(new RssNewsSource())
+  const custodyProvider = deps.custodyProvider ?? new SandboxCustodyProvider()
+  const custodyService = new CustodyService({
+    assets, ledger, custody, audit, provider: custodyProvider,
+  })
 
   app.locals.priceFeed = priceFeed
   app.locals.newsFeed = newsFeed
@@ -164,6 +174,9 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   ]
   const ACCOUNT_DESTINATIONS = [
     { href: "/dashboard", label: "Dashboard" },
+    { href: "/wallet/deposit", label: "Deposit" },
+    { href: "/wallet/withdraw", label: "Withdraw" },
+    { href: "/wallet/transactions", label: "Transactions" },
     { href: "/account", label: "Account details" },
     { href: "/account/security", label: "Security settings" },
     { href: "/account/verification", label: "Verification" },
@@ -199,6 +212,9 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
     }),
   )
   app.use(createAccountRoutes({ users, sessions, audit, assets, ledger, feed: priceFeed, recoveryCodes, kyc, config }))
+  app.use(
+    createWalletRoutes({ assets, ledger, custody, kyc, service: custodyService, config }),
+  )
   app.use(createOnboardingRoutes({ kyc, audit, provider: kycProvider, config }))
   app.use(createMarketingRoutes({ assets, feed: priceFeed, news: newsFeed }))
 

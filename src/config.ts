@@ -10,6 +10,7 @@ export interface Config {
   smtpPassword: string | null
   emailFrom: string
   kycProvider: string
+  custodyProvider: string
 }
 
 const ENVIRONMENTS = ["development", "test", "production"] as const
@@ -70,6 +71,15 @@ export function loadConfig(
     )
   }
 
+  // A sandbox custody provider in production hands real users addresses that
+  // nobody holds keys to. Refuse to start.
+  const custodyProvider = source.CUSTODY_PROVIDER ?? (env === "production" ? "" : "sandbox")
+  if (env === "production" && (!custodyProvider || custodyProvider === "sandbox")) {
+    throw new Error(
+      "CUSTODY_PROVIDER must name a real provider in production. The sandbox issues addresses nobody controls.",
+    )
+  }
+
   return {
     env: env as Config["env"],
     port,
@@ -82,5 +92,6 @@ export function loadConfig(
     smtpPassword,
     emailFrom: source.EMAIL_FROM ?? "Meridian <no-reply@meridian.example>",
     kycProvider,
+    custodyProvider,
   }
 }

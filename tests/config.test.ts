@@ -84,8 +84,35 @@ describe("smtp configuration", () => {
         SMTP_USER: "postmaster",
         SMTP_PASSWORD: "secret",
         KYC_PROVIDER: "smile_id",
+        CUSTODY_PROVIDER: "fireblocks",
       }),
     ).not.toThrow()
+  })
+})
+
+describe("custody provider configuration", () => {
+  test("defaults to sandbox outside production", () => {
+    expect(loadConfig(valid).custodyProvider).toBe("sandbox")
+  })
+
+  test("production refuses to start with the sandbox custody provider", () => {
+    expect(() =>
+      loadConfig({
+        ...valid, NODE_ENV: "production",
+        SMTP_HOST: "s", SMTP_USER: "u", SMTP_PASSWORD: "p",
+        KYC_PROVIDER: "smile_id", CUSTODY_PROVIDER: "sandbox",
+      }),
+    ).toThrow(/CUSTODY_PROVIDER/)
+  })
+
+  test("production starts with a named custody provider", () => {
+    expect(
+      loadConfig({
+        ...valid, NODE_ENV: "production",
+        SMTP_HOST: "s", SMTP_USER: "u", SMTP_PASSWORD: "p",
+        KYC_PROVIDER: "smile_id", CUSTODY_PROVIDER: "fireblocks",
+      }).custodyProvider,
+    ).toBe("fireblocks")
   })
 })
 
@@ -128,6 +155,7 @@ describe("kyc provider configuration", () => {
         SMTP_USER: "u",
         SMTP_PASSWORD: "p",
         KYC_PROVIDER: "smile_id",
+        CUSTODY_PROVIDER: "fireblocks",
       }).kycProvider,
     ).toBe("smile_id")
   })

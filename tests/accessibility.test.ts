@@ -116,6 +116,9 @@ describe("accessibility of authenticated pages", () => {
     "/onboarding/document",
     "/onboarding/disclosures",
     "/onboarding/submitted",
+    "/wallet/deposit",
+    "/wallet/withdraw",
+    "/wallet/transactions",
   ]
 
   test("every authenticated route has no axe violations", async () => {

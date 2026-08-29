@@ -2,6 +2,7 @@ import { test, expect, describe, beforeEach } from "bun:test"
 import type { Database } from "bun:sqlite"
 import { LedgerRepository } from "../../src/db/repositories/ledger"
 import { verifyLedger } from "../../scripts/verify-ledger"
+import { CustodyRepository } from "../../src/db/repositories/custody"
 import { freshDb, createUser } from "../support/fixtures"
 
 let db: Database
@@ -125,6 +126,42 @@ describe("verifyLedger", () => {
 
   test("passes over a large synthetic journal", () => {
     for (let i = 0; i < 2000; i++) deposit(BigInt(1 + (i % 997)), `bulk-${i}`)
+    expect(verifyLedger(db).ok).toBe(true)
+  })
+})
+
+describe("reserve backing", () => {
+  test("passes when reserves cover what clients are owed", () => {
+    deposit(100000000n, "r-1")
+    new CustodyRepository(db).setReserve("BTC", 100000000n)
+    expect(verifyLedger(db).ok).toBe(true)
+  })
+
+  test("passes when reserves exceed what clients are owed", () => {
+    deposit(100000000n, "r-1")
+    new CustodyRepository(db).setReserve("BTC", 150000000n)
+    expect(verifyLedger(db).ok).toBe(true)
+  })
+
+  test("fails when clients are owed more than the confirmed reserve", () => {
+    deposit(100000000n, "r-1")
+    new CustodyRepository(db).setReserve("BTC", 99999999n)
+    const result = verifyLedger(db)
+    expect(result.ok).toBe(false)
+    expect(result.violations.map((v) => v.invariant)).toContain("reserve_backing")
+  })
+
+  test("counts held balance toward what is owed", () => {
+    deposit(100000000n, "r-1")
+    ledger.hold(userId, "BTC", 40000000n, "w", "h-r")
+    new CustodyRepository(db).setReserve("BTC", 100000000n)
+    expect(verifyLedger(db).ok).toBe(true)
+    new CustodyRepository(db).setReserve("BTC", 60000000n)
+    expect(verifyLedger(db).ok).toBe(false)
+  })
+
+  test("ignores assets with no reserve row recorded", () => {
+    deposit(100000000n, "r-1")
     expect(verifyLedger(db).ok).toBe(true)
   })
 })

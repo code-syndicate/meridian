@@ -1,0 +1,41 @@
+extends ../layouts/base.pug
+include ../components/amount.pug
+include ../components/apptabs.pug
+
+block content
+  .shell
+    .app
+      .app-head
+        div
+          h1.app-title Transactions
+          p.app-sub Every movement on your account, newest first
+        +appTabs("transactions")
+
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 Ledger entries
+            span.app-sub #{entries.length} shown
+          if empty
+            .empty-note
+              p Nothing has moved yet. Deposits and withdrawals appear here as soon as they do.
+              a.btn(href="/wallet/deposit") Make a deposit
+          .table-scroll
+            table.table
+              thead
+                tr
+                  th Event
+                  th Asset
+                  th Network
+                  th.n Amount
+                  th When
+              tbody
+                each e in entries
+                  tr
+                    td= e.label
+                    td.num= e.asset
+                    td: span.network-tag= e.network
+                    td.n(class=(e.outgoing ? "down" : "up"))
+                      = e.outgoing ? "−" : "+"
+                      +amount(e.amount)
+                    td.num= e.at.slice(0, 16).replace("T", " ")

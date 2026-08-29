@@ -117,6 +117,32 @@ export function verifyLedger(db: Database): VerifyResult {
     })
   }
 
+  // Invariant 5: user entitlement never exceeds confirmed on-chain reserves.
+  // Only checkable once custody reports reserves, which is subsystem D.
+  const underReserved = moneyQuery<
+    { asset: string; owed: bigint; confirmed: bigint },
+    []
+  >(
+    db,
+    `SELECT r.asset,
+            COALESCE((SELECT SUM(b.amount) FROM account_balances b
+                      JOIN accounts a ON a.id = b.account_id
+                      WHERE a.asset = r.asset
+                        AND a.type IN ('user_available', 'user_hold')), 0) AS owed,
+            r.confirmed AS confirmed
+     FROM reserves r
+     WHERE COALESCE((SELECT SUM(b.amount) FROM account_balances b
+                     JOIN accounts a ON a.id = b.account_id
+                     WHERE a.asset = r.asset
+                       AND a.type IN ('user_available', 'user_hold')), 0) > r.confirmed`,
+  ).all()
+  for (const row of underReserved) {
+    violations.push({
+      invariant: "reserve_backing",
+      detail: `Clients are owed ${row.owed} of ${row.asset} but confirmed reserves are ${row.confirmed}`,
+    })
+  }
+
   const counts = db
     .query<{ transactions: number; entries: number; accounts: number }, []>(
       `SELECT

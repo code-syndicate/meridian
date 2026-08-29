@@ -1,0 +1,50 @@
+extends ../layouts/base.pug
+include ../components/apptabs.pug
+
+block content
+  .shell
+    .app
+      .app-head
+        div
+          h1.app-title Deposit #{asset.displaySymbol}
+          p.app-sub #{asset.networkLabel} · #{asset.confirmationsRequired} confirmations required
+        +appTabs("deposit")
+
+      .app-block
+        .warn-note
+          h2 Send only #{asset.displaySymbol} on #{asset.networkLabel}
+          p Sending any other asset, or the right asset over a different network, will lose the funds permanently. Nobody can reverse it. Check the network in your sending wallet before you confirm.
+
+      .app-block
+        .deposit-grid
+          .deposit-qr
+            != qr
+          .deposit-detail
+            .tile-label Deposit address
+            p.deposit-address.num= address
+            if memo
+              .tile-label Memo or tag, required
+              p.deposit-address.num= memo
+              p.field-hint Sending without this memo will lose the funds.
+            p.field-hint This address is yours and does not change. It only accepts #{asset.displaySymbol} on #{asset.networkLabel}.
+            if !enabled
+              p.field-hint Deposits are not switched on yet, so nothing sent here will be credited. This address is shown so you can see how it will work.
+
+      if deposits.length
+        .app-block
+          .panel-table
+            .panel-table-head
+              h2 Recent #{asset.displaySymbol} deposits
+            .table-scroll
+              table.table
+                thead
+                  tr
+                    th Transaction
+                    th.n Confirmations
+                    th.n Status
+                tbody
+                  each d in deposits
+                    tr
+                      td.num= d.txHash.slice(0, 22) + "…"
+                      td.n.num #{d.confirmations} / #{asset.confirmationsRequired}
+                      td.n= d.status

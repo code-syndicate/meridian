@@ -1,6 +1,7 @@
 extends ../layouts/base.pug
 include ../components/amount.pug
 include ../components/icons.pug
+include ../components/apptabs.pug
 
 block content
   .shell
@@ -9,11 +10,7 @@ block content
         div
           h1.app-title Portfolio
           p.app-sub Tier #{tier} · #{assetCount} assets across #{networkCount} networks
-        nav.app-tabs(aria-label="Account")
-          a(href="/dashboard" aria-current="page") Overview
-          a(href="/account/verification") Verification
-          a(href="/account/security") Security
-          a(href="/account/activity") Activity
+        +appTabs("overview")
 
       .app-block
         .pf
@@ -28,8 +25,8 @@ block content
             else
               p.app-sub Valued at indicative prices. Not a quote.
           .pf-actions
-            button.btn(type="button" disabled title=actionReason) Deposit
-            button.btn(type="button" disabled title=actionReason) Withdraw
+            a.btn(href="/wallet/deposit") Deposit
+            a.btn(href="/wallet/withdraw") Withdraw
             button.btn(type="button" disabled title=actionReason) Trade
 
       .app-block
