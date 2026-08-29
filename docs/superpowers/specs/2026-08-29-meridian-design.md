@@ -18,7 +18,9 @@ Custody is **omnibus**: user funds are pooled in platform-controlled wallets, an
 
 ### 1.1 Regulatory posture
 
-Nigeria's Investment and Securities Act 2025 classifies virtual assets as securities and places VASP registration under SEC Nigeria. The practical path is the Accelerated Regulatory Incubation Programme (ARIP), which grants Approval in Principle to operate under supervision, followed by application for full registration. Indicative requirements: local CAC-incorporated entity, ₦500m baseline paid-up capital, minimum four sponsored individuals including a Managing Director and a Compliance Officer, mandatory initial assessment filing with a legal opinion. ARIP to full registration typically runs 9–18 months.
+Nigeria's Investment and Securities Act 2025 classifies virtual assets as securities and places VASP registration under SEC Nigeria. The practical path is the Accelerated Regulatory Incubation Programme (ARIP), which grants Approval in Principle to operate under supervision, followed by application for full registration. Indicative requirements: local CAC-incorporated entity, minimum four sponsored individuals including a Managing Director and a Compliance Officer, mandatory initial assessment filing with a legal opinion. ARIP to full registration typically runs 9–18 months.
+
+**Capital is the largest open number and it is moving.** Secondary sources give a ₦500m baseline, with a **proposed ₦2bn** threshold applying to exchanges facilitating secondary trading and to custodians safeguarding client assets and private keys. Meridian is the former in any design, and would be the latter too under self-custody, which is part of why custody is outsourced (§3.1). Treat both figures as unconfirmed and settle them with counsel before they drive a funding plan.
 
 This is **not legal advice** and the figures above are indicative, drawn from public secondary sources in August 2026. Confirm current requirements with Nigerian counsel before relying on any of it.
 
@@ -28,6 +30,7 @@ This is **not legal advice** and the figures above are indicative, drawn from pu
 
 | Function | Vendor | Notes |
 |---|---|---|
+| Custody | Fireblocks, BitGo, Cobo, or Dfns | Wallet-as-a-service. Decided (§3.1); provider selection open. |
 | Fiat on/offramp (later phase) | Paycrest | Stablecoin ↔ local currency routing API, settles Nigeria via Moniepoint. **Payments rail only.** |
 | KYC / AML | Smile ID, Dojah, or Youverify | BVN/NIN verification, document + liveness, sanctions and PEP screening, ongoing monitoring. **Must be a separate vendor from Paycrest.** Selection is an open question. |
 | Node / indexer access | Alchemy, QuickNode, or Blockdaemon | Per-chain. Phase D. |
@@ -82,7 +85,13 @@ Secondary note on the stack: matching is inherently serialized, so an in-memory 
 
 Additional assets are added on demonstrated demand. The asset registry (§7.1) is data-driven so adding an asset on an already-integrated chain is a row, not a release.
 
-**Recorded disagreement:** self-managed HD wallets were chosen over a wallet-as-a-service provider (Fireblocks, BitGo, Cobo, Dfns). WaaS is easier to defend to an ARIP reviewer and removes the single most common cause of exchange failure, which is hot-wallet key compromise. Subsystem D will therefore be built behind a `CustodyProvider` interface so a WaaS provider can be substituted without touching the ledger, the API, or the UI. Revisit before Slice 2 begins.
+**Custody: wallet-as-a-service, behind a `CustodyProvider` interface.** Settled 2026-08-29, reversing an initial preference for self-managed HD wallets. Three reasons, the first two regulatory:
+
+1. **Self-custody makes Meridian a custodian in its own right.** The capital threshold applies to exchanges facilitating secondary trading *and* to custodians safeguarding digital assets and private keys on behalf of clients. Holding keys puts us in both categories. See the capital note in §1.1.
+2. **The control requirements describe MPC or HSM infrastructure, not a keystore.** Custodians must implement multi-party controls, segregation of duties, restricted access, and recovery arrangements, with multi-signature or equivalent controls for material transactions, specifically so that no single person or single point of failure can initiate or authorise a significant transaction. A process holding signing keys fails this on its face. Meeting it properly means threshold signing, a policy engine, quorum approval, key ceremony and recovery procedures, and an audit trail, across five chains. Outsourcing is explicitly contemplated by the rules, which name controlling outsourcing risk as a custodian obligation, so a provider is a regulated arrangement rather than a workaround. We inherit their SOC 2 report and control attestations as ARIP evidence.
+3. **Gas funding is the hidden engineering cost of self-managed deposits.** Sweeping a token out of a per-user ERC20 or BEP20 deposit address requires that address to first hold native ETH or BNB. Every token deposit becomes two transactions plus a funding routine plus a hot wallet that must never run dry, per chain, with Tron adding its own energy and bandwidth staking model on top.
+
+Provider selection (Fireblocks, BitGo, Cobo, Dfns) remains open and is primarily a pricing decision; Cobo and Dfns sit at a more accessible tier. Subsystem D is built against `CustodyProvider` regardless, so the provider is swappable and a future move to self-custody, should the licensing position ever justify it, does not touch the ledger, the API, or the UI.
 
 ---
 
@@ -676,7 +685,7 @@ The ledger is the component where bugs are unrecoverable, so it is written test-
 1. **KYC provider selection.** Smile ID, Dojah, and Youverify differ in BVN/NIN coverage, liveness quality, sanctions screening depth, and pricing. This blocks step 2 of the wizard and needs a decision before subsystem B starts.
 2. **Legal entity structure.** A US company serving Nigerian users needs a CAC-incorporated Nigerian entity for SEC registration. The relationship between the two entities determines whose terms apply, where data resides, and which privacy regime governs. Needs counsel.
 3. **Data residency.** NDPR expectations for Nigerian personal data may constrain hosting location. Affects the deployment target.
-4. **Custody decision revisit.** Self-managed HD wallets versus WaaS, to be settled before Slice 2 begins. See §3.1.
+4. **Custody provider selection.** The self-managed versus WaaS question is settled in favour of WaaS (§3.1). Which provider is still open and is mainly a pricing question. Blocks Slice 2, not Slice 1.
 5. **Liquidity provider selection.** Blocks Slice 3. Not urgent.
 6. **Brand name clearance.** Trademark and domain availability for Meridian in both jurisdictions, before any asset production.
 7. **Hosting and deployment target.** Single-writer SQLite constrains this. Needs to be settled before Slice 1 ships.
@@ -688,4 +697,5 @@ The ledger is the component where bugs are unrecoverable, so it is written test-
 | Date | Change |
 |---|---|
 | 2026-08-29 | Initial draft. |
+| 2026-08-29 | Custody settled as wallet-as-a-service behind a `CustodyProvider` interface, reversing the initial self-managed HD wallet preference (§3.1). Driven by SEC Nigeria custody rules: self-custody would classify Meridian as a custodian in its own right, and the multi-party control and no-single-point-of-failure requirements describe MPC or HSM infrastructure rather than a keystore. §1.1 updated with the proposed ₦2bn capital threshold, which applies to both exchanges and key-holding custodians. KYC provider deferred; plan 2 will be written against a provider-agnostic `KycProvider` interface. |
 | 2026-08-29 | Four corrections found while writing plan 1. §7.1: `assets.symbol` is chain-qualified, with new `display_symbol` and `network_label` columns, because USDT exists on three chains. §5.4: display rounding split into `formatBalance` (rounds down) and `formatPrice` (half-even), and unrepresentable withdrawal amounts throw rather than truncate. §7.7: ledger interface is synchronous, since `bun:sqlite` is, and gains `replayed` and `consume`. §3: added a note distinguishing Slice 1's display-only reference price feed from Slice 3's execution-grade market data. §7.6: added the `holds` table definition, which the interface referenced but the schema omitted. |
