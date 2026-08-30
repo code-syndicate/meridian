@@ -119,6 +119,7 @@ describe("accessibility of authenticated pages", () => {
     "/wallet/deposit",
     "/wallet/withdraw",
     "/wallet/transactions",
+    "/wallet/send",
   ]
 
   test("every authenticated route has no axe violations", async () => {

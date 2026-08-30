@@ -1,0 +1,46 @@
+extends ../layouts/base.pug
+include ../components/amount.pug
+include ../components/apptabs.pug
+
+block content
+  .shell
+    .app
+      .app-head
+        div
+          h1.app-title Send
+          p.app-sub Instant transfers to another Meridian account. No network fee.
+        +appTabs("send")
+
+      if tier === 0
+        .app-block
+          .warn-note
+            h2 Verify your identity first
+            p Sending to another account needs a verified account.
+          .actions
+            a.btn.btn-primary(href="/onboarding") Start verification
+
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 Your balances
+            span.app-sub Transfers settle instantly
+          .table-scroll
+            table.table
+              thead
+                tr
+                  th Asset
+                  th Network
+                  th.n Available
+                  th.n: span.visually-hidden Action
+              tbody
+                each row in rows
+                  tr
+                    td
+                      .asset-name
+                        strong= row.name
+                        span.asset-ticker= row.displaySymbol
+                    td: span.network-tag= row.networkLabel
+                    td.n
+                      +amount(row.available)
+                    td.n
+                      a.btn(href="/wallet/send/" + row.symbol.toLowerCase()) Send

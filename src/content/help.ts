@@ -90,7 +90,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         heading: "Two-factor authentication",
         body: [
-          "Two-factor authentication is required before any withdrawal. Use an authenticator app rather than SMS. SIM swap fraud is widespread.",
+          "Two-factor authentication is optional but strongly recommended. When enabled, every withdrawal requires a code. Use an authenticator app rather than SMS. SIM swap fraud is widespread.",
           "Store recovery codes offline, accessible without your phone.",
         ],
       },

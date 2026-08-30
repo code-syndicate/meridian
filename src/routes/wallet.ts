@@ -2,6 +2,7 @@ import express from "express"
 import QRCode from "qrcode"
 import type { Config } from "../config"
 import type { AssetRepository } from "../db/repositories/assets"
+import type { UserRepository } from "../db/repositories/users"
 import type { LedgerRepository } from "../db/repositories/ledger"
 import type { CustodyRepository } from "../db/repositories/custody"
 import type { KycRepository } from "../db/repositories/kyc"
@@ -11,6 +12,8 @@ import { parseAmount, isRepresentableAtNative } from "../domain/money"
 import { tierFor, limitsFor } from "../domain/kyc/tiers"
 import { LedgerError } from "../domain/ledger/types"
 import { requireAuth } from "../middleware/session"
+import { TransferService, TransferError } from "../services/transfers"
+import { verifyTotp, decryptSecret } from "../domain/identity/totp"
 
 export interface WalletDeps {
   assets: AssetRepository
@@ -18,6 +21,8 @@ export interface WalletDeps {
   custody: CustodyRepository
   kyc: KycRepository
   service: CustodyService
+  transfers: TransferService
+  users: UserRepository
   config: Config
 }
 
@@ -114,7 +119,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
     status: number,
     asset: ReturnType<AssetRepository["find"]>,
     error: string | null,
-    values: { destination: string; amount: string; memo: string },
+    values: { destination: string; amount: string; memo: string; totp: string },
   ): void {
     const user = req.user!
     const balance = deps.ledger.balance(user.id, asset!.symbol)
@@ -130,6 +135,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
       held: balanceParts(balance.held, asset!.displayDecimals),
       fee: balanceParts(WITHDRAWAL_FEE[asset!.symbol] ?? 0n, asset!.displayDecimals),
       dailyLimit: limitsFor(tier).dailyWithdrawalUsd,
+      totpEnabled: user.totpEnabledAt !== null,
       withdrawals: deps.custody.withdrawalsFor(user.id, 10)
         .filter((w) => w.asset === asset!.symbol)
         .map((w) => ({
@@ -153,7 +159,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
       })
     }
     await deps.service.settleWithdrawals(req.user!.id)
-    renderWithdraw(req, res, 200, asset, null, { destination: "", amount: "", memo: "" })
+    renderWithdraw(req, res, 200, asset, null, { destination: "", amount: "", memo: "", totp: "" })
   })
 
   router.post("/wallet/withdraw/:symbol", async (req, res, next) => {
@@ -165,17 +171,28 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
       destination: String(body.destination ?? "").trim(),
       amount: String(body.amount ?? "").trim(),
       memo: String(body.memo ?? "").trim(),
+      totp: String(body.totp ?? "").trim(),
     }
 
     if (tierOf(user.id) === 0) {
       return renderWithdraw(req, res, 403, asset, "Verify your identity before withdrawing.", values)
     }
-    if (!user.totpEnabledAt) {
-      return renderWithdraw(
-        req, res, 403, asset,
-        "Turn on two-factor authentication before withdrawing. It is required for every withdrawal.",
-        values,
-      )
+    // Two-factor is optional. When it is on, every withdrawal needs a fresh
+    // code: account-level enrolment alone does not stop a hijacked session.
+    if (user.totpEnabledAt) {
+      const encrypted = deps.users.getTotpSecret(user.id)
+      const ok =
+        encrypted !== null &&
+        verifyTotp(decryptSecret(encrypted, deps.config.totpEncryptionKey), values.totp)
+      if (!ok) {
+        return renderWithdraw(
+          req, res, 400, asset,
+          values.totp
+            ? "That authentication code is not right. Codes change every 30 seconds."
+            : "Enter the code from your authenticator app.",
+          values,
+        )
+      }
     }
     if (!asset.withdrawalEnabled) {
       return renderWithdraw(req, res, 403, asset, "Withdrawals are not enabled yet.", values)
@@ -226,6 +243,106 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
     res.redirect(303, `/wallet/withdraw/${asset.symbol.toLowerCase()}`)
   })
 
+  // ---- send to another Meridian account ----
+
+  function renderSend(
+    req: express.Request,
+    res: express.Response,
+    status: number,
+    asset: ReturnType<AssetRepository["find"]>,
+    error: string | null,
+    values: { recipient: string; amount: string; note: string },
+  ): void {
+    const user = req.user!
+    const balance = deps.ledger.balance(user.id, asset!.symbol)
+    res.status(status).render("app/send", {
+      title: `Send ${asset!.displaySymbol} | Meridian`,
+      description: `Send ${asset!.displaySymbol} to another Meridian account.`,
+      path: `/wallet/send/${asset!.symbol.toLowerCase()}`,
+      asset: asset!,
+      error, values,
+      available: balanceParts(balance.available, asset!.displayDecimals),
+      transfers: deps.transfers
+        .historyFor(user.id, 20)
+        .filter((t) => t.asset === asset!.symbol)
+        .map((t) => ({ ...t, amountParts: balanceParts(t.amount, asset!.displayDecimals) })),
+    })
+  }
+
+  router.get("/wallet/send", (req, res) => {
+    res.render("app/send-index", {
+      title: "Send | Meridian",
+      description: "Send crypto to another Meridian account instantly.",
+      path: req.path,
+      tier: tierOf(req.user!.id),
+      rows: assetRows(req.user!.id),
+    })
+  })
+
+  router.get("/wallet/send/:symbol", (req, res, next) => {
+    const asset = deps.assets.find(String(req.params.symbol).toUpperCase())
+    if (!asset) return next()
+    if (tierOf(req.user!.id) === 0) {
+      return res.status(403).render("app/gated", {
+        title: "Verify first | Meridian",
+        description: "Identity verification is required.",
+        path: req.path,
+        heading: "Verify your identity first.",
+        message: "Sending to another account needs a verified account.",
+        cta: { href: "/onboarding", label: "Start verification" },
+      })
+    }
+    renderSend(req, res, 200, asset, null, { recipient: "", amount: "", note: "" })
+  })
+
+  router.post("/wallet/send/:symbol", (req, res, next) => {
+    const asset = deps.assets.find(String(req.params.symbol).toUpperCase())
+    if (!asset) return next()
+    const user = req.user!
+    const body = req.body as Record<string, string | undefined>
+    const values = {
+      recipient: String(body.recipient ?? "").trim(),
+      amount: String(body.amount ?? "").trim(),
+      note: String(body.note ?? "").trim(),
+    }
+
+    if (tierOf(user.id) === 0) {
+      return renderSend(req, res, 403, asset, "Verify your identity before sending.", values)
+    }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(values.recipient)) {
+      return renderSend(req, res, 400, asset, "Enter the recipient's email address.", values)
+    }
+
+    let amount: bigint
+    try {
+      amount = parseAmount(values.amount)
+    } catch {
+      return renderSend(req, res, 400, asset, "Enter a valid amount.", values)
+    }
+
+    try {
+      const { masked } = deps.transfers.send({
+        senderId: user.id,
+        recipientEmail: values.recipient,
+        asset,
+        amount,
+        note: values.note || null,
+        idempotencyKey: `tx:${user.id}:${asset.symbol}:${Date.now()}`,
+        ip: req.ip ?? null,
+      })
+      res.flash(`Sent ${values.amount} ${asset.displaySymbol} to ${masked}.`)
+      return res.redirect(303, `/wallet/send/${asset.symbol.toLowerCase()}`)
+    } catch (error) {
+      if (error instanceof TransferError) {
+        return renderSend(req, res, 400, asset, error.message, values)
+      }
+      if (error instanceof LedgerError && error.code === "insufficient_balance") {
+        return renderSend(req, res, 400, asset, "That is more than your available balance.", values)
+      }
+      throw error
+    }
+  })
+
   // ---- transactions ----
 
   router.get("/wallet/transactions", async (req, res) => {
@@ -244,6 +361,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
           : entry.kind === "hold" ? "Withdrawal held"
           : entry.kind === "hold_release" ? "Hold released"
           : entry.kind === "hold_consume" ? "Withdrawal sent"
+          : entry.kind === "transfer" ? (entry.amount < 0n ? "Sent to a Meridian account" : "Received from a Meridian account")
           : entry.kind,
         asset: asset.displaySymbol,
         network: asset.networkLabel,

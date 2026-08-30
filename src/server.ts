@@ -30,6 +30,8 @@ import { CustodyRepository } from "./db/repositories/custody"
 import { CustodyService } from "./services/custody"
 import { SandboxCustodyProvider, type CustodyProvider } from "./services/custody-provider"
 import { createWalletRoutes } from "./routes/wallet"
+import { TransferService } from "./services/transfers"
+import { TransferRepository } from "./db/repositories/transfers"
 import { SandboxKycProvider, type KycProvider } from "./services/kyc-provider"
 import { csrfMiddleware } from "./middleware/csrf"
 import { sessionMiddleware } from "./middleware/session"
@@ -141,6 +143,9 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   const kycProvider = deps.kycProvider ?? new SandboxKycProvider()
   const newsFeed = deps.newsFeed ?? new NewsFeed(new RssNewsSource())
   const custodyProvider = deps.custodyProvider ?? new SandboxCustodyProvider()
+  const transferService = new TransferService({
+    db, ledger, users, audit, transfers: new TransferRepository(db),
+  })
   const custodyService = new CustodyService({
     assets, ledger, custody, audit, provider: custodyProvider,
   })
@@ -176,6 +181,7 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
     { href: "/dashboard", label: "Dashboard" },
     { href: "/wallet/deposit", label: "Deposit" },
     { href: "/wallet/withdraw", label: "Withdraw" },
+    { href: "/wallet/send", label: "Send to a Meridian account" },
     { href: "/wallet/transactions", label: "Transactions" },
     { href: "/account", label: "Account details" },
     { href: "/account/security", label: "Security settings" },
@@ -213,7 +219,7 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   )
   app.use(createAccountRoutes({ users, sessions, audit, assets, ledger, feed: priceFeed, recoveryCodes, kyc, config }))
   app.use(
-    createWalletRoutes({ assets, ledger, custody, kyc, service: custodyService, config }),
+    createWalletRoutes({ assets, ledger, custody, kyc, service: custodyService, transfers: transferService, users, config }),
   )
   app.use(createOnboardingRoutes({ kyc, audit, provider: kycProvider, config }))
   app.use(createMarketingRoutes({ assets, feed: priceFeed, news: newsFeed }))

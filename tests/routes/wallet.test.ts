@@ -12,6 +12,7 @@ import { KycRepository } from "../../src/db/repositories/kyc"
 import { LedgerRepository } from "../../src/db/repositories/ledger"
 import { CustodyRepository } from "../../src/db/repositories/custody"
 import { hashPassword } from "../../src/domain/identity/password"
+import * as OTPAuth from "otpauth"
 import { encryptSecret, generateTotpSecret } from "../../src/domain/identity/totp"
 import { post, cookiesFrom } from "../support/http"
 
@@ -27,6 +28,14 @@ let app: App
 let provider: SandboxCustodyProvider
 let userId: number
 let jar: string
+let totpSecret = ""
+
+function currentCode(): string {
+  return new OTPAuth.TOTP({
+    issuer: "Meridian", label: "a@test.co", algorithm: "SHA1",
+    digits: 6, period: 30, secret: OTPAuth.Secret.fromBase32(totpSecret),
+  }).generate()
+}
 
 async function signIn(verified: boolean, totp: boolean): Promise<void> {
   db = openDatabase(":memory:")
@@ -46,8 +55,9 @@ async function signIn(verified: boolean, totp: boolean): Promise<void> {
   // Sign in first. Enabling TOTP beforehand would stop login at the second
   // factor and never issue a session.
   jar = cookiesFrom(await post(app, "/login", { email: "a@test.co", password: PASSWORD }))
+  totpSecret = generateTotpSecret()
   if (totp) {
-    users.setTotpSecret(userId, encryptSecret(generateTotpSecret(), TOTP_KEY))
+    users.setTotpSecret(userId, encryptSecret(totpSecret, TOTP_KEY))
     users.enableTotp(userId)
   }
 }
@@ -153,20 +163,43 @@ describe("withdraw", () => {
     expect(html).toContain("Daily limit")
   })
 
-  test("refuses without two-factor authentication", async () => {
+  test("works without two-factor, because it is opt in", async () => {
     await signIn(true, false)
     await fundBtc(100000000n)
     const res = await post(app, "/wallet/withdraw/btc",
       { destination: "bc1qdestination", amount: "0.1" }, jar)
-    expect(res.status).toBe(403)
-    expect((await res.text()).toLowerCase()).toContain("two-factor")
+    expect(res.status).toBe(303)
+  })
+
+  test("warns when two-factor is off", async () => {
+    await signIn(true, false)
+    const html = await (await get("/wallet/withdraw/btc")).text()
+    expect(html.toLowerCase()).toContain("two-factor authentication is off")
+  })
+
+  test("requires a fresh code on every withdrawal once two-factor is on", async () => {
+    await signIn(true, true)
+    await fundBtc(100000000n)
+    const res = await post(app, "/wallet/withdraw/btc",
+      { destination: "bc1qdestination", amount: "0.1" }, jar)
+    expect(res.status).toBe(400)
+    expect((await res.text()).toLowerCase()).toContain("authenticator app")
+  })
+
+  test("rejects a wrong code", async () => {
+    await signIn(true, true)
+    await fundBtc(100000000n)
+    const res = await post(app, "/wallet/withdraw/btc",
+      { destination: "bc1qdestination", amount: "0.1", totp: "000000" }, jar)
+    expect(res.status).toBe(400)
+    expect((await res.text()).toLowerCase()).toContain("not right")
   })
 
   test("refuses an amount beyond the balance", async () => {
     await signIn(true, true)
     await fundBtc(10000000n)
     const res = await post(app, "/wallet/withdraw/btc",
-      { destination: "bc1qdestination", amount: "5" }, jar)
+      { destination: "bc1qdestination", amount: "5", totp: currentCode() }, jar)
     expect(res.status).toBe(400)
     expect((await res.text()).toLowerCase()).toContain("available balance")
   })
@@ -174,7 +207,7 @@ describe("withdraw", () => {
   test("refuses a missing destination", async () => {
     await signIn(true, true)
     await fundBtc(100000000n)
-    const res = await post(app, "/wallet/withdraw/btc", { destination: "", amount: "0.1" }, jar)
+    const res = await post(app, "/wallet/withdraw/btc", { destination: "", amount: "0.1", totp: currentCode() }, jar)
     expect(res.status).toBe(400)
   })
 
@@ -182,7 +215,7 @@ describe("withdraw", () => {
     await signIn(true, true)
     await fundBtc(100000000n)
     const res = await post(app, "/wallet/withdraw/btc",
-      { destination: "bc1qdestination", amount: "abc" }, jar)
+      { destination: "bc1qdestination", amount: "abc", totp: currentCode() }, jar)
     expect(res.status).toBe(400)
   })
 
@@ -199,7 +232,7 @@ describe("withdraw", () => {
       ],
     })
     const res = await post(app, "/wallet/withdraw/usdt_trc20",
-      { destination: "Tdestination", amount: "1.00000001" }, jar)
+      { destination: "Tdestination", amount: "1.00000001", totp: currentCode() }, jar)
     expect(res.status).toBe(400)
     expect((await res.text()).toLowerCase()).toContain("fewer decimal places")
   })
@@ -208,7 +241,7 @@ describe("withdraw", () => {
     await signIn(true, true)
     await fundBtc(100000000n)
     const res = await post(app, "/wallet/withdraw/btc",
-      { destination: "bc1qdestination", amount: "0.5" }, jar)
+      { destination: "bc1qdestination", amount: "0.5", totp: currentCode() }, jar)
     expect(res.status).toBe(303)
     const balance = new LedgerRepository(db).balance(userId, "BTC")
     expect(balance.held).toBe(50015000n)

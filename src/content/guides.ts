@@ -20,8 +20,8 @@ export const GET_STARTED_STEPS: GuideStep[] = [
     body: "A single-use link, valid for 24 hours. Confirming it signs you in and creates your account ledger.",
   },
   {
-    title: "Turn on two-factor authentication",
-    body: "Use an authenticator app, not SMS. SIM swap fraud is widespread. Store your recovery codes offline.",
+    title: "Turn on two-factor authentication (recommended)",
+    body: "Optional but strongly recommended. When enabled, every withdrawal requires a code. Use an authenticator app, not SMS. Store your recovery codes offline.",
   },
   {
     title: "Verify your identity",

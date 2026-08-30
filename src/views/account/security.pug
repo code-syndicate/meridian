@@ -33,12 +33,12 @@ block content
         .form-card
           h2 Two-factor authentication
       if totpEnabled
-        p Two-factor authentication is on. It will be required before any withdrawal.
+        p Two-factor authentication is on. Every withdrawal requires a code from your authenticator app.
         form(method="post" action="/account/2fa/disable")
           input(type="hidden" name="_csrf" value=csrfToken)
           button.btn(type="submit") Turn off
       else
-        p Two-factor authentication is off. Turn it on now: it will be required before any withdrawal.
+        p Two-factor authentication is off. Withdrawals still work, but anyone with your password can move your funds.
         a.btn.btn-primary(href="/account/2fa") Turn on
 
       .app-block

@@ -14,6 +14,14 @@ block content
       if error
         p.form-error= error
 
+      if !totpEnabled
+        .app-block
+          .warn-note
+            h2 Two-factor authentication is off
+            p Withdrawals work without it, but anyone with your password can move your funds. Turning it on adds a code to every withdrawal.
+          .actions
+            a.btn(href="/account/2fa") Turn on two-factor
+
       .app-block
         .tiles
           .tile
@@ -48,6 +56,11 @@ block content
             .field
               label(for="memo") Memo or tag (optional)
               input#memo(type="text" name="memo" value=values.memo autocomplete="off")
+            if totpEnabled
+              .field
+                label(for="totp") Authentication code
+                input#totp(type="text" name="totp" value="" required inputmode="numeric" autocomplete="one-time-code")
+                p.field-hint From your authenticator app. Required for every withdrawal.
             button.btn.btn-primary(type="submit" disabled=!enabled) Request withdrawal
             if !enabled
               p.field-hint Withdrawals are not switched on yet.

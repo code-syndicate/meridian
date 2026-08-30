@@ -1,0 +1,71 @@
+extends ../layouts/base.pug
+include ../components/amount.pug
+include ../components/apptabs.pug
+
+block content
+  .shell
+    .app
+      .app-head
+        div
+          h1.app-title Send #{asset.displaySymbol}
+          p.app-sub To another Meridian account
+        +appTabs("send")
+
+      if error
+        p.form-error= error
+
+      .app-block
+        .tiles
+          .tile
+            .tile-label Available
+            .tile-value
+              +amount(available)
+          .tile
+            .tile-label Network fee
+            .tile-value.num 0.00
+            .tile-note Internal transfers are free
+          .tile
+            .tile-label Settlement
+            .tile-value Instant
+            .tile-note Nothing touches a blockchain
+
+      .app-block
+        .form-card
+          h2 Send #{asset.displaySymbol}
+          form(method="post" action="/wallet/send/" + asset.symbol.toLowerCase())
+            input(type="hidden" name="_csrf" value=csrfToken)
+            .field
+              label(for="recipient") Recipient email
+              input#recipient(type="email" name="recipient" value=values.recipient required autocomplete="off" spellcheck="false")
+              p.field-hint The email address on their Meridian account.
+            .field
+              label(for="amount") Amount
+              input#amount(type="text" name="amount" value=values.amount required inputmode="decimal" autocomplete="off")
+            .field
+              label(for="note") Note (optional)
+              input#note(type="text" name="note" value=values.note maxlength="140" autocomplete="off")
+              p.field-hint Visible to you and the recipient.
+            button.btn.btn-primary(type="submit") Send
+
+      if transfers.length
+        .app-block
+          .panel-table
+            .panel-table-head
+              h2 Recent #{asset.displaySymbol} transfers
+            .table-scroll
+              table.table
+                thead
+                  tr
+                    th Direction
+                    th Counterparty
+                    th.n Amount
+                    th When
+                tbody
+                  each t in transfers
+                    tr
+                      td= t.direction === "sent" ? "Sent" : "Received"
+                      td.num= t.counterparty
+                      td.n(class=(t.direction === "sent" ? "down" : "up"))
+                        = t.direction === "sent" ? "−" : "+"
+                        +amount(t.amountParts)
+                      td.num= t.createdAt.slice(0, 16).replace("T", " ")
