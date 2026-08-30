@@ -999,3 +999,33 @@ fieldset.field legend { font-size: var(--t-sm); color: var(--text-muted); margin
 .allowance-fill-90 { width: 90%; }
 .allowance-fill-95 { width: 95%; }
 .allowance-fill-100 { width: 100%; }
+
+/* Account identity card */
+.idcard {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: calc(var(--u) * 5); padding: calc(var(--u) * 5) calc(var(--u) * 6);
+  background: var(--surface-2); border: 1px solid var(--hairline-strong); border-radius: 12px;
+}
+.idcard-main { min-width: 0; }
+.idcard-label {
+  display: block; font-size: var(--t-xs); letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.idcard-value {
+  display: block; margin: calc(var(--u) * 2) 0 calc(var(--u) * 2);
+  font-size: 22px; letter-spacing: .12em; color: var(--text);
+  font-variant-numeric: tabular-nums; word-break: break-all;
+}
+.idcard-sub { margin: 0; font-size: var(--t-sm); color: var(--text-muted); }
+.idcard-copy { flex-shrink: 0; }
+.tag {
+  display: inline-block; margin-left: calc(var(--u) * 2);
+  padding: 1px calc(var(--u) * 2); border-radius: 4px;
+  font-size: var(--t-xs); border: 1px solid var(--hairline-strong); color: var(--text-muted);
+}
+.tag-ok { color: var(--up); border-color: color-mix(in srgb, var(--up) 40%, transparent); }
+@media (max-width: 560px) {
+  .idcard { flex-direction: column; align-items: stretch; gap: calc(var(--u) * 4); }
+  .idcard-copy { width: 100%; justify-content: center; }
+}
+[x-cloak] { display: none !important; }

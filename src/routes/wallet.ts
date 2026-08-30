@@ -12,6 +12,7 @@ import { parseAmount, isRepresentableAtNative } from "../domain/money"
 import { tierFor } from "../domain/kyc/tiers"
 import type { LimitService } from "../services/limits"
 import { LimitError } from "../services/custody"
+import { looksLikeAccountId } from "../domain/identity/account-id"
 import { LedgerError } from "../domain/ledger/types"
 import { requireAuth } from "../middleware/session"
 import { TransferService, TransferError } from "../services/transfers"
@@ -288,8 +289,13 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
       note: String(body.note ?? "").trim(),
     }
 
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(values.recipient)) {
-      return renderSend(req, res, 400, asset, "Enter the recipient's email address.", values)
+    const isEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(values.recipient)
+    if (!isEmail && !looksLikeAccountId(values.recipient)) {
+      return renderSend(
+        req, res, 400, asset,
+        "Enter the recipient's account ID or email address.",
+        values,
+      )
     }
 
     let amount: bigint
@@ -302,7 +308,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
     try {
       const { masked } = deps.transfers.send({
         senderId: user.id,
-        recipientEmail: values.recipient,
+        recipientRef: values.recipient,
         tier: tierOf(user.id),
         asset,
         amount,

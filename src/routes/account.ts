@@ -9,6 +9,7 @@ import type { LedgerRepository } from "../db/repositories/ledger"
 import type { RecoveryCodeRepository } from "../db/repositories/recovery-codes"
 import type { KycRepository } from "../db/repositories/kyc"
 import { tierFor } from "../domain/kyc/tiers"
+import { formatAccountId } from "../domain/identity/account-id"
 import { canResubmit } from "../domain/kyc/steps"
 import {
   validatePasswordPolicy,
@@ -189,6 +190,14 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
       description: "Your account details.",
       path: req.path,
       email: user.email,
+      accountId: formatAccountId(user.accountId),
+      accountIdRaw: user.accountId,
+      emailVerified: user.emailVerifiedAt !== null,
+      totpEnabled: user.totpEnabledAt !== null,
+      memberSince: new Date(user.createdAt).toLocaleDateString("en-US", {
+        year: "numeric", month: "long", day: "numeric",
+      }),
+      allowance: deps.limits.status(user.id, application ? tierFor(application.status, application.targetTier) : 0),
       // Names come from the verified application, never from free user input.
       fullName: profile?.firstName
         ? [profile.firstName, profile.middleName, profile.lastName].filter(Boolean).join(" ")

@@ -152,4 +152,26 @@ document.addEventListener("alpine:init", () => {
       observer.observe(this.$el)
     },
   }))
+
+  Alpine.data("copyField", () => ({
+    copied: false,
+    async copy() {
+      const value = this.$refs.value?.dataset.copy ?? ""
+      try {
+        await navigator.clipboard.writeText(value)
+      } catch {
+        // Clipboard is denied in some contexts. Selecting the text at least
+        // leaves the user one keystroke away.
+        const range = document.createRange()
+        range.selectNodeContents(this.$refs.value)
+        const selection = window.getSelection()
+        selection.removeAllRanges()
+        selection.addRange(range)
+        return
+      }
+      this.copied = true
+      setTimeout(() => { this.copied = false }, 1600)
+    },
+  }))
+
 })

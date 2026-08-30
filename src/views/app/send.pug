@@ -39,9 +39,9 @@ block content
           form(method="post" action="/wallet/send/" + asset.symbol.toLowerCase())
             input(type="hidden" name="_csrf" value=csrfToken)
             .field
-              label(for="recipient") Recipient email
-              input#recipient(type="email" name="recipient" value=values.recipient required autocomplete="off" spellcheck="false")
-              p.field-hint The email address on their Meridian account.
+              label(for="recipient") Recipient
+              input#recipient(type="text" name="recipient" value=values.recipient required autocomplete="off" spellcheck="false" placeholder="Account ID or email address")
+              p.field-hint Their 10-character account ID, or the email address on their account.
             .field
               label(for="amount") Amount
               input#amount(type="text" name="amount" value=values.amount required inputmode="decimal" autocomplete="off")

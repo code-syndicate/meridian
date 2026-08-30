@@ -1,33 +1,70 @@
 extends ../layouts/base.pug
+include ../components/allowance.pug
 
 block content
   .shell
     .app
       .app-head
         div
-          h1.app-title Account details
-          p.app-sub Read only for now. Changing these needs re-verification.
+          h1.app-title Account
+          p.app-sub Your account details and verification status
         nav.app-tabs(aria-label="Account")
           a(href="/dashboard") Overview
+          a(href="/account" aria-current="page") Account
           a(href="/account/verification") Verification
           a(href="/account/security") Security
           a(href="/account/activity") Activity
-      .table-scroll
-        table.table
-          tbody
-            tr
-              td Email address
-              td.n= email
-            tr
-              td Legal name
-              td.n= fullName || "Not verified yet"
-            tr
-              td Phone number
-              td.n= phone || "Not verified yet"
-            tr
-              td Verification tier
-              td.n Tier #{tier}
-      p Your legal name and phone number come from identity verification, so they cannot be edited here. Changing your email address requires re-verification and is not available yet.
-      .actions
-        a.btn(href="/account/verification") Verification
-        a.btn(href="/account/security") Security
+
+      .app-block
+        .idcard(x-data="copyField")
+          .idcard-main
+            span.idcard-label Account ID
+            span.idcard-value.num(x-ref="value" data-copy=accountIdRaw)= accountId
+            p.idcard-sub Share this to receive transfers. It reveals nothing else about your account.
+          button.btn.idcard-copy(type="button" x-on:click="copy")
+            span(x-show="!copied") Copy
+            span(x-show="copied" x-cloak) Copied
+
+      .app-block
+        .tiles
+          .tile
+            .tile-label Verification
+            .tile-value Tier #{tier}
+          .tile
+            .tile-label Two-factor
+            .tile-value= totpEnabled ? "On" : "Off"
+          .tile
+            .tile-label Member since
+            .tile-value= memberSince
+
+      .app-block
+        +allowanceNote(allowance, tier)
+
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 Details
+            span.app-sub From identity verification
+          .table-scroll
+            table.table
+              tbody
+                tr
+                  td Email address
+                  td.n
+                    = email
+                    if emailVerified
+                      span.tag.tag-ok Verified
+                tr
+                  td Legal name
+                  td.n= fullName || "Added when you verify"
+                tr
+                  td Phone number
+                  td.n= phone || "Added when you verify"
+        p.field-hint Your legal name and phone number come from identity verification and cannot be edited here. Changing your email address requires re-verification.
+
+      .app-block
+        .actions
+          if tier === 0
+            a.btn.btn-primary(href="/onboarding") Verify your identity
+          a.btn(href="/account/security") Security settings
+          a.btn(href="/account/activity") Account activity

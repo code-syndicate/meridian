@@ -39,7 +39,7 @@ function fund(userId: number, amount: bigint, key: string): void {
 
 function send(amount: bigint, key = "t1", to = "bob@test.co") {
   return svc.send({
-    senderId: alice, recipientEmail: to, asset: assets.find(BTC)!,
+    senderId: alice, recipientRef: to, asset: assets.find(BTC)!,
     tier: 2,
     amount, note: null, idempotencyKey: key, ip: null,
   })

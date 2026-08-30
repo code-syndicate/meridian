@@ -11,19 +11,31 @@ block content
       .hero-glow(aria-hidden="true")
       .hero-grid
         div
-          h1
-            | Buy, sell, and store 
-            span.headline-accent digital assets.
-          p.lead Ten assets across five networks. Third-party custody, published fees, and instant transfers between Meridian accounts.
-          form.hero-signup(method="get" action="/register")
-            label.visually-hidden(for="hero-email") Email address
-            input#hero-email(type="email" name="email" placeholder="Email address" autocomplete="email")
-            button.btn.btn-primary.btn-lg(type="submit")
-              | Get started
-              +icon("arrow", 16)
-          p.hero-alt
-            | Already have an account? 
-            a(href="/login") Sign in
+          if user
+            h1
+              | Welcome back to 
+              span.headline-accent Meridian.
+            p.lead Your portfolio, deposits, and transfers are in one place. Prices below are indicative and refresh every ten seconds.
+            .actions
+              a.btn.btn-primary.btn-lg(href="/dashboard")
+                | Go to your portfolio
+                +icon("arrow", 16)
+              a.btn.btn-lg(href="/wallet/deposit") Deposit
+              a.btn.btn-lg(href="/wallet/send") Send
+          else
+            h1
+              | Buy, sell, and store 
+              span.headline-accent digital assets.
+            p.lead Ten assets across five networks. Third-party custody, published fees, and instant transfers between Meridian accounts.
+            form.hero-signup(method="get" action="/register")
+              label.visually-hidden(for="hero-email") Email address
+              input#hero-email(type="email" name="email" placeholder="Email address" autocomplete="email")
+              button.btn.btn-primary.btn-lg(type="submit")
+                | Get started
+                +icon("arrow", 16)
+            p.hero-alt
+              | Already have an account? 
+              a(href="/login") Sign in
         .preview.reveal(x-data="reveal")
           .preview-bar
             .preview-dots

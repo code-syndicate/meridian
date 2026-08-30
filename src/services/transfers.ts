@@ -5,6 +5,7 @@ import type { UserRepository } from "../db/repositories/users"
 import type { AuditRepository } from "../db/repositories/audit"
 import type { TransferRepository } from "../db/repositories/transfers"
 import type { LimitService } from "./limits"
+import { looksLikeAccountId } from "../domain/identity/account-id"
 
 export class TransferError extends Error {
   constructor(
@@ -58,11 +59,20 @@ export interface TransferDeps {
 export class TransferService {
   constructor(private readonly deps: TransferDeps) {}
 
-  /** Resolves a recipient without revealing more than a masked address. */
-  resolve(senderId: number, email: string): { id: number; masked: string } {
-    const recipient = this.deps.users.findByEmail(email)
+  /**
+   * Takes an account ID or an email address. Which one was used never changes
+   * what comes back, so neither can be used to probe for the other.
+   */
+  resolve(senderId: number, recipientRef: string): { id: number; masked: string } {
+    const reference = recipientRef.trim()
+    const recipient = looksLikeAccountId(reference)
+      ? this.deps.users.findByAccountId(reference)
+      : this.deps.users.findByEmail(reference)
     if (!recipient) {
-      throw new TransferError("unknown_recipient", "No Meridian account uses that address.")
+      throw new TransferError(
+        "unknown_recipient",
+        "No Meridian account matches that. Check the account ID or email address.",
+      )
     }
     if (recipient.id === senderId) {
       throw new TransferError("self", "You cannot send to your own account.")
@@ -75,7 +85,7 @@ export class TransferService {
 
   send(input: {
     senderId: number
-    recipientEmail: string
+    recipientRef: string
     tier: number
     asset: Asset
     amount: bigint
@@ -86,7 +96,7 @@ export class TransferService {
     if (input.amount <= 0n) {
       throw new TransferError("amount", "Enter an amount greater than zero.")
     }
-    const recipient = this.resolve(input.senderId, input.recipientEmail)
+    const recipient = this.resolve(input.senderId, input.recipientRef)
 
     // Reserved before the post, and given back below if the post fails.
     const reservation = this.deps.limits.reserveOutbound({

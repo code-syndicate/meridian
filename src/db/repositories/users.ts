@@ -1,8 +1,10 @@
 import type { Database } from "bun:sqlite"
+import { generateAccountId, normalizeAccountId } from "../../domain/identity/account-id"
 import { normalizeEmail } from "../../domain/identity/tokens"
 
 export interface User {
   id: number
+  accountId: string
   email: string
   emailVerifiedAt: string | null
   totpEnabledAt: string | null
@@ -13,6 +15,7 @@ export interface User {
 
 interface UserRow {
   id: number
+  account_id: string
   email: string
   password_hash: string
   email_verified_at: string | null
@@ -25,6 +28,7 @@ interface UserRow {
 function toUser(row: UserRow): User {
   return {
     id: row.id,
+    accountId: row.account_id,
     email: row.email,
     emailVerifiedAt: row.email_verified_at,
     totpEnabledAt: row.totp_enabled_at,
@@ -34,7 +38,7 @@ function toUser(row: UserRow): User {
   }
 }
 
-const COLUMNS = `id, email, password_hash, email_verified_at, totp_enabled_at,
+const COLUMNS = `id, account_id, email, password_hash, email_verified_at, totp_enabled_at,
   status, kyc_tier, created_at`
 
 export class UserRepository {
@@ -42,15 +46,34 @@ export class UserRepository {
 
   create(email: string, passwordHash: string): number {
     const now = new Date().toISOString()
-    this.db
-      .query(
-        `INSERT INTO users (email, email_normalized, password_hash, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?)`,
-      )
-      .run(email, normalizeEmail(email), passwordHash, now, now)
-    return Number(
-      this.db.query<{ id: number }, []>("SELECT last_insert_rowid() AS id").get()!.id,
-    )
+    // Retried rather than trusted: 32^10 makes a clash vanishingly unlikely,
+    // but the unique index is the thing that actually guarantees it.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        this.db
+          .query(
+            `INSERT INTO users (account_id, email, email_normalized, password_hash, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            generateAccountId((n) => crypto.getRandomValues(new Uint8Array(n))),
+            email, normalizeEmail(email), passwordHash, now, now,
+          )
+        return Number(
+          this.db.query<{ id: number }, []>("SELECT last_insert_rowid() AS id").get()!.id,
+        )
+      } catch (error) {
+        if (attempt === 4 || !String(error).includes("idx_users_account_id")) throw error
+      }
+    }
+    throw new Error("could not allocate an account id")
+  }
+
+  findByAccountId(accountId: string): User | null {
+    const row = this.db
+      .query<UserRow, [string]>(`SELECT ${COLUMNS} FROM users WHERE account_id = ?`)
+      .get(normalizeAccountId(accountId))
+    return row ? toUser(row) : null
   }
 
   findByEmail(email: string): (User & { passwordHash: string }) | null {
