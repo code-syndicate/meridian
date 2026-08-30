@@ -95,7 +95,7 @@ export function loadConfig(
     }
     return value
   }
-  const freeTierLimitUsd = limitUsd("FREE_TIER_LIMIT_USD", 1_000)
+  const freeTierLimitUsd = limitUsd("FREE_TIER_LIMIT_USD", 10_000)
   const tier1DailyLimitUsd = limitUsd("TIER1_DAILY_LIMIT_USD", 10_000)
   const tier2DailyLimitUsd = limitUsd("TIER2_DAILY_LIMIT_USD", 100_000)
 
