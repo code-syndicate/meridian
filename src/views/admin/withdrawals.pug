@@ -1,5 +1,6 @@
 extends ../layouts/base.pug
 include nav.pug
+include ../components/copy.pug
 
 block content
   .shell
@@ -31,7 +32,7 @@ block content
                   p.review-detail
                     strong #{row.amountText} #{row.asset}
                     |  plus #{row.feeText} fee, to 
-                    span.mono= row.destination
+                    +copyInline(row.destination)
                   p.review-meta Requested #{row.requestedAt}
                   if row.reviewNote
                     p.review-meta Note: #{row.reviewNote}

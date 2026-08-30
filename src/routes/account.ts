@@ -1,4 +1,5 @@
 import express from "express"
+import QRCode from "qrcode"
 import { createHmac, timingSafeEqual } from "node:crypto"
 import type { Config } from "../config"
 import type { UserRepository } from "../db/repositories/users"
@@ -274,7 +275,15 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
     res.redirect(303, "/account/security")
   })
 
-  router.get("/account/2fa", (req, res) => {
+  // Server-rendered SVG, so no client library and no CSP exception.
+  async function totpQr(uri: string): Promise<string> {
+    return QRCode.toString(uri, {
+      type: "svg", margin: 0, errorCorrectionLevel: "M",
+      color: { dark: "#ECEFF2", light: "#0000" },
+    })
+  }
+
+  router.get("/account/2fa", async (req, res) => {
     const user = req.user!
     const secret = generateTotpSecret()
     res.cookie(ENROL_COOKIE, signEnrolment(secret, deps.config.sessionSecret), {
@@ -284,13 +293,15 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
       path: "/",
       maxAge: 10 * 60_000,
     })
+    const uri = totpUri(secret, user.email)
     res.render("account/totp-setup", {
       title: "Two-factor authentication | Meridian",
       description: "Turn on two-factor authentication.",
       path: req.path,
       error: null,
       secret,
-      uri: totpUri(secret, user.email),
+      uri,
+      qr: await totpQr(uri),
     })
   })
 
@@ -301,13 +312,15 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
 
     if (!secret || !verifyTotp(secret, token)) {
       const replacement = secret ?? generateTotpSecret()
+      const replacementUri = totpUri(replacement, user.email)
       res.status(400).render("account/totp-setup", {
         title: "Two-factor authentication | Meridian",
         description: "Turn on two-factor authentication.",
         path: "/account/2fa",
         error: "That code is not right. Codes change every 30 seconds.",
         secret: replacement,
-        uri: totpUri(replacement, user.email),
+        uri: replacementUri,
+        qr: await totpQr(replacementUri),
       })
       return
     }

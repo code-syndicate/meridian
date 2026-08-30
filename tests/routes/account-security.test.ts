@@ -131,9 +131,13 @@ describe("password change", () => {
 })
 
 describe("two-factor enrolment", () => {
-  test("shows a secret and a provisioning uri", async () => {
+  test("shows a scannable QR and the key behind it", async () => {
     const html = await (await app.inject("/account/2fa", { headers: { cookie: jar } })).text()
-    expect(html).toContain("otpauth://totp/")
+    expect(html).toContain("enrol-qr")
+    expect(html).toContain("<svg")
+    expect(html).toContain("Setup key")
+    // The key is copyable rather than something to retype off the screen.
+    expect(html).toContain('x-data="copyField"')
   })
 
   test("rejects enrolment with a wrong code and does not enable", async () => {

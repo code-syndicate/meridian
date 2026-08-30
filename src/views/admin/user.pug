@@ -1,5 +1,6 @@
 extends ../layouts/base.pug
 include nav.pug
+include ../components/copy.pug
 include ../components/allowance.pug
 
 block content
@@ -108,7 +109,7 @@ block content
                   each row in withdrawals
                     tr
                       td= row.asset
-                      td.mono= row.destination
+                      td: +copyInline(row.destination)
                       td= row.status
                       td= row.requestedAt
 

@@ -1,0 +1,19 @@
+mixin copyable(label, value, options)
+  - var opts = options || {}
+  .copyfield(x-data="copyField")
+    if label
+      span.copyfield-label= label
+    .copyfield-row
+      span.copyfield-value.num(x-ref="value" data-copy=value)= opts.display || value
+      button.btn.copyfield-btn(type="button" x-on:click="copy" aria-label="Copy " + (label || "value"))
+        span(x-show="!copied") Copy
+        span(x-show="copied" x-cloak) Copied
+    if opts.hint
+      p.field-hint= opts.hint
+
+mixin copyInline(value)
+  span.copyinline(x-data="copyField")
+    span.mono(x-ref="value" data-copy=value)= value
+    button.copyinline-btn(type="button" x-on:click="copy" aria-label="Copy " + value)
+      span(x-show="!copied") Copy
+      span(x-show="copied" x-cloak) Copied

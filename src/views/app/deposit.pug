@@ -3,6 +3,8 @@ include ../components/apptabs.pug
 
 include ../components/allowance.pug
 
+include ../components/copy.pug
+
 block content
   .shell
     .app
@@ -24,12 +26,9 @@ block content
           .deposit-qr
             != qr
           .deposit-detail
-            .tile-label Deposit address
-            p.deposit-address.num= address
+            +copyable("Deposit address", address)
             if memo
-              .tile-label Memo or tag, required
-              p.deposit-address.num= memo
-              p.field-hint Transfers sent without this memo cannot be credited.
+              +copyable("Memo or tag, required", memo, { hint: "Transfers sent without this memo cannot be credited." })
             p.field-hint This address is permanent and accepts only #{asset.displaySymbol} on #{asset.networkLabel}.
             if !enabled
               p.field-hint Deposits are not enabled. Funds sent to this address will not be credited.

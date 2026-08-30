@@ -1081,3 +1081,49 @@ fieldset.field legend { font-size: var(--t-sm); color: var(--text-muted); margin
   .review-actions input { width: 100%; }
   .review-actions form { flex-direction: column; }
 }
+
+/* Copyable values */
+.copyfield { margin-bottom: calc(var(--u) * 4); }
+.copyfield-label {
+  display: block; margin-bottom: calc(var(--u) * 2);
+  font-size: var(--t-xs); letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.copyfield-row {
+  display: flex; align-items: stretch; gap: calc(var(--u) * 2);
+}
+.copyfield-value {
+  flex: 1; min-width: 0; display: flex; align-items: center;
+  padding: calc(var(--u) * 3) calc(var(--u) * 4);
+  background: var(--surface-3); border: 1px solid var(--hairline);
+  border-radius: 8px; color: var(--text);
+  font-size: var(--t-sm); line-height: 1.5; word-break: break-all;
+}
+.copyfield-btn { flex-shrink: 0; align-self: stretch; }
+.copyfield .field-hint { margin-top: calc(var(--u) * 2); }
+
+/* Authenticator enrolment */
+.enrol-grid {
+  display: grid; grid-template-columns: 160px 1fr;
+  gap: calc(var(--u) * 6); align-items: start;
+  margin: calc(var(--u) * 5) 0 calc(var(--u) * 6);
+}
+.enrol-qr {
+  padding: calc(var(--u) * 4); background: var(--surface-2);
+  border: 1px solid var(--hairline); border-radius: 10px;
+}
+.enrol-qr svg { display: block; width: 100%; height: auto; }
+@media (max-width: 560px) {
+  .enrol-grid { grid-template-columns: 1fr; }
+  .enrol-qr { max-width: 200px; }
+  .copyfield-row { flex-direction: column; }
+  .copyfield-btn { width: 100%; justify-content: center; }
+}
+.copyinline { display: inline-flex; align-items: center; gap: calc(var(--u) * 2); }
+.copyinline-btn {
+  flex-shrink: 0; padding: 1px calc(var(--u) * 2);
+  background: transparent; border: 1px solid var(--hairline-strong);
+  border-radius: 4px; color: var(--text-muted);
+  font: inherit; font-size: var(--t-xs); cursor: pointer;
+}
+.copyinline-btn:hover { color: var(--text); border-color: var(--accent); }

@@ -1,5 +1,7 @@
 extends ../layouts/base.pug
 
+include ../components/copy.pug
+
 block content
   .shell
     .section
@@ -9,7 +11,12 @@ block content
       p
         strong This is the only time we can show them.
         |  We store them hashed, so we cannot display them again.
-      ul.codes
-        each code in codes
-          li= code
-      a.btn.btn-primary(href="/account/security") I have saved them
+      div(x-data="copyField")
+        ul.codes(x-ref="value" data-copy=codes.join("\n"))
+          each code in codes
+            li= code
+        .actions
+          button.btn(type="button" x-on:click="copy")
+            span(x-show="!copied") Copy all codes
+            span(x-show="copied" x-cloak) Copied
+          a.btn.btn-primary(href="/account/security") I have saved them

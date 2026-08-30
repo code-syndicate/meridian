@@ -1,15 +1,23 @@
 extends ../layouts/base.pug
+include ../components/copy.pug
 
 block content
   .shell
     .section
       .eyebrow Two-factor
       h1 Turn on two-factor authentication.
-      p Add this key to an authenticator app, then enter the code it shows. Use an app rather than SMS: SIM swap fraud is common and effective.
+      p Scan this with an authenticator app, then enter the code it shows. Use an app rather than SMS: SIM swap fraud is common and effective.
       if error
         p.form-error= error
-      p.num= secret
-      p.field-hint= uri
+
+      .enrol-grid
+        .enrol-qr
+          != qr
+        .enrol-detail
+          p.field-hint Cannot scan it? Enter this key in your app by hand.
+          +copyable("Setup key", secret)
+          p.field-hint Anyone with this key can generate your codes. Do not share it or photograph it.
+
       form(method="post" action="/account/2fa")
         input(type="hidden" name="_csrf" value=csrfToken)
         .field

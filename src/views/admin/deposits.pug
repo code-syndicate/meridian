@@ -1,5 +1,6 @@
 extends ../layouts/base.pug
 include nav.pug
+include ../components/copy.pug
 
 block content
   .shell
@@ -44,4 +45,4 @@ block content
                       td.n.num= row.amountText
                       td= row.status
                       td.n.num= row.confirmations
-                      td.mono= row.txHash
+                      td: +copyInline(row.txHash)

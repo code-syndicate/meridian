@@ -1,5 +1,6 @@
 extends ../layouts/base.pug
 include nav.pug
+include ../components/copy.pug
 
 block content
   .shell
@@ -46,7 +47,7 @@ block content
                     tr
                       td: a(href="/admin/users/" + row.userId)= row.email
                       td= row.asset
-                      td.mono= row.destination
+                      td: +copyInline(row.destination)
                       td= row.requestedAt
 
       .app-block
