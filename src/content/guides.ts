@@ -13,7 +13,7 @@ export interface Resource {
 export const GET_STARTED_STEPS: GuideStep[] = [
   {
     title: "Open an account",
-    body: "Email address and a password of at least 12 characters. Passwords are checked against known breach databases and reused passwords are rejected.",
+    body: "Email address and a password of at least 8 characters containing a letter and a number.",
   },
   {
     title: "Confirm your email",

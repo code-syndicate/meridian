@@ -239,7 +239,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
         res,
         400,
         error instanceof IdentityError
-          ? "Use a new password of at least 12 characters."
+          ? "Use a new password of at least 8 characters, with a letter and a number."
           : "That password cannot be used.",
       )
     }

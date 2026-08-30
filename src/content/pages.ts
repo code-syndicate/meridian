@@ -74,7 +74,7 @@ export const CONTENT_PAGES: ContentPage[] = [
       {
         heading: "Account security",
         body: [
-          "Passwords are hashed with Argon2id and checked against known breach corpora. Sessions are bound to a rotating identifier and expire on password change.",
+          "Passwords are hashed with Argon2id. Sessions are bound to a rotating identifier and expire on password change.",
           "Two-factor authentication is optional and strongly recommended. When it is enabled, every withdrawal requires a fresh code, so a hijacked session cannot move funds on its own.",
         ],
       },

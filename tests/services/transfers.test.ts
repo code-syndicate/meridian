@@ -22,7 +22,7 @@ let bob: number
 const BTC = "BTC"
 
 async function makeUser(email: string): Promise<number> {
-  return users.create(email, await hashPassword("correct horse battery staple"))
+  return users.create(email, await hashPassword("correct horse battery staple 7"))
 }
 
 function fund(userId: number, amount: bigint, key: string): void {

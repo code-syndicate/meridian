@@ -5,7 +5,6 @@ import type { Database } from "bun:sqlite"
 import { createApp, type App } from "../src/server"
 import { loadConfig } from "../src/config"
 import { CapturingEmailSender } from "../src/services/email"
-import { NeverBreached } from "../src/services/breach-check"
 import { openDatabase, migrate } from "../src/db"
 import { UserRepository } from "../src/db/repositories/users"
 import { SessionRepository } from "../src/db/repositories/sessions"
@@ -19,7 +18,7 @@ const config = loadConfig({
   TOTP_ENCRYPTION_KEY: "y".repeat(32),
 })
 
-const PASSWORD = "correct horse battery staple"
+const PASSWORD = "correct horse battery staple 7"
 
 const PROTECTED = ["/dashboard", "/account/security", "/account/activity", "/account/2fa"]
 const STATE_CHANGING = [
@@ -41,7 +40,6 @@ beforeEach(() => {
   app = createApp(config, {
     db,
     email: new CapturingEmailSender(),
-    breach: new NeverBreached(),
   })
 })
 

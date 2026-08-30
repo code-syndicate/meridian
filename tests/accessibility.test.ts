@@ -4,7 +4,6 @@ import { source as axeSource } from "axe-core"
 import { createApp } from "../src/server"
 import { loadConfig } from "../src/config"
 import { CapturingEmailSender } from "../src/services/email"
-import { NeverBreached } from "../src/services/breach-check"
 import { SandboxKycProvider } from "../src/services/kyc-provider"
 import { openDatabase, migrate } from "../src/db"
 import { UserRepository } from "../src/db/repositories/users"
@@ -128,16 +127,15 @@ describe("accessibility of authenticated pages", () => {
     const app = createApp(config, {
       db,
       email: new CapturingEmailSender(),
-      breach: new NeverBreached(),
       kycProvider: new SandboxKycProvider(),
     })
     const users = new UserRepository(db)
-    const userId = users.create("a@test.co", await hashPassword("correct horse battery staple"))
+    const userId = users.create("a@test.co", await hashPassword("correct horse battery staple 7"))
     users.markEmailVerified(userId)
     const jar = cookiesFrom(
       await post(app, "/login", {
         email: "a@test.co",
-        password: "correct horse battery staple",
+        password: "correct horse battery staple 7",
       }),
     )
 

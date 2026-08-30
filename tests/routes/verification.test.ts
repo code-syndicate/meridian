@@ -3,7 +3,6 @@ import type { Database } from "bun:sqlite"
 import { createApp, type App } from "../../src/server"
 import { loadConfig } from "../../src/config"
 import { CapturingEmailSender } from "../../src/services/email"
-import { NeverBreached } from "../../src/services/breach-check"
 import { SandboxKycProvider } from "../../src/services/kyc-provider"
 import { openDatabase, migrate } from "../../src/db"
 import { UserRepository } from "../../src/db/repositories/users"
@@ -18,7 +17,7 @@ const config = loadConfig({
   TOTP_ENCRYPTION_KEY: "y".repeat(32),
 })
 
-const PASSWORD = "correct horse battery staple"
+const PASSWORD = "correct horse battery staple 7"
 
 let db: Database
 let app: App
@@ -32,7 +31,6 @@ beforeEach(async () => {
   app = createApp(config, {
     db,
     email: new CapturingEmailSender(),
-    breach: new NeverBreached(),
     kycProvider: new SandboxKycProvider(),
   })
   kyc = new KycRepository(db)

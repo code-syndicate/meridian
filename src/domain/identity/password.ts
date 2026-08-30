@@ -1,6 +1,6 @@
 import { IdentityError } from "./errors"
 
-export const MINIMUM_LENGTH = 12
+export const MINIMUM_LENGTH = 8
 const MAXIMUM_LENGTH = 1024
 
 // OWASP's current Argon2id guidance. Raising these later is fine: needsRehash
@@ -19,6 +19,12 @@ export function validatePasswordPolicy(password: string): void {
     throw new IdentityError(
       "weak_password",
       `Password must be at most ${MAXIMUM_LENGTH} characters`,
+    )
+  }
+  if (!/[0-9]/.test(password) || !/[a-zA-Z]/.test(password)) {
+    throw new IdentityError(
+      "weak_password",
+      "Password must contain at least one letter and one number",
     )
   }
 }

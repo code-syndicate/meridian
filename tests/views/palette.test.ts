@@ -4,7 +4,6 @@ import type { Database } from "bun:sqlite"
 import { createApp, type App } from "../../src/server"
 import { loadConfig } from "../../src/config"
 import { CapturingEmailSender } from "../../src/services/email"
-import { NeverBreached } from "../../src/services/breach-check"
 import { openDatabase, migrate } from "../../src/db"
 import { UserRepository } from "../../src/db/repositories/users"
 import { hashPassword } from "../../src/domain/identity/password"
@@ -14,7 +13,7 @@ const config = loadConfig({
   NODE_ENV: "test", DATABASE_PATH: ":memory:",
   SESSION_SECRET: "x".repeat(32), TOTP_ENCRYPTION_KEY: "y".repeat(32),
 })
-const PASSWORD = "correct horse battery staple"
+const PASSWORD = "correct horse battery staple 7"
 const source = readFileSync("public/js/alpine-components.js", "utf8")
 
 let db: Database
@@ -24,7 +23,7 @@ let jar: string
 beforeEach(async () => {
   db = openDatabase(":memory:")
   migrate(db)
-  app = createApp(config, { db, email: new CapturingEmailSender(), breach: new NeverBreached() })
+  app = createApp(config, { db, email: new CapturingEmailSender(), })
   const users = new UserRepository(db)
   const id = users.create("a@test.co", await hashPassword(PASSWORD))
   users.markEmailVerified(id)

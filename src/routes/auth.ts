@@ -10,7 +10,6 @@ import type { EmailTokenRepository } from "../db/repositories/email-tokens"
 import type { AssetRepository } from "../db/repositories/assets"
 import type { LedgerRepository } from "../db/repositories/ledger"
 import type { EmailSender } from "../services/email"
-import type { BreachCheck } from "../services/breach-check"
 import {
   validatePasswordPolicy,
   hashPassword,
@@ -32,7 +31,6 @@ export interface AuthDeps {
   assets: AssetRepository
   ledger: LedgerRepository
   email: EmailSender
-  breach: BreachCheck
   config: Config
   db: Database
 }
@@ -131,14 +129,8 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
       } catch (error) {
         return fail(
           error instanceof IdentityError
-            ? "Use a password of at least 12 characters."
+            ? error.message
             : "That password cannot be used.",
-        )
-      }
-
-      if (await deps.breach.isBreached(password)) {
-        return fail(
-          "That password has appeared in a known data breach. Choose a different one.",
         )
       }
 

@@ -3,7 +3,6 @@ import type { Database } from "bun:sqlite"
 import { createApp, type App } from "../../src/server"
 import { loadConfig } from "../../src/config"
 import { CapturingEmailSender } from "../../src/services/email"
-import { NeverBreached } from "../../src/services/breach-check"
 import { openDatabase, migrate } from "../../src/db"
 import { UserRepository } from "../../src/db/repositories/users"
 import { SessionRepository } from "../../src/db/repositories/sessions"
@@ -18,7 +17,7 @@ const config = loadConfig({
   TOTP_ENCRYPTION_KEY: "y".repeat(32),
 })
 
-const PASSWORD = "correct horse battery staple"
+const PASSWORD = "correct horse battery staple 7"
 
 let db: Database
 let app: App
@@ -31,7 +30,6 @@ beforeEach(async () => {
   app = createApp(config, {
     db,
     email: new CapturingEmailSender(),
-    breach: new NeverBreached(),
   })
   const users = new UserRepository(db)
   userId = users.create("a@test.co", await hashPassword(PASSWORD))
@@ -72,20 +70,20 @@ describe("password change", () => {
     const res = await post(
       app,
       "/account/password",
-      { current: PASSWORD, next: "an entirely different passphrase" },
+      { current: PASSWORD, next: "an entirely different passphrase 4" },
       jar,
       "/account/security",
     )
     expect(res.status).toBe(303)
     const stored = new UserRepository(db).findByEmail("a@test.co")!.passwordHash
-    expect(await verifyPassword("an entirely different passphrase", stored)).toBe(true)
+    expect(await verifyPassword("an entirely different passphrase 4", stored)).toBe(true)
   })
 
   test("rejects a wrong current password", async () => {
     const res = await post(
       app,
       "/account/password",
-      { current: "not the password", next: "an entirely different passphrase" },
+      { current: "not the password", next: "an entirely different passphrase 4" },
       jar,
       "/account/security",
     )
@@ -110,7 +108,7 @@ describe("password change", () => {
     await post(
       app,
       "/account/password",
-      { current: PASSWORD, next: "an entirely different passphrase" },
+      { current: PASSWORD, next: "an entirely different passphrase 4" },
       jar,
       "/account/security",
     )
@@ -122,7 +120,7 @@ describe("password change", () => {
     await post(
       app,
       "/account/password",
-      { current: PASSWORD, next: "an entirely different passphrase" },
+      { current: PASSWORD, next: "an entirely different passphrase 4" },
       jar,
       "/account/security",
     )

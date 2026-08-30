@@ -4,7 +4,6 @@ import type { Database } from "bun:sqlite"
 import { createApp, type App } from "../../src/server"
 import { loadConfig } from "../../src/config"
 import { CapturingEmailSender } from "../../src/services/email"
-import { NeverBreached } from "../../src/services/breach-check"
 import { SandboxKycProvider } from "../../src/services/kyc-provider"
 import { SandboxCustodyProvider } from "../../src/services/custody-provider"
 import { openDatabase, migrate } from "../../src/db"
@@ -22,7 +21,7 @@ const config = loadConfig({
   NODE_ENV: "test", DATABASE_PATH: ":memory:",
   SESSION_SECRET: "x".repeat(32), TOTP_ENCRYPTION_KEY: TOTP_KEY,
 })
-const PASSWORD = "correct horse battery staple"
+const PASSWORD = "correct horse battery staple 7"
 
 let db: Database
 let app: App
@@ -43,7 +42,7 @@ async function signIn(verified: boolean, totp: boolean): Promise<void> {
   migrate(db)
   provider = new SandboxCustodyProvider()
   app = createApp(config, {
-    db, email: new CapturingEmailSender(), breach: new NeverBreached(),
+    db, email: new CapturingEmailSender(),
     kycProvider: new SandboxKycProvider(), custodyProvider: provider,
     priceFeed: await warmPriceFeed(db),
   })

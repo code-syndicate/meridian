@@ -3,7 +3,6 @@ import type { Database } from "bun:sqlite"
 import { createApp, type App } from "../../src/server"
 import { loadConfig } from "../../src/config"
 import { CapturingEmailSender } from "../../src/services/email"
-import { NeverBreached } from "../../src/services/breach-check"
 import { PriceFeed, type PriceSource, type RawPrice } from "../../src/services/price-feed"
 import { openDatabase, migrate } from "../../src/db"
 import { UserRepository } from "../../src/db/repositories/users"
@@ -16,7 +15,7 @@ const config = loadConfig({
   NODE_ENV: "test", DATABASE_PATH: ":memory:",
   SESSION_SECRET: "x".repeat(32), TOTP_ENCRYPTION_KEY: "y".repeat(32),
 })
-const PASSWORD = "correct horse battery staple"
+const PASSWORD = "correct horse battery staple 7"
 
 class Priced implements PriceSource {
   async fetch(): Promise<Map<string, RawPrice>> {
@@ -39,7 +38,7 @@ async function build(source: PriceSource): Promise<void> {
   await feed.refresh()
   app = createApp(config, {
     db, priceFeed: feed,
-    email: new CapturingEmailSender(), breach: new NeverBreached(),
+    email: new CapturingEmailSender(),
   })
   const users = new UserRepository(db)
   userId = users.create("a@test.co", await hashPassword(PASSWORD))

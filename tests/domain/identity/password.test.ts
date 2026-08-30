@@ -20,20 +20,28 @@ function codeOf(fn: () => void): string {
 
 describe("validatePasswordPolicy", () => {
   test("accepts a long passphrase", () => {
-    expect(() => validatePasswordPolicy("correct horse battery staple")).not.toThrow()
+    expect(() => validatePasswordPolicy("correct horse battery staple 7")).not.toThrow()
   })
 
-  test("requires at least twelve characters", () => {
-    expect(MINIMUM_LENGTH).toBe(12)
-    expect(codeOf(() => validatePasswordPolicy("short1!A"))).toBe("weak_password")
+  test("requires at least eight characters", () => {
+    expect(MINIMUM_LENGTH).toBe(8)
+    expect(codeOf(() => validatePasswordPolicy("shor1t"))).toBe("weak_password")
   })
 
   test("accepts exactly the minimum length", () => {
-    expect(() => validatePasswordPolicy("a".repeat(12))).not.toThrow()
+    expect(() => validatePasswordPolicy("abcdefg1")).not.toThrow()
   })
 
-  test("imposes no composition rules, which make passwords worse", () => {
-    expect(() => validatePasswordPolicy("thequickbrownfoxjumps")).not.toThrow()
+  test("requires a number", () => {
+    expect(codeOf(() => validatePasswordPolicy("onlyletters"))).toBe("weak_password")
+  })
+
+  test("requires a letter", () => {
+    expect(codeOf(() => validatePasswordPolicy("12345678"))).toBe("weak_password")
+  })
+
+  test("a long passphrase still needs a digit, which is the cost of the rule", () => {
+    expect(codeOf(() => validatePasswordPolicy("thequickbrownfoxjumps"))).toBe("weak_password")
   })
 
   test("rejects an empty password", () => {
@@ -47,29 +55,29 @@ describe("validatePasswordPolicy", () => {
 
 describe("hashPassword", () => {
   test("produces an argon2id hash", async () => {
-    expect(await hashPassword("correct horse battery staple")).toStartWith("$argon2id$")
+    expect(await hashPassword("correct horse battery staple 7")).toStartWith("$argon2id$")
   })
 
   test("never returns the password itself", async () => {
-    const password = "correct horse battery staple"
+    const password = "correct horse battery staple 7"
     expect(await hashPassword(password)).not.toContain(password)
   })
 
   test("salts, so the same password hashes differently each time", async () => {
-    const a = await hashPassword("correct horse battery staple")
-    const b = await hashPassword("correct horse battery staple")
+    const a = await hashPassword("correct horse battery staple 7")
+    const b = await hashPassword("correct horse battery staple 7")
     expect(a).not.toBe(b)
   })
 })
 
 describe("verifyPassword", () => {
   test("accepts the correct password", async () => {
-    const hash = await hashPassword("correct horse battery staple")
-    expect(await verifyPassword("correct horse battery staple", hash)).toBe(true)
+    const hash = await hashPassword("correct horse battery staple 7")
+    expect(await verifyPassword("correct horse battery staple 7", hash)).toBe(true)
   })
 
   test("rejects a wrong password", async () => {
-    const hash = await hashPassword("correct horse battery staple")
+    const hash = await hashPassword("correct horse battery staple 7")
     expect(await verifyPassword("wrong horse battery staple", hash)).toBe(false)
   })
 
@@ -84,7 +92,7 @@ describe("verifyPassword", () => {
 
 describe("needsRehash", () => {
   test("accepts a current argon2id hash", async () => {
-    expect(needsRehash(await hashPassword("correct horse battery staple"))).toBe(false)
+    expect(needsRehash(await hashPassword("correct horse battery staple 7"))).toBe(false)
   })
 
   test("flags a bcrypt hash for upgrade", () => {

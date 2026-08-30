@@ -3,7 +3,6 @@ import type { Database } from "bun:sqlite"
 import { createApp, type App } from "../../src/server"
 import { loadConfig } from "../../src/config"
 import { CapturingEmailSender } from "../../src/services/email"
-import { AlwaysBreached, NeverBreached } from "../../src/services/breach-check"
 import { openDatabase, migrate } from "../../src/db"
 import { UserRepository } from "../../src/db/repositories/users"
 import { AuditRepository } from "../../src/db/repositories/audit"
@@ -16,7 +15,7 @@ const config = loadConfig({
   TOTP_ENCRYPTION_KEY: "y".repeat(32),
 })
 
-const PASSWORD = "correct horse battery staple"
+const PASSWORD = "correct horse battery staple 7"
 
 let db: Database
 let app: App
@@ -26,7 +25,7 @@ function build(overrides: Record<string, unknown> = {}): void {
   db = openDatabase(":memory:")
   migrate(db)
   email = new CapturingEmailSender()
-  app = createApp(config, { db, email, breach: new NeverBreached(), ...overrides })
+  app = createApp(config, { db, email, ...overrides })
 }
 
 beforeEach(() => build())
@@ -111,18 +110,11 @@ describe("POST /register", () => {
     expect(new UserRepository(db).findByEmail("a@test.co")).toBeNull()
   })
 
-  test("rejects a breached password", async () => {
-    build({ breach: new AlwaysBreached() })
-    const res = await post(app, "/register", { email: "a@test.co", password: PASSWORD })
-    expect(res.status).toBe(400)
-    expect((await res.text()).toLowerCase()).toContain("data breach")
-  })
-
   test("does not reveal that an address is already registered", async () => {
     const first = await post(app, "/register", { email: "a@test.co", password: PASSWORD })
     const second = await post(app, "/register", {
       email: "a@test.co",
-      password: "a completely different passphrase",
+      password: "a completely different passphrase 5",
     })
     expect(second.status).toBe(first.status)
     expect(second.headers.get("location")).toBe(first.headers.get("location"))
@@ -130,14 +122,14 @@ describe("POST /register", () => {
 
   test("does not create a second account for a duplicate address", async () => {
     await post(app, "/register", { email: "a@test.co", password: PASSWORD })
-    await post(app, "/register", { email: "a@test.co", password: "a different passphrase here" })
+    await post(app, "/register", { email: "a@test.co", password: "a different passphrase here 6" })
     expect((db.query("SELECT COUNT(*) AS n FROM users").get() as { n: number }).n).toBe(1)
   })
 
   test("does not send a second verification email for a duplicate address", async () => {
     await post(app, "/register", { email: "a@test.co", password: PASSWORD })
     const before = email.sent.length
-    await post(app, "/register", { email: "a@test.co", password: "a different passphrase here" })
+    await post(app, "/register", { email: "a@test.co", password: "a different passphrase here 6" })
     expect(email.sent.length).toBe(before)
   })
 })

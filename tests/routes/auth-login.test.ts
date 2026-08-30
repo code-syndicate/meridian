@@ -4,7 +4,6 @@ import type { Database } from "bun:sqlite"
 import { createApp, type App } from "../../src/server"
 import { loadConfig } from "../../src/config"
 import { CapturingEmailSender } from "../../src/services/email"
-import { NeverBreached } from "../../src/services/breach-check"
 import { openDatabase, migrate } from "../../src/db"
 import { UserRepository } from "../../src/db/repositories/users"
 import { AuditRepository } from "../../src/db/repositories/audit"
@@ -21,7 +20,7 @@ const config = loadConfig({
   TOTP_ENCRYPTION_KEY: TOTP_KEY,
 })
 
-const PASSWORD = "correct horse battery staple"
+const PASSWORD = "correct horse battery staple 7"
 
 let db: Database
 let app: App
@@ -33,7 +32,6 @@ beforeEach(async () => {
   app = createApp(config, {
     db,
     email: new CapturingEmailSender(),
-    breach: new NeverBreached(),
   })
   const users = new UserRepository(db)
   userId = users.create("a@test.co", await hashPassword(PASSWORD))
@@ -96,7 +94,6 @@ describe("POST /login", () => {
     const restarted = createApp(config, {
       db,
       email: new CapturingEmailSender(),
-      breach: new NeverBreached(),
     })
     const res = await post(restarted, "/login", { email: "a@test.co", password: PASSWORD })
     expect(res.status).toBe(429)

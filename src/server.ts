@@ -23,7 +23,6 @@ import { RecoveryCodeRepository } from "./db/repositories/recovery-codes"
 import { KycRepository } from "./db/repositories/kyc"
 import { PriceFeed, CoinGeckoSource } from "./services/price-feed"
 import { createEmailSender, type EmailSender } from "./services/email"
-import { HibpBreachCheck, type BreachCheck } from "./services/breach-check"
 import { createPriceRoutes } from "./routes/prices"
 import { createMarketingRoutes } from "./routes/marketing"
 import { createAuthRoutes } from "./routes/auth"
@@ -49,7 +48,6 @@ export interface AppDeps {
   priceFeed?: PriceFeed
   db?: Database
   email?: EmailSender
-  breach?: BreachCheck
   kycProvider?: KycProvider
   newsFeed?: NewsFeed
   custodyProvider?: CustodyProvider
@@ -143,7 +141,6 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
 
   const priceFeed = deps.priceFeed ?? new PriceFeed(new CoinGeckoSource(), assets.all())
   const email = deps.email ?? createEmailSender(config)
-  const breach = deps.breach ?? new HibpBreachCheck()
   const kycProvider = deps.kycProvider ?? new SandboxKycProvider()
   const newsFeed = deps.newsFeed ?? new NewsFeed(new RssNewsSource())
   const custodyProvider = deps.custodyProvider ?? new SandboxCustodyProvider()
@@ -223,7 +220,6 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
       assets,
       ledger,
       email,
-      breach,
       config,
       db,
     }),

@@ -11,7 +11,7 @@ let hash: string
 beforeEach(async () => {
   db = freshDb()
   users = new UserRepository(db)
-  hash = await hashPassword("correct horse battery staple")
+  hash = await hashPassword("correct horse battery staple 7")
 })
 
 describe("create", () => {
