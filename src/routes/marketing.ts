@@ -119,7 +119,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
 
     res.render("marketing/home", {
       title: "Meridian",
-      description: "Custody and execution for digital assets, built to be examined.",
+      description: "Buy, sell, and store digital assets. Ten assets across five networks.",
       path: req.path,
       strip,
       lead,
