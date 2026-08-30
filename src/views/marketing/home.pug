@@ -15,14 +15,18 @@ block content
             span.dot
             | Licence applications in progress
           h1
-            | Custody you can 
-            span.headline-accent actually examine.
-          p.lead Buy, hold, and transfer digital assets. Reserves, fees, and licensing status published in full.
-          .actions
-            a.btn.btn-primary.btn-lg(href="/regulatory")
-              | Read our regulatory status
+            | Buy, sell, and store 
+            span.headline-accent digital assets.
+          p.lead Ten assets across five networks. Third-party custody, published fees, and instant transfers between Meridian accounts.
+          form.hero-signup(method="get" action="/register")
+            label.visually-hidden(for="hero-email") Email address
+            input#hero-email(type="email" name="email" placeholder="Email address" autocomplete="email")
+            button.btn.btn-primary.btn-lg(type="submit")
+              | Get started
               +icon("arrow", 16)
-            a.btn.btn-lg(href="/markets") View supported assets
+          p.hero-alt
+            | Already have an account? 
+            a(href="/login") Sign in
         .preview.reveal(x-data="reveal")
           .preview-bar
             .preview-dots

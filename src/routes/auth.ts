@@ -92,7 +92,7 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
       description: "Create a Meridian account.",
       path: req.path,
       error: null,
-      email: "",
+      email: typeof req.query.email === "string" ? req.query.email.slice(0, 254) : "",
     })
   })
 

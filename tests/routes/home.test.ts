@@ -29,10 +29,16 @@ beforeAll(async () => {
 })
 
 describe("home page", () => {
-  test("carries the positioning headline", () => {
-    // Split so the second clause can take the gradient treatment.
-    expect(html).toContain("Custody you can")
-    expect(html).toContain('class="headline-accent">actually examine.')
+  test("leads with what the product does, not a slogan", () => {
+    // Split so the noun phrase can take the gradient treatment.
+    expect(html).toContain("Buy, sell, and store")
+    expect(html).toContain('class="headline-accent">digital assets.')
+  })
+
+  test("the primary action is signing up, not reading a policy page", () => {
+    expect(html).toMatch(/<form[^>]*class="hero-signup"[^>]*action="\/register"/)
+    expect(html).toContain('name="email"')
+    expect(html).toContain("Get started")
   })
 
   test("shows a product preview in the hero rather than describing one", () => {
