@@ -25,7 +25,8 @@ block content
           input#current(type="password" name="current" required autocomplete="current-password")
         .field
           label(for="next") New password
-          input#next(type="password" name="next" required autocomplete="new-password" minlength="12")
+          input#next(type="password" name="next" required autocomplete="new-password" minlength="8")
+          p.field-hint At least 8 characters, with one letter and one number.
         button.btn(type="submit") Change password
       p.field-hint Changing your password signs you out everywhere else.
 
