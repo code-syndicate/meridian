@@ -9,7 +9,8 @@
     "test": "bun test",
     "typecheck": "bunx tsc --noEmit",
     "verify-ledger": "bun scripts/verify-ledger.ts",
-    "assets": "bun scripts/copy-fonts.ts"
+    "assets": "bun scripts/copy-fonts.ts",
+    "new-mnemonic": "bun scripts/new-mnemonic.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -28,6 +29,11 @@
     "@alpinejs/csp": "^3.16.3",
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
+    "@scure/base": "^2.4.0",
+    "@scure/bip32": "^2.4.0",
+    "@scure/bip39": "^2.4.0",
     "cookie-parser": "^1.4.7",
     "express": "^5.1.0",
     "helmet": "^8.0.0",

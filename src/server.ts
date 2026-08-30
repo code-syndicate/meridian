@@ -31,6 +31,7 @@ import { createOnboardingRoutes } from "./routes/onboarding"
 import { NewsFeed, RssNewsSource } from "./services/news-feed"
 import { CustodyRepository } from "./db/repositories/custody"
 import { CustodyService } from "./services/custody"
+import { HdCustodyProvider } from "./services/custody-hd"
 import { SandboxCustodyProvider, type CustodyProvider } from "./services/custody-provider"
 import { createWalletRoutes } from "./routes/wallet"
 import { TransferService } from "./services/transfers"
@@ -143,7 +144,11 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   const email = deps.email ?? createEmailSender(config)
   const kycProvider = deps.kycProvider ?? new SandboxKycProvider()
   const newsFeed = deps.newsFeed ?? new NewsFeed(new RssNewsSource())
-  const custodyProvider = deps.custodyProvider ?? new SandboxCustodyProvider()
+  const custodyProvider =
+    deps.custodyProvider ??
+    (config.custodyProvider === "hd" && config.custodyMnemonic
+      ? new HdCustodyProvider(config.custodyMnemonic)
+      : new SandboxCustodyProvider())
   const limitService = new LimitService({
     usage: new UsageRepository(db),
     prices: priceFeed,

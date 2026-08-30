@@ -11,6 +11,7 @@ export interface Config {
   emailFrom: string
   kycProvider: string
   custodyProvider: string
+  custodyMnemonic: string | null
   freeTierLimitUsd: number
   tier1DailyLimitUsd: number
   tier2DailyLimitUsd: number
@@ -99,6 +100,21 @@ export function loadConfig(
   const tier1DailyLimitUsd = limitUsd("TIER1_DAILY_LIMIT_USD", 10_000)
   const tier2DailyLimitUsd = limitUsd("TIER2_DAILY_LIMIT_USD", 100_000)
 
+  // The HD provider holds a spendable seed phrase in the environment. That is
+  // the single point of key control we chose a custodian to avoid, so it is a
+  // demonstration tool only and production refuses it outright.
+  const custodyMnemonic = source.CUSTODY_MNEMONIC ?? null
+  if (custodyProvider === "hd") {
+    if (env === "production") {
+      throw new Error(
+        "CUSTODY_PROVIDER=hd holds spendable keys in the environment and cannot be used in production.",
+      )
+    }
+    if (!custodyMnemonic) {
+      throw new Error("CUSTODY_PROVIDER=hd requires CUSTODY_MNEMONIC")
+    }
+  }
+
   return {
     env: env as Config["env"],
     port,
@@ -112,6 +128,7 @@ export function loadConfig(
     emailFrom: source.EMAIL_FROM ?? "Meridian <no-reply@meridian.example>",
     kycProvider,
     custodyProvider,
+    custodyMnemonic,
     freeTierLimitUsd,
     tier1DailyLimitUsd,
     tier2DailyLimitUsd,
