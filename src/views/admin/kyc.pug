@@ -1,0 +1,71 @@
+extends ../layouts/base.pug
+include nav.pug
+
+block content
+  .shell
+    .app
+      .app-head
+        div
+          h1.app-title Verification
+          p.app-sub Applications and the data supplied with them
+        +adminNav("kyc")
+
+      .app-block
+        nav.filters(aria-label="Filter by status")
+          each option in ["pending", "submitted", "in_review", "approved", "rejected", "all"]
+            a(href="/admin/kyc?status=" + option class=status === option ? "on" : null)= option
+
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 #{rows.length} #{rows.length === 1 ? "application" : "applications"}
+          if rows.length === 0
+            p.field-hint Nothing here.
+          else
+            each row in rows
+              .review-row
+                .review-main
+                  .review-head
+                    a(href="/admin/users/" + row.userId)= row.email
+                    span.tag= row.status
+                  dl.review-fields
+                    div
+                      dt Name
+                      dd= [row.firstName, row.lastName].filter(Boolean).join(" ") || "Not supplied"
+                    div
+                      dt Date of birth
+                      dd= row.dateOfBirth || "Not supplied"
+                    div
+                      dt Country
+                      dd= row.country || "Not supplied"
+                    div
+                      dt Region
+                      dd= row.region || "Not supplied"
+                    div
+                      dt City
+                      dd= row.city || "Not supplied"
+                    div
+                      dt Phone
+                      dd= row.phone || "Not supplied"
+                    div
+                      dt Document
+                      dd= row.idType || "Not supplied"
+                    div
+                      dt Document ends
+                      dd= row.idLast4 ? "•••• " + row.idLast4 : "Not supplied"
+                    div
+                      dt Tier requested
+                      dd= row.targetTier
+                  p.review-meta Full document numbers are held by the verification provider and are never stored here.
+                if row.status === "submitted" || row.status === "in_review"
+                  .review-actions
+                    form(method="post" action="/admin/kyc/" + row.id + "/decide")
+                      input(type="hidden" name="_csrf" value=csrfToken)
+                      input(type="hidden" name="decision" value="approved")
+                      button.btn.btn-primary(type="submit") Approve
+                    form(method="post" action="/admin/kyc/" + row.id + "/decide")
+                      input(type="hidden" name="_csrf" value=csrfToken)
+                      input(type="hidden" name="decision" value="rejected")
+                      label.visually-hidden(for="kyc-reason-" + row.id) Rejection reason
+                      input(id="kyc-reason-" + row.id type="text" name="reason" placeholder="Reason" minlength="8" required autocomplete="off")
+                      button.btn(type="submit") Reject

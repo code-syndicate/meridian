@@ -36,6 +36,8 @@ export interface WithdrawalRecord {
   failureReason: string | null
   requestedAt: string
   settledAt: string | null
+  limitWindow: string | null
+  limitUsd: bigint | null
 }
 
 export class CustodyRepository {
@@ -284,13 +286,15 @@ export class CustodyRepository {
     fee: bigint
     holdId: number
     idempotencyKey: string
+    limitWindow?: string | null
+    limitUsd?: bigint | null
   }): number {
     const now = new Date().toISOString()
     this.db
       .query(
         `INSERT INTO withdrawals (user_id, asset, destination, memo, amount, fee, status,
-           hold_id, idempotency_key, requested_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'requested', ?, ?, ?, ?)`,
+           hold_id, idempotency_key, requested_at, updated_at, limit_window, limit_usd)
+         VALUES (?, ?, ?, ?, ?, ?, 'requested', ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         input.userId,
@@ -303,6 +307,8 @@ export class CustodyRepository {
         input.idempotencyKey,
         now,
         now,
+        input.limitWindow ?? null,
+        input.limitUsd ?? null,
       )
     return Number(
       this.db.query<{ id: number }, []>("SELECT last_insert_rowid() AS id").get()!.id,
@@ -326,12 +332,15 @@ export class CustodyRepository {
         failure_reason: string | null
         requested_at: string
         settled_at: string | null
+        limit_window: string | null
+        limit_usd: bigint | null
       },
       [number]
     >(
       this.db,
       `SELECT id, user_id, asset, destination, memo, amount, fee, status, hold_id,
-              provider_ref, tx_hash, failure_reason, requested_at, settled_at
+              provider_ref, tx_hash, failure_reason, requested_at, settled_at,
+              limit_window, limit_usd
        FROM withdrawals WHERE id = ?`,
     ).get(id)
     if (!row) return null
@@ -350,6 +359,8 @@ export class CustodyRepository {
       failureReason: row.failure_reason,
       requestedAt: row.requested_at,
       settledAt: row.settled_at,
+      limitWindow: row.limit_window,
+      limitUsd: row.limit_usd,
     }
   }
 
@@ -362,6 +373,9 @@ export class CustodyRepository {
       txHash?: string | null
       failureReason?: string | null
       settled?: boolean
+      reviewedBy?: number
+      reviewedAt?: string
+      reviewNote?: string | null
     },
   ): void {
     const now = new Date().toISOString()
@@ -372,6 +386,9 @@ export class CustodyRepository {
     if (patch.providerRef !== undefined) { sets.push("provider_ref = ?"); params.push(patch.providerRef) }
     if (patch.txHash !== undefined) { sets.push("tx_hash = ?"); params.push(patch.txHash) }
     if (patch.failureReason !== undefined) { sets.push("failure_reason = ?"); params.push(patch.failureReason) }
+    if (patch.reviewedBy !== undefined) { sets.push("reviewed_by = ?"); params.push(String(patch.reviewedBy)) }
+    if (patch.reviewedAt !== undefined) { sets.push("reviewed_at = ?"); params.push(patch.reviewedAt) }
+    if (patch.reviewNote !== undefined) { sets.push("review_note = ?"); params.push(patch.reviewNote) }
     if (patch.settled) { sets.push("settled_at = ?"); params.push(now) }
     if (sets.length === 0) return
     this.db

@@ -31,6 +31,8 @@ html(lang="en")
           a(href="/security" aria-current=(path === "/security" ? "page" : false)) Security
           a(href="/regulatory" aria-current=(path === "/regulatory" ? "page" : false)) Regulatory
           if user
+            if user.role === "admin"
+              a.admin-link(href="/admin") Admin
             a(href="/dashboard") Dashboard
           else
             a.btn(href="/login") Sign in

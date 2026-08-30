@@ -25,6 +25,8 @@ import { PriceFeed, CoinGeckoSource } from "./services/price-feed"
 import { createEmailSender, type EmailSender } from "./services/email"
 import { createPriceRoutes } from "./routes/prices"
 import { createMarketingRoutes } from "./routes/marketing"
+import { createAdminRoutes } from "./routes/admin"
+import { AdminRepository } from "./db/repositories/admin"
 import { createAuthRoutes } from "./routes/auth"
 import { createAccountRoutes } from "./routes/account"
 import { createOnboardingRoutes } from "./routes/onboarding"
@@ -232,6 +234,14 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   app.use(createAccountRoutes({ limits: limitService, users, sessions, audit, assets, ledger, feed: priceFeed, recoveryCodes, kyc, config }))
   app.use(
     createWalletRoutes({ assets, ledger, custody, kyc, service: custodyService, transfers: transferService, limits: limitService, users, config }),
+  )
+  app.use(
+    createAdminRoutes({
+      db, assets, users, ledger, custody, kyc, audit,
+      admin: new AdminRepository(db),
+      service: custodyService,
+      limits: limitService,
+    }),
   )
   app.use(createOnboardingRoutes({ kyc, audit, provider: kycProvider, config }))
   app.use(createMarketingRoutes({ assets, feed: priceFeed, news: newsFeed, ledger }))

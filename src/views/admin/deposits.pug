@@ -1,0 +1,47 @@
+extends ../layouts/base.pug
+include nav.pug
+
+block content
+  .shell
+    .app
+      .app-head
+        div
+          h1.app-title Deposits
+          p.app-sub Everything the custody provider has reported
+        +adminNav("deposits")
+
+      .app-block
+        form(method="post" action="/admin/deposits/poll")
+          input(type="hidden" name="_csrf" value=csrfToken)
+          button.btn(type="submit") Poll the provider now
+
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 #{rows.length} #{rows.length === 1 ? "deposit" : "deposits"}
+          if rows.length === 0
+            p.field-hint Nothing detected yet.
+          else
+            .table-scroll
+              table.table
+                thead
+                  tr
+                    th Account
+                    th Asset
+                    th.n Credited
+                    th Status
+                    th.n Confirmations
+                    th Transaction
+                tbody
+                  each row in rows
+                    tr
+                      td
+                        if row.userId
+                          a(href="/admin/users/" + row.userId)= row.email
+                        else
+                          | Unmatched
+                      td= row.asset
+                      td.n.num= row.amountText
+                      td= row.status
+                      td.n.num= row.confirmations
+                      td.mono= row.txHash

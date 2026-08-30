@@ -1,0 +1,49 @@
+extends ../layouts/base.pug
+include nav.pug
+
+block content
+  .shell
+    .app
+      .app-head
+        div
+          h1.app-title Withdrawals
+          p.app-sub Nothing reaches a chain until it is approved here
+        +adminNav("withdrawals")
+
+      .app-block
+        nav.filters(aria-label="Filter by status")
+          each option in ["requested", "broadcast", "confirmed", "cancelled", "failed", "all"]
+            a(href="/admin/withdrawals?status=" + option class=status === option ? "on" : null)= option
+
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 #{rows.length} #{rows.length === 1 ? "withdrawal" : "withdrawals"}
+          if rows.length === 0
+            p.field-hint Nothing here.
+          else
+            each row in rows
+              .review-row
+                .review-main
+                  .review-head
+                    a(href="/admin/users/" + row.userId)= row.email
+                    span.tag= row.status
+                  p.review-detail
+                    strong #{row.amountText} #{row.asset}
+                    |  plus #{row.feeText} fee, to 
+                    span.mono= row.destination
+                  p.review-meta Requested #{row.requestedAt}
+                  if row.reviewNote
+                    p.review-meta Note: #{row.reviewNote}
+                if row.status === "requested"
+                  .review-actions
+                    form(method="post" action="/admin/withdrawals/" + row.id + "/approve")
+                      input(type="hidden" name="_csrf" value=csrfToken)
+                      label.visually-hidden(for="note-" + row.id) Approval note
+                      input(id="note-" + row.id type="text" name="note" placeholder="Note (optional)" autocomplete="off")
+                      button.btn.btn-primary(type="submit") Approve
+                    form(method="post" action="/admin/withdrawals/" + row.id + "/reject")
+                      input(type="hidden" name="_csrf" value=csrfToken)
+                      label.visually-hidden(for="reason-" + row.id) Rejection reason
+                      input(id="reason-" + row.id type="text" name="reason" placeholder="Reason" minlength="8" required autocomplete="off")
+                      button.btn(type="submit") Reject

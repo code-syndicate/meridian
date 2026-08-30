@@ -1,0 +1,38 @@
+extends ../layouts/base.pug
+include nav.pug
+
+block content
+  .shell
+    .app
+      .app-head
+        div
+          h1.app-title Adjustments
+          p.app-sub Every manual credit and debit, with its stated reason
+        +adminNav("adjustments")
+
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 #{rows.length} #{rows.length === 1 ? "adjustment" : "adjustments"}
+          if rows.length === 0
+            p.field-hint None posted.
+          else
+            .table-scroll
+              table.table
+                thead
+                  tr
+                    th When
+                    th Account
+                    th Direction
+                    th.n Amount
+                    th Asset
+                    th Reason
+                tbody
+                  each row in rows
+                    tr
+                      td= row.createdAt
+                      td= row.email || "Unknown"
+                      td= row.direction
+                      td.n.num= row.amount
+                      td= row.asset
+                      td= row.reason

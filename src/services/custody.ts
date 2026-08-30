@@ -217,6 +217,8 @@ export class CustodyService {
       fee: input.fee,
       holdId,
       idempotencyKey: input.idempotencyKey,
+      limitWindow: reservation.windowKey,
+      limitUsd: reservation.amountUsd,
     })
 
     this.deps.audit.record({
@@ -227,13 +229,40 @@ export class CustodyService {
       metadata: { withdrawalId },
     })
 
+    // Nothing is submitted here. The value is held and the request waits for
+    // an operator, which is the point of having a queue: an automated path
+    // straight to the chain has no place to stop a fraudulent withdrawal.
+    return { withdrawalId }
+  }
+
+  /** Sends an approved withdrawal to the provider. */
+  async approveWithdrawal(
+    withdrawalId: number,
+    adminId: number,
+    note: string | null,
+  ): Promise<{ ok: boolean; reason?: string }> {
+    const withdrawal = this.deps.custody.findWithdrawal(withdrawalId)
+    if (!withdrawal) return { ok: false, reason: "No such withdrawal." }
+    if (withdrawal.status !== "requested") {
+      return { ok: false, reason: `That withdrawal is already ${withdrawal.status}.` }
+    }
+    const asset = this.deps.assets.find(withdrawal.asset)
+    if (!asset) return { ok: false, reason: "Unknown asset." }
+
+    this.deps.custody.updateWithdrawal(withdrawalId, {
+      status: "signing",
+      reviewedBy: adminId,
+      reviewedAt: new Date().toISOString(),
+      reviewNote: note,
+    })
+
     try {
       const submission = await this.deps.provider.submitWithdrawal({
-        asset: input.asset.symbol,
-        destination: input.destination,
-        memo: input.memo,
-        nativeAmount: toNative(input.amount, input.asset.nativeDecimals).toString(),
-        idempotencyKey: input.idempotencyKey,
+        asset: withdrawal.asset,
+        destination: withdrawal.destination,
+        memo: withdrawal.memo,
+        nativeAmount: toNative(withdrawal.amount, asset.nativeDecimals).toString(),
+        idempotencyKey: `approve:${withdrawalId}`,
       })
       this.deps.custody.updateWithdrawal(withdrawalId, {
         status: "broadcast",
@@ -245,10 +274,56 @@ export class CustodyService {
       // Submission failed, so the money never left. Release the hold and the
       // limit headroom rather than stranding either.
       this.failWithdrawal(withdrawalId, String(error))
-      this.deps.limits.releaseOutbound(input.userId, reservation.windowKey, reservation.amountUsd)
+      this.releaseReservation(withdrawal)
+      return { ok: false, reason: "The provider rejected the submission." }
     }
 
-    return { withdrawalId }
+    this.deps.audit.record({
+      userId: withdrawal.userId,
+      actorType: "admin",
+      action: "custody.withdrawal_approved",
+      target: withdrawal.asset,
+      metadata: { withdrawalId, note, adminId },
+    })
+    return { ok: true }
+  }
+
+  /** Refuses a withdrawal: the hold and the limit headroom both come back. */
+  rejectWithdrawal(
+    withdrawalId: number,
+    adminId: number,
+    reason: string,
+  ): { ok: boolean; reason?: string } {
+    const withdrawal = this.deps.custody.findWithdrawal(withdrawalId)
+    if (!withdrawal) return { ok: false, reason: "No such withdrawal." }
+    if (withdrawal.status !== "requested") {
+      return { ok: false, reason: `That withdrawal is already ${withdrawal.status}.` }
+    }
+
+    if (withdrawal.holdId !== null) {
+      this.deps.ledger.release(withdrawal.holdId, `wd-reject:${withdrawalId}`)
+    }
+    this.releaseReservation(withdrawal)
+    this.deps.custody.updateWithdrawal(withdrawalId, {
+      status: "cancelled",
+      failureReason: reason,
+      reviewedBy: adminId,
+      reviewedAt: new Date().toISOString(),
+      reviewNote: reason,
+    })
+    this.deps.audit.record({
+      userId: withdrawal.userId,
+      actorType: "admin",
+      action: "custody.withdrawal_rejected",
+      target: withdrawal.asset,
+      metadata: { withdrawalId, reason, adminId },
+    })
+    return { ok: true }
+  }
+
+  private releaseReservation(withdrawal: { userId: number; limitWindow: string | null; limitUsd: bigint | null }): void {
+    if (withdrawal.limitWindow === null || withdrawal.limitUsd === null) return
+    this.deps.limits.releaseOutbound(withdrawal.userId, withdrawal.limitWindow, withdrawal.limitUsd)
   }
 
   /** Consumes the hold: the value leaves for the external account. */

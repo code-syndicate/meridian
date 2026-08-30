@@ -1,0 +1,93 @@
+extends ../layouts/base.pug
+include nav.pug
+
+block content
+  .shell
+    .app
+      .app-head
+        div
+          h1.app-title Operations
+          p.app-sub Queues, balances, and account state
+        +adminNav("overview")
+
+      .app-block
+        .tiles
+          .tile
+            .tile-label Accounts
+            .tile-value.num= counts.users
+          .tile
+            .tile-label Withdrawals waiting
+            .tile-value.num(class=counts.pendingWithdrawals > 0 ? "down" : null)= counts.pendingWithdrawals
+          .tile
+            .tile-label Verifications waiting
+            .tile-value.num(class=counts.pendingKyc > 0 ? "down" : null)= counts.pendingKyc
+          .tile
+            .tile-label Suspended
+            .tile-value.num= counts.suspended
+
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 Withdrawals waiting for approval
+            a.app-sub(href="/admin/withdrawals") See all
+          if queue.length === 0
+            p.field-hint Nothing waiting.
+          else
+            .table-scroll
+              table.table
+                thead
+                  tr
+                    th Account
+                    th Asset
+                    th Destination
+                    th Requested
+                tbody
+                  each row in queue
+                    tr
+                      td: a(href="/admin/users/" + row.userId)= row.email
+                      td= row.asset
+                      td.mono= row.destination
+                      td= row.requestedAt
+
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 Verifications waiting
+            a.app-sub(href="/admin/kyc") See all
+          if kyc.length === 0
+            p.field-hint Nothing waiting.
+          else
+            .table-scroll
+              table.table
+                thead
+                  tr
+                    th Account
+                    th Name
+                    th Country
+                    th Tier
+                tbody
+                  each row in kyc
+                    tr
+                      td: a(href="/admin/users/" + row.userId)= row.email
+                      td= [row.firstName, row.lastName].filter(Boolean).join(" ") || "Not supplied"
+                      td= row.country || "Not supplied"
+                      td.n= row.targetTier
+
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 Client liabilities
+            span.app-sub What customers are owed, by asset
+          .table-scroll
+            table.table
+              thead
+                tr
+                  th Asset
+                  th Network
+                  th.n Owed to clients
+              tbody
+                each row in reserves
+                  tr
+                    td= row.symbol
+                    td: span.network-tag= row.network
+                    td.n.num #{row.liability.whole}.#{row.liability.fraction}

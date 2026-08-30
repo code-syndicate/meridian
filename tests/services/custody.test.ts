@@ -244,9 +244,55 @@ describe("withdrawals", () => {
       userId, tier: 2, asset: assets.find(BTC)!, destination: "bc1qshouldfail", memo: null,
       amount: 50000000n, fee: 0n, idempotencyKey: "w7",
     })
+    await svc.approveWithdrawal(withdrawalId, userId, null)
     await svc.settleWithdrawals(userId)
     expect(custody.findWithdrawal(withdrawalId)!.status).toBe("failed")
     expect(ledger.balance(userId, BTC).available).toBe(100000000n)
+  })
+
+  test("a request waits for approval instead of going straight to the chain", async () => {
+    await fund(BTC, 100000000n)
+    const { withdrawalId } = await svc.requestWithdrawal({
+      userId, tier: 2, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
+      amount: 50000000n, fee: 0n, idempotencyKey: "wq1",
+    })
+    const record = custody.findWithdrawal(withdrawalId)!
+    expect(record.status).toBe("requested")
+    expect(record.providerRef).toBeNull()
+    // The value is held meanwhile, so it cannot be spent twice while queued.
+    expect(ledger.balance(userId, BTC).held).toBe(50000000n)
+  })
+
+  test("rejecting gives the balance back", async () => {
+    await fund(BTC, 100000000n)
+    const { withdrawalId } = await svc.requestWithdrawal({
+      userId, tier: 2, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
+      amount: 50000000n, fee: 0n, idempotencyKey: "wq2",
+    })
+    expect(svc.rejectWithdrawal(withdrawalId, userId, "Destination not recognised").ok).toBe(true)
+    expect(custody.findWithdrawal(withdrawalId)!.status).toBe("cancelled")
+    expect(ledger.balance(userId, BTC).available).toBe(100000000n)
+    expect(ledger.balance(userId, BTC).held).toBe(0n)
+  })
+
+  test("a withdrawal cannot be approved twice", async () => {
+    await fund(BTC, 100000000n)
+    const { withdrawalId } = await svc.requestWithdrawal({
+      userId, tier: 2, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
+      amount: 50000000n, fee: 0n, idempotencyKey: "wq3",
+    })
+    expect((await svc.approveWithdrawal(withdrawalId, userId, null)).ok).toBe(true)
+    expect((await svc.approveWithdrawal(withdrawalId, userId, null)).ok).toBe(false)
+  })
+
+  test("an already approved withdrawal cannot then be rejected", async () => {
+    await fund(BTC, 100000000n)
+    const { withdrawalId } = await svc.requestWithdrawal({
+      userId, tier: 2, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
+      amount: 50000000n, fee: 0n, idempotencyKey: "wq4",
+    })
+    await svc.approveWithdrawal(withdrawalId, userId, null)
+    expect(svc.rejectWithdrawal(withdrawalId, userId, "too late").ok).toBe(false)
   })
 
   test("settling a broadcast withdrawal confirms it", async () => {
@@ -255,6 +301,7 @@ describe("withdrawals", () => {
       userId, tier: 2, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
       amount: 50000000n, fee: 0n, idempotencyKey: "w8",
     })
+    await svc.approveWithdrawal(withdrawalId, userId, null)
     const ref = custody.findWithdrawal(withdrawalId)!.providerRef!
     provider.settle(ref, { status: "confirmed", txHash: "0xfinal" })
     await svc.settleWithdrawals(userId)

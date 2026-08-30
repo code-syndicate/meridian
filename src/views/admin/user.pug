@@ -1,0 +1,131 @@
+extends ../layouts/base.pug
+include nav.pug
+include ../components/allowance.pug
+
+block content
+  .shell
+    .app
+      .app-head
+        div
+          h1.app-title= subject.email
+          p.app-sub Account #{subject.accountIdFormatted}
+        +adminNav("users")
+
+      .app-block
+        .tiles
+          .tile
+            .tile-label Status
+            .tile-value= subject.status
+          .tile
+            .tile-label Role
+            .tile-value= subject.role
+          .tile
+            .tile-label Verification
+            .tile-value Tier #{tier}
+          .tile
+            .tile-label Two-factor
+            .tile-value= subject.totpEnabledAt ? "On" : "Off"
+
+      .app-block
+        +allowanceNote(allowance, tier)
+
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 Holdings
+          if holdings.length === 0
+            p.field-hint This account holds nothing.
+          else
+            .table-scroll
+              table.table
+                thead
+                  tr
+                    th Asset
+                    th Network
+                    th.n Available
+                    th.n On hold
+                tbody
+                  each row in holdings
+                    tr
+                      td= row.symbol
+                      td: span.network-tag= row.network
+                      td.n.num #{row.available.whole}.#{row.available.fraction}
+                      td.n.num #{row.held.whole}.#{row.held.fraction}
+
+      .app-block
+        .form-card
+          h2 Credit or debit this account
+          p.field-hint Posts a ledger adjustment against the platform treasury. The reason is recorded and cannot be edited later.
+          form(method="post" action="/admin/users/" + subject.id + "/adjust")
+            input(type="hidden" name="_csrf" value=csrfToken)
+            .field
+              label(for="direction") Direction
+              select#direction(name="direction")
+                option(value="credit") Credit the account
+                option(value="debit") Debit the account
+            .field
+              label(for="asset") Asset
+              select#asset(name="asset")
+                each asset in assets
+                  option(value=asset.symbol)= asset.displaySymbol + " (" + asset.networkLabel + ")"
+            .field
+              label(for="amount") Amount
+              input#amount(type="text" name="amount" required inputmode="decimal" autocomplete="off")
+            .field
+              label(for="reason") Reason
+              input#reason(type="text" name="reason" required minlength="8" autocomplete="off")
+            button.btn.btn-primary(type="submit") Post adjustment
+
+      .app-block
+        .form-card
+          h2 Account status
+          form.inline-form(method="post" action="/admin/users/" + subject.id + "/status")
+            input(type="hidden" name="_csrf" value=csrfToken)
+            .field
+              label(for="status") Status
+              select#status(name="status")
+                option(value="active" selected=subject.status === "active") active
+                option(value="suspended" selected=subject.status === "suspended") suspended
+                option(value="closed" selected=subject.status === "closed") closed
+            button.btn(type="submit") Update status
+
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 Withdrawals
+          if withdrawals.length === 0
+            p.field-hint None.
+          else
+            .table-scroll
+              table.table
+                thead
+                  tr
+                    th Asset
+                    th Destination
+                    th Status
+                    th Requested
+                tbody
+                  each row in withdrawals
+                    tr
+                      td= row.asset
+                      td.mono= row.destination
+                      td= row.status
+                      td= row.requestedAt
+
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 Recent activity
+          .table-scroll
+            table.table
+              thead
+                tr
+                  th Action
+                  th Target
+                  th When
+              tbody
+                each row in activity
+                  tr
+                    td= row.action
+                    td= row.target || ""
+                    td= row.createdAt

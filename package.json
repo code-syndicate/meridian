@@ -10,7 +10,8 @@
     "typecheck": "bunx tsc --noEmit",
     "verify-ledger": "bun scripts/verify-ledger.ts",
     "assets": "bun scripts/copy-fonts.ts",
-    "new-mnemonic": "bun scripts/new-mnemonic.ts"
+    "new-mnemonic": "bun scripts/new-mnemonic.ts",
+    "make-admin": "bun scripts/make-admin.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

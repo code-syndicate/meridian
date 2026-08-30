@@ -9,6 +9,7 @@ export interface User {
   emailVerifiedAt: string | null
   totpEnabledAt: string | null
   status: "active" | "suspended" | "closed"
+  role: "user" | "admin"
   kycTier: number
   createdAt: string
 }
@@ -21,6 +22,7 @@ interface UserRow {
   email_verified_at: string | null
   totp_enabled_at: string | null
   status: "active" | "suspended" | "closed"
+  role: "user" | "admin"
   kyc_tier: number
   created_at: string
 }
@@ -33,13 +35,14 @@ function toUser(row: UserRow): User {
     emailVerifiedAt: row.email_verified_at,
     totpEnabledAt: row.totp_enabled_at,
     status: row.status,
+    role: row.role,
     kycTier: row.kyc_tier,
     createdAt: row.created_at,
   }
 }
 
 const COLUMNS = `id, account_id, email, password_hash, email_verified_at, totp_enabled_at,
-  status, kyc_tier, created_at`
+  status, role, kyc_tier, created_at`
 
 export class UserRepository {
   constructor(private readonly db: Database) {}
@@ -128,5 +131,17 @@ export class UserRepository {
       )
       .get(id)
     return row?.totp_secret_encrypted ?? null
+  }
+
+  setStatus(id: number, status: "active" | "suspended" | "closed"): void {
+    this.db
+      .query("UPDATE users SET status = ?, updated_at = ? WHERE id = ?")
+      .run(status, new Date().toISOString(), id)
+  }
+
+  setRole(id: number, role: "user" | "admin"): void {
+    this.db
+      .query("UPDATE users SET role = ?, updated_at = ? WHERE id = ?")
+      .run(role, new Date().toISOString(), id)
   }
 }

@@ -1,0 +1,47 @@
+extends ../layouts/base.pug
+include nav.pug
+
+block content
+  .shell
+    .app
+      .app-head
+        div
+          h1.app-title Users
+          p.app-sub Search by email address or account ID
+        +adminNav("users")
+
+      .app-block
+        form.admin-search(method="get" action="/admin/users")
+          label.visually-hidden(for="q") Search
+          input#q(type="text" name="q" value=search placeholder="Email address or account ID" autocomplete="off")
+          button.btn(type="submit") Search
+
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 #{rows.length} #{rows.length === 1 ? "account" : "accounts"}
+          if rows.length === 0
+            p.field-hint No accounts match that.
+          else
+            .table-scroll
+              table.table
+                thead
+                  tr
+                    th Account
+                    th Account ID
+                    th Status
+                    th Verification
+                    th Two-factor
+                    th Joined
+                tbody
+                  each row in rows
+                    tr
+                      td: a(href="/admin/users/" + row.id)= row.email
+                      td.mono= row.accountId
+                      td
+                        span.tag(class=row.status === "active" ? "tag-ok" : "tag-warn")= row.status
+                        if row.role === "admin"
+                          span.tag.tag-admin admin
+                      td= row.kycStatus || "None"
+                      td= row.totpEnabledAt ? "On" : "Off"
+                      td= row.createdAt.slice(0, 10)

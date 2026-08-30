@@ -1,0 +1,8 @@
+mixin adminNav(current)
+  nav.app-tabs(aria-label="Admin")
+    a(href="/admin" aria-current=(current === "overview" ? "page" : false)) Overview
+    a(href="/admin/users" aria-current=(current === "users" ? "page" : false)) Users
+    a(href="/admin/withdrawals" aria-current=(current === "withdrawals" ? "page" : false)) Withdrawals
+    a(href="/admin/deposits" aria-current=(current === "deposits" ? "page" : false)) Deposits
+    a(href="/admin/kyc" aria-current=(current === "kyc" ? "page" : false)) Verification
+    a(href="/admin/adjustments" aria-current=(current === "adjustments" ? "page" : false)) Adjustments
