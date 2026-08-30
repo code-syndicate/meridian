@@ -958,7 +958,10 @@ fieldset.field legend { font-size: var(--t-sm); color: var(--text-muted); margin
 .hero-alt { font-size: var(--t-sm); color: var(--text-muted); margin: 0; }
 @media (max-width: 560px) {
   .hero-signup { flex-direction: column; max-width: none; }
-  .hero-signup .btn { width: 100%; justify-content: center; }
+  /* In a column, flex:1 grows the height and flex-basis:0 collapses it, so the
+     field loses its 46px. Both children size to content down here. */
+  .hero-signup input, .hero-signup .btn { flex: 0 0 auto; width: 100%; }
+  .hero-signup .btn { justify-content: center; }
 }
 
 /* Tier allowance */
