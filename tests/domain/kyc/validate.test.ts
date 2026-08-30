@@ -1,9 +1,9 @@
 import { test, expect, describe } from "bun:test"
 import {
-  validateName, validateDateOfBirth, normalizeNigerianPhone,
-  validateGovernmentId, validateState,
+  validateName, validateDateOfBirth, normalizePhone,
+  validateGovernmentId, validateCountry, validateRegion,
 } from "../../../src/domain/kyc/validate"
-import { NIGERIAN_STATES } from "../../../src/domain/kyc/nigeria"
+import { COUNTRIES, findCountry } from "../../../src/domain/kyc/countries"
 import { KycError } from "../../../src/domain/kyc/types"
 
 function fieldOf(fn: () => unknown): string {
@@ -57,65 +57,97 @@ describe("validateDateOfBirth", () => {
   })
 })
 
-describe("normalizeNigerianPhone", () => {
-  test("normalizes a local format", () => { expect(normalizeNigerianPhone("08031234567")).toBe("+2348031234567") })
-  test("normalizes an international format", () => { expect(normalizeNigerianPhone("+2348031234567")).toBe("+2348031234567") })
-  test("normalizes a country code with no plus", () => { expect(normalizeNigerianPhone("2348031234567")).toBe("+2348031234567") })
-  test("ignores spaces and dashes a person types", () => {
-    expect(normalizeNigerianPhone("0803 123 4567")).toBe("+2348031234567")
-    expect(normalizeNigerianPhone("0803-123-4567")).toBe("+2348031234567")
+describe("normalizePhone", () => {
+  test("accepts E.164 from any country", () => {
+    expect(normalizePhone("+2348031234567")).toBe("+2348031234567")
+    expect(normalizePhone("+447700900123")).toBe("+447700900123")
+    expect(normalizePhone("+14155552671")).toBe("+14155552671")
+    expect(normalizePhone("+6591234567")).toBe("+6591234567")
   })
-  test("accepts every valid mobile prefix", () => {
-    for (const prefix of ["070", "080", "081", "090", "091"]) {
-      expect(() => normalizeNigerianPhone(`${prefix}31234567`)).not.toThrow()
-    }
+  test("strips separators a person types", () => {
+    expect(normalizePhone("+44 7700 900-123")).toBe("+447700900123")
+    expect(normalizePhone("+1 (415) 555.2671")).toBe("+14155552671")
   })
-  test("rejects a landline or invalid prefix", () => {
-    expect(fieldOf(() => normalizeNigerianPhone("01234567890"))).toBe("phone")
+  test("requires the leading plus, so the country is never guessed", () => {
+    expect(fieldOf(() => normalizePhone("07700900123"))).toBe("phone")
+    expect(fieldOf(() => normalizePhone("447700900123"))).toBe("phone")
   })
-  test("rejects a number of the wrong length", () => {
-    expect(fieldOf(() => normalizeNigerianPhone("0803123456"))).toBe("phone")
-    expect(fieldOf(() => normalizeNigerianPhone("080312345678"))).toBe("phone")
+  test("rejects an implausible length", () => {
+    expect(fieldOf(() => normalizePhone("+1234567"))).toBe("phone")
+    expect(fieldOf(() => normalizePhone("+1234567890123456"))).toBe("phone")
   })
-  test("rejects a non-Nigerian number", () => {
-    expect(fieldOf(() => normalizeNigerianPhone("+447700900123"))).toBe("phone")
+  test("rejects non-digits", () => {
+    expect(fieldOf(() => normalizePhone("+44abc900123"))).toBe("phone")
   })
 })
 
 describe("validateGovernmentId", () => {
-  test("accepts an eleven digit BVN", () => { expect(validateGovernmentId("BVN", "12345678901")).toBe("12345678901") })
-  test("accepts an eleven digit NIN", () => { expect(validateGovernmentId("NIN", "12345678901")).toBe("12345678901") })
-  test("strips spaces a person types", () => { expect(validateGovernmentId("BVN", "123 456 789 01")).toBe("12345678901") })
-  test("rejects the wrong length", () => {
-    expect(fieldOf(() => validateGovernmentId("BVN", "1234567890"))).toBe("governmentId")
-    expect(fieldOf(() => validateGovernmentId("BVN", "123456789012"))).toBe("governmentId")
+  test("accepts a passport number", () => {
+    expect(validateGovernmentId("PASSPORT", "A01234567")).toBe("A01234567")
   })
-  test("rejects non-digits", () => {
-    expect(fieldOf(() => validateGovernmentId("NIN", "1234567890a"))).toBe("governmentId")
+  test("accepts a national ID number", () => {
+    expect(validateGovernmentId("NATIONAL_ID", "12345678901")).toBe("12345678901")
+  })
+  test("accepts a driver licence", () => {
+    expect(validateGovernmentId("DRIVERS_LICENSE", "SMITH901234AB")).toBe("SMITH901234AB")
+  })
+  test("normalises case and strips separators", () => {
+    expect(validateGovernmentId("PASSPORT", "a0 12-34567")).toBe("A01234567")
+  })
+  test("rejects something too short or too long", () => {
+    expect(fieldOf(() => validateGovernmentId("PASSPORT", "A123"))).toBe("governmentId")
+    expect(fieldOf(() => validateGovernmentId("PASSPORT", "A".repeat(21)))).toBe("governmentId")
+  })
+  test("rejects punctuation that is not a separator", () => {
+    expect(fieldOf(() => validateGovernmentId("NATIONAL_ID", "1234$5678901"))).toBe("governmentId")
   })
   test("rejects an all-zero identifier", () => {
-    expect(fieldOf(() => validateGovernmentId("BVN", "00000000000"))).toBe("governmentId")
+    expect(fieldOf(() => validateGovernmentId("NATIONAL_ID", "00000000000"))).toBe("governmentId")
   })
 })
 
-describe("validateState", () => {
-  test("accepts a real state", () => { expect(validateState("Lagos")).toBe("Lagos") })
-  test("accepts the Federal Capital Territory", () => {
-    expect(validateState("Federal Capital Territory")).toBe("Federal Capital Territory")
+describe("validateCountry", () => {
+  test("accepts a supported country code", () => {
+    expect(validateCountry("GB")).toBe("GB")
+    expect(validateCountry("NG")).toBe("NG")
+    expect(validateCountry("SG")).toBe("SG")
   })
-  test("rejects anything not in the reference list", () => {
-    expect(fieldOf(() => validateState("Atlantis"))).toBe("state")
+  test("rejects an unsupported or invented code", () => {
+    expect(fieldOf(() => validateCountry("ZZ"))).toBe("country")
+    expect(fieldOf(() => validateCountry(""))).toBe("country")
   })
 })
 
-describe("NIGERIAN_STATES", () => {
-  test("lists 36 states plus the Federal Capital Territory", () => {
-    expect(NIGERIAN_STATES).toHaveLength(37)
+describe("validateRegion", () => {
+  test("accepts and trims a region", () => {
+    expect(validateRegion("  Greater London ")).toBe("Greater London")
   })
-  test("contains no duplicates", () => {
-    expect(new Set(NIGERIAN_STATES).size).toBe(NIGERIAN_STATES.length)
+  test("rejects an empty region", () => {
+    expect(fieldOf(() => validateRegion("   "))).toBe("region")
   })
-  test("is sorted, so a dropdown is navigable", () => {
-    expect([...NIGERIAN_STATES]).toEqual([...NIGERIAN_STATES].sort())
+  test("rejects an absurdly long region", () => {
+    expect(fieldOf(() => validateRegion("a".repeat(101)))).toBe("region")
+  })
+})
+
+describe("COUNTRIES", () => {
+  test("spans several regions rather than one market", () => {
+    const codes = COUNTRIES.map((c) => c.code)
+    for (const code of ["GB", "CA", "NG", "SG", "BR", "DE", "JP"]) {
+      expect(codes).toContain(code)
+    }
+  })
+  test("uses unique ISO codes", () => {
+    expect(new Set(COUNTRIES.map((c) => c.code)).size).toBe(COUNTRIES.length)
+  })
+  test("is sorted by code, so a dropdown is navigable", () => {
+    const codes = COUNTRIES.map((c) => c.code)
+    expect([...codes]).toEqual([...codes].sort())
+  })
+  test("every country carries a dial code", () => {
+    for (const c of COUNTRIES) expect(c.dial.startsWith("+")).toBe(true)
+  })
+  test("findCountry returns null for an unknown code", () => {
+    expect(findCountry("ZZ")).toBeNull()
   })
 })

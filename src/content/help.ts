@@ -68,7 +68,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         heading: "What we ask for",
         body: [
-          "Verification requires your legal name, date of birth, Nigerian phone number, address, government identifier, an ID photograph, and a selfie.",
+          "Verification requires your legal name, date of birth, phone number, address, government identity document, an ID photograph, and a selfie.",
           "This is a legal requirement for regulated financial services.",
         ],
       },
@@ -90,7 +90,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         heading: "Two-factor authentication",
         body: [
-          "Two-factor authentication is required before any withdrawal. Use an authenticator app rather than SMS. SIM swap fraud is common.",
+          "Two-factor authentication is required before any withdrawal. Use an authenticator app rather than SMS. SIM swap fraud is widespread.",
           "Store recovery codes offline, accessible without your phone.",
         ],
       },

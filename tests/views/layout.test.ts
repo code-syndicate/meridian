@@ -65,9 +65,13 @@ describe("base layout", () => {
     expect(html).toContain("lose the entire value")
   })
 
-  test("states licensing status without claiming registration", () => {
-    expect(html).toContain("not yet registered")
-    expect(html).not.toMatch(/\bSEC[- ]registered\b/i)
+  test("states licensing status without claiming a licence", () => {
+    expect(html.toLowerCase()).toContain("not yet licensed")
+    expect(html).not.toMatch(/\bfully (licensed|regulated)\b/i)
+  })
+
+  test("carries no single-market framing", () => {
+    expect(html.toLowerCase()).not.toContain("nigeria")
   })
 
   test("includes a skip link as the first focusable element", () => {

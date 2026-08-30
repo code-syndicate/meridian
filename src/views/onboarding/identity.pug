@@ -30,9 +30,9 @@ block content
           if errors.dateOfBirth
             p.field-error= errors.dateOfBirth
         .field
-          label(for="phone") Nigerian mobile number
+          label(for="phone") Mobile number
           input#phone(type="tel" name="phone" value=values.phone required autocomplete="tel")
-          p.field-hint For example 08031234567.
+          p.field-hint International format, starting with your country code. For example +2348031234567.
           if errors.phone
             p.field-error= errors.phone
         button.btn.btn-primary(type="submit") Continue

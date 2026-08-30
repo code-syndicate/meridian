@@ -20,7 +20,7 @@ const config = loadConfig({
 })
 
 const PASSWORD = "correct horse battery staple"
-const BVN = "12345678901"
+const DOC = "A01234567"
 
 let db: Database
 let app: App
@@ -33,14 +33,15 @@ const IDENTITY = {
   middleName: "",
   lastName: "Okeke",
   dateOfBirth: "1994-05-12",
-  phone: "08031234567",
+  phone: "+2348031234567",
 }
 
 const ADDRESS = {
-  state: "Lagos",
-  lga: "Eti-Osa",
-  streetAddress: "14 Adeola Odeku Street",
-  postalCode: "101241",
+  country: "GB",
+  region: "Greater London",
+  city: "London",
+  streetAddress: "14 Finsbury Square",
+  postalCode: "EC2A 1AH",
 }
 
 beforeEach(async () => {
@@ -62,8 +63,8 @@ beforeEach(async () => {
 async function doIdentity(): Promise<Response> {
   return post(app, "/onboarding/identity", IDENTITY, jar)
 }
-async function doGovernmentId(idNumber = BVN): Promise<Response> {
-  return post(app, "/onboarding/government-id", { idType: "BVN", idNumber }, jar)
+async function doGovernmentId(idNumber = DOC): Promise<Response> {
+  return post(app, "/onboarding/government-id", { idType: "PASSPORT", idNumber }, jar)
 }
 async function doAddress(): Promise<Response> {
   return post(app, "/onboarding/address", ADDRESS, jar)
@@ -110,7 +111,7 @@ describe("step 1, identity", () => {
     expect(new KycRepository(db).openFor(userId)!.currentStep).toBe("government_id")
   })
 
-  test("normalises a local phone number to +234 format", async () => {
+  test("stores the phone in international format", async () => {
     await doIdentity()
     const app_ = new KycRepository(db).openFor(userId)!
     expect(new KycRepository(db).profileFor(app_.id)!.phone).toBe("+2348031234567")
@@ -140,15 +141,15 @@ describe("step 1, identity", () => {
     expect((await res.text()).toLowerCase()).toContain("18 or older")
   })
 
-  test("rejects a non-Nigerian phone number", async () => {
+  test("rejects a number without a country code", async () => {
     const res = await post(
       app,
       "/onboarding/identity",
-      { ...IDENTITY, phone: "+447700900123" },
+      { ...IDENTITY, phone: "07700900123" },
       jar,
     )
     expect(res.status).toBe(400)
-    expect((await res.text()).toLowerCase()).toContain("nigerian mobile")
+    expect((await res.text()).toLowerCase()).toContain("international format")
   })
 
   test("redisplays what the user typed after a validation failure", async () => {
@@ -187,8 +188,8 @@ describe("step 2, government id", () => {
     await doGovernmentId()
     const kyc = new KycRepository(db)
     const profile = kyc.profileFor(kyc.openFor(userId)!.id)!
-    expect(profile.governmentIdLast4).toBe("8901")
-    expect(profile.governmentIdType).toBe("BVN")
+    expect(profile.governmentIdLast4).toBe("4567")
+    expect(profile.governmentIdType).toBe("PASSPORT")
   })
 
   test("never writes the full identifier anywhere in the database", async () => {
@@ -202,13 +203,13 @@ describe("step 2, government id", () => {
     expect(tables.length).toBeGreaterThan(5)
     for (const { name } of tables) {
       const dump = JSON.stringify(db.query(`SELECT * FROM ${name}`).all())
-      expect(`${name}: ${dump.includes(BVN)}`).toBe(`${name}: false`)
+      expect(`${name}: ${dump.includes(DOC)}`).toBe(`${name}: false`)
     }
   })
 
   test("a failed verification keeps the user on the step with the reason", async () => {
     await doIdentity()
-    const res = await doGovernmentId("12345670000")
+    const res = await doGovernmentId("A01230000")
     expect(res.status).toBe(400)
     expect((await res.text()).toLowerCase()).toContain("do not match")
     expect(new KycRepository(db).openFor(userId)!.currentStep).toBe("government_id")
@@ -216,7 +217,7 @@ describe("step 2, government id", () => {
 
   test("a failed verification writes an audit entry", async () => {
     await doIdentity()
-    await doGovernmentId("12345670000")
+    await doGovernmentId("A01230000")
     expect(new AuditRepository(db).forUser(userId, 30).map((e) => e.action)).toContain(
       "kyc.government_id_failed",
     )
@@ -230,9 +231,9 @@ describe("step 2, government id", () => {
 
   test("rejects a malformed identifier before calling the provider", async () => {
     await doIdentity()
-    const res = await post(app, "/onboarding/government-id", { idType: "BVN", idNumber: "123" }, jar)
+    const res = await post(app, "/onboarding/government-id", { idType: "PASSPORT", idNumber: "123" }, jar)
     expect(res.status).toBe(400)
-    expect((await res.text())).toContain("11 digits")
+    expect((await res.text()).toLowerCase()).toContain("valid passport")
   })
 })
 
@@ -257,17 +258,20 @@ describe("step 3, address", () => {
   test("rejects a state not in the reference list", async () => {
     await doIdentity()
     await doGovernmentId()
-    const res = await post(app, "/onboarding/address", { ...ADDRESS, state: "Atlantis" }, jar)
+    const res = await post(app, "/onboarding/address", { ...ADDRESS, country: "ZZ" }, jar)
     expect(res.status).toBe(400)
   })
 
-  test("offers all 37 states in the form", async () => {
+  test("offers a multi-country list, not one market", async () => {
     await doIdentity()
     await doGovernmentId()
     const html = await (
       await app.inject("/onboarding/address", { headers: { cookie: jar } })
     ).text()
-    expect((html.match(/<option value="[^"]+"/g) ?? []).length).toBe(37)
+    expect((html.match(/<option value="[A-Z]{2}"/g) ?? []).length).toBeGreaterThan(20)
+    for (const code of ["GB", "NG", "SG", "BR"]) {
+      expect(html).toContain(`<option value="${code}"`)
+    }
   })
 })
 

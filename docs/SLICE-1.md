@@ -1,6 +1,6 @@
 # Meridian, Slices 1 and 2
 
-A centralized digital-asset exchange for the Nigerian market, operated by a US-incorporated company. This document describes what exists today, how to run it, and what still blocks launch.
+A centralized digital-asset exchange operating internationally. This document describes what exists today, how to run it, and what still blocks launch.
 
 **Slice 2 adds custody.** Deposits and withdrawals now work end to end behind a `CustodyProvider` interface, against a deterministic sandbox. Trading stays off: subsystem E does not exist yet. No real chain is connected, and production refuses to start with the sandbox provider.
 
@@ -57,7 +57,7 @@ These are enforced by tests, not by convention. Breaking one fails the suite.
 - **CSP carries no `unsafe-inline` and no `unsafe-eval`.** No inline styles, scripts, or event handlers. Alpine components register through `Alpine.data()`.
 - **Deposit truncation never loses value.** Chain amounts finer than 8 decimals are truncated down and the remainder is banked per user and asset, credited once it exceeds one base unit. A test asserts credited plus dust equals what arrived.
 - **A withdrawal always holds before it submits.** The hold is what stops the same balance leaving twice. A provider failure releases it; a confirmation consumes it.
-- **A full BVN or NIN is never stored.** The schema has no column that could hold one. A test dumps every table and fails if it finds one.
+- **A full government identity document number is never stored.** The schema has no column that could hold one. A test dumps every table and fails if it finds one.
 - **Zero axe violations** across every route, public and authenticated.
 - **JavaScript is an enhancement.** Every page works with scripts disabled.
 
@@ -70,9 +70,9 @@ None of these are code problems. All are tracked in spec §12.
 3. **No real KYC provider.** The interface and a deterministic sandbox exist. Writing the Smile ID, Dojah, or Youverify adapter is one file with no changes above it. Production refuses to start with the sandbox.
 3. **Phone OTP is stubbed.** `phone_verified_at` is always null. Needs an SMS vendor, a separate decision from email.
 4. **Placeholder contact address** on `/about`.
-5. **LGA is a free text field.** Nigeria has 774 local government areas and an inaccurate dropdown silently produces wrong addresses. Load the official dataset from a verifiable source before launch.
+5. **Region and city are free text.** Subdivision datasets vary by country. A verified dataset per supported country is a launch task.
 6. **Legal and entity details are unfilled** on `/regulatory` and `/legal/terms`.
-7. **Capital requirement unconfirmed.** Secondary sources give ₦500m with a proposed ₦2bn for exchanges and custodians. Confirm with Nigerian counsel; it is the largest number in the project.
+7. **Capital and licensing requirements unconfirmed.** Every market sets its own thresholds for exchanges and custodians. Confirm each with local counsel before committing to a launch market.
 8. **No security audit and no proof-of-reserves attestation.** `/security` says so plainly and must keep saying so until they exist.
 
 ## What is next

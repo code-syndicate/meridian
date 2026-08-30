@@ -4,8 +4,8 @@ import { SandboxKycProvider } from "../../src/services/kyc-provider"
 let provider: SandboxKycProvider
 
 const validInput = {
-  idType: "BVN" as const,
-  idNumber: "12345678901",
+  idType: "PASSPORT" as const,
+  idNumber: "A01234567",
   firstName: "Chidinma",
   lastName: "Okeke",
   dateOfBirth: "1994-05-12",
@@ -28,7 +28,7 @@ describe("verifyGovernmentId", () => {
     expect(second.reference).toBe(first.reference)
   })
   test("fails an identifier ending 0000, so a rejection path is demonstrable", async () => {
-    const result = await provider.verifyGovernmentId({ ...validInput, idNumber: "12345670000" })
+    const result = await provider.verifyGovernmentId({ ...validInput, idNumber: "A01230000" })
     expect(result.verified).toBe(false)
     expect(result.reason).toBeDefined()
   })
@@ -36,8 +36,8 @@ describe("verifyGovernmentId", () => {
     expect((await provider.verifyGovernmentId(validInput)).reference).not.toContain("12345678901")
   })
   test("never echoes the identifier in a failure reason", async () => {
-    const result = await provider.verifyGovernmentId({ ...validInput, idNumber: "12345670000" })
-    expect(result.reason ?? "").not.toContain("12345670000")
+    const result = await provider.verifyGovernmentId({ ...validInput, idNumber: "A01230000" })
+    expect(result.reason ?? "").not.toContain("A01230000")
   })
 })
 

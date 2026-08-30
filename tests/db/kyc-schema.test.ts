@@ -66,16 +66,16 @@ describe("kyc_profiles", () => {
     expect(columns).toContain("government_id_last4")
     expect(columns).toContain("government_id_type")
     expect(columns).toContain("provider_reference")
-    expect(columns).not.toContain("bvn")
-    expect(columns).not.toContain("nin")
+    expect(columns).toContain("country")
     expect(columns).not.toContain("government_id")
+    expect(columns).not.toContain("passport_number")
   })
 
   test("rejects a last4 longer than four characters", () => {
     const appId = newApplication()
     expect(() =>
       db.query(`INSERT INTO kyc_profiles (application_id, government_id_type, government_id_last4, created_at, updated_at)
-           VALUES (?, 'BVN', '123456789', '2026-01-01', '2026-01-01')`).run(appId),
+           VALUES (?, 'PASSPORT', '123456789', '2026-01-01', '2026-01-01')`).run(appId),
     ).toThrow()
   })
 
@@ -83,7 +83,7 @@ describe("kyc_profiles", () => {
     const appId = newApplication()
     expect(() =>
       db.query(`INSERT INTO kyc_profiles (application_id, government_id_type, government_id_last4, created_at, updated_at)
-           VALUES (?, 'PASSPORT', '1234', '2026-01-01', '2026-01-01')`).run(appId),
+           VALUES (?, 'BVN', '1234', '2026-01-01', '2026-01-01')`).run(appId),
     ).toThrow()
   })
 })

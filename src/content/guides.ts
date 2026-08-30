@@ -21,11 +21,11 @@ export const GET_STARTED_STEPS: GuideStep[] = [
   },
   {
     title: "Turn on two-factor authentication",
-    body: "Use an authenticator app, not SMS. SIM swap fraud is common in Nigeria. Store your recovery codes offline.",
+    body: "Use an authenticator app, not SMS. SIM swap fraud is widespread. Store your recovery codes offline.",
   },
   {
     title: "Verify your identity",
-    body: "Five steps: legal name and date of birth, BVN or NIN, address, ID photo with selfie, and disclosures. Takes a few minutes and can be resumed.",
+    body: "Five steps: legal name and date of birth, identity document, address, ID photo with selfie, and disclosures. Takes a few minutes and can be resumed.",
   },
   {
     title: "Fund your account",
@@ -73,7 +73,7 @@ export const RESOURCES: Resource[] = [
   {
     kicker: "Compliance",
     title: "Where our licensing stands",
-    body: "Current registration status with the SEC of Nigeria.",
+    body: "Current licensing status across our markets.",
     href: "/regulatory",
   },
   {

@@ -60,9 +60,13 @@ describe("home page", () => {
     expect((html.match(/btn-primary/g) ?? []).length).toBe(1)
   })
 
-  test("states regulatory status accurately", () => {
-    expect(html).toContain("Accelerated Regulatory Incubation")
-    expect(html).toContain("not registered")
+  test("states licensing status accurately", () => {
+    expect(html.toLowerCase()).toContain("not yet licensed")
+  })
+
+  test("is not scoped to a single market", () => {
+    expect(html.toLowerCase()).not.toContain("nigeria")
+    expect(html.toLowerCase()).not.toContain("securities and exchange commission")
   })
 
   test("never claims Meridian itself is licensed or registered", () => {

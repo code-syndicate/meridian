@@ -103,10 +103,10 @@ describe("/account/verification", () => {
 
   test("never displays a government identifier beyond the last four", async () => {
     const id = kyc.start(userId, 2)
-    kyc.updateProfile(id, { governmentIdType: "BVN", governmentIdLast4: "8901" })
+    kyc.updateProfile(id, { governmentIdType: "PASSPORT", governmentIdLast4: "4567" })
     const html = await page()
-    expect(html).toContain("8901")
-    expect(html).not.toContain("12345678901")
+    expect(html).toContain("4567")
+    expect(html).not.toContain("A01234567")
   })
 })
 

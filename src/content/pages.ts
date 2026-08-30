@@ -95,8 +95,8 @@ export const CONTENT_PAGES: ContentPage[] = [
       {
         heading: "Current position",
         body: [
-          "Meridian is not registered with the Securities and Exchange Commission of Nigeria. An application is in preparation under the Accelerated Regulatory Incubation Programme.",
-          "Trading is unavailable until registration completes. Nothing on this site constitutes an offer of regulated services.",
+          "Meridian is not yet licensed as a virtual asset service provider. Licence applications are in preparation across our launch markets.",
+          "Trading is unavailable until licensing completes. Nothing on this site constitutes an offer of regulated services.",
         ],
       },
       {
@@ -109,13 +109,13 @@ export const CONTENT_PAGES: ContentPage[] = [
         heading: "Know your customer and anti-money-laundering",
         body: [
           "Identity verification is required before an account can move value. Verification runs through a licensed provider with sanctions and PEP screening.",
-          "Government identifiers are not stored in full. Meridian retains the provider reference and the last four digits.",
+          "Government identifiers are not stored in full. Meridian retains the provider reference and the last four characters.",
         ],
       },
       {
         heading: "Who we serve",
         body: [
-          "Meridian serves residents of Nigeria. Restricted jurisdictions will be published before launch.",
+          "Meridian serves customers in supported jurisdictions. The list of supported and restricted jurisdictions is published before launch.",
         ],
       },
     ],
@@ -130,7 +130,7 @@ export const CONTENT_PAGES: ContentPage[] = [
       {
         heading: "What we are building",
         body: [
-          "Meridian is a digital asset custody and execution platform for the Nigerian market, currently in development.",
+          "Meridian is a digital asset custody and execution platform, currently in development.",
           "Custody model, fee schedule, and regulatory status are published in full.",
         ],
       },
@@ -222,7 +222,7 @@ export const LEGAL_PAGES: ContentPage[] = [
       {
         heading: "Governing law",
         body: [
-          "These terms are governed by the laws of the Federal Republic of Nigeria. Entity and jurisdiction details are published here before launch.",
+          "Governing law and the contracting entity are published here before launch.",
         ],
       },
     ],
@@ -251,7 +251,7 @@ export const LEGAL_PAGES: ContentPage[] = [
       {
         heading: "Your rights",
         body: [
-          "Under the Nigeria Data Protection Act you may request access to your personal data, request correction, and object to certain processing. Send requests to the address on the About page.",
+          "Subject to applicable data protection law, you may request access to your personal data, request correction, and object to certain processing. Send requests to the address on the About page.",
         ],
       },
     ],
@@ -266,14 +266,14 @@ export const LEGAL_PAGES: ContentPage[] = [
       {
         heading: "Verification",
         body: [
-          "Accounts are verified before they can move value. Verification includes confirmation against Nigerian government identifiers plus document and liveness checks.",
+          "Accounts are verified before they can move value. Verification includes government identity document checks plus document and liveness verification.",
           "Accounts are screened against sanctions and politically exposed person lists at onboarding and on an ongoing basis.",
         ],
       },
       {
         heading: "Monitoring and reporting",
         body: [
-          "Transactions are monitored for patterns associated with money laundering and terrorist financing. Activity meeting reporting thresholds is reported to the relevant Nigerian authorities.",
+          "Transactions are monitored for patterns associated with money laundering and terrorist financing. Activity meeting reporting thresholds is reported to the relevant authorities in each jurisdiction.",
           "Accounts may be suspended during an investigation. Meridian is not always permitted to disclose the reason.",
         ],
       },

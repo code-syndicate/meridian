@@ -8,8 +8,8 @@ export interface TierLimits {
 
 /**
  * Placeholder figures. They are configuration rather than product decisions,
- * and must be confirmed against the SEC Nigeria framework and our AML
- * programme before any of them take effect. Nothing is enabled in Slice 1
+ * and must be confirmed against the licensing framework in each market
+ * and our AML programme before any of them take effect. Nothing is enabled in Slice 1
  * regardless of tier, because no asset has its movement flags set.
  */
 const LIMITS: Record<number, TierLimits> = {

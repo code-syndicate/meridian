@@ -14,7 +14,7 @@ export type KycStatus =
   | "rejected"
   | "expired"
 
-export type GovernmentIdType = "BVN" | "NIN"
+export type GovernmentIdType = "PASSPORT" | "NATIONAL_ID" | "DRIVERS_LICENSE"
 
 export type ConsentDocument = "terms" | "privacy" | "risk" | "aml"
 

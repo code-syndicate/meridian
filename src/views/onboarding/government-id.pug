@@ -5,24 +5,27 @@ block content
   .shell
     .wizard
       +stepRail(stepNumber, stepTotal)
-      h1 Your BVN or NIN.
-      p We send this to our verification provider to confirm it matches the name and date of birth you gave. We keep the last four digits and the provider's reference, never the full number.
+      h1 Your identity document.
+      p.lead We send these details to our verification provider to confirm they match the name and date of birth you gave. We keep the last four characters and the provider reference, never the full number.
       if last4
         p.field-hint Currently verified ending #{last4}.
       form(method="post" action="/onboarding/government-id")
         input(type="hidden" name="_csrf" value=csrfToken)
         fieldset.field
-          legend Identifier type
+          legend Document type
           .radio
-            input#typeBvn(type="radio" name="idType" value="BVN" checked=(idType === "BVN"))
-            label(for="typeBvn") BVN
+            input#typePassport(type="radio" name="idType" value="PASSPORT" checked=(idType === "PASSPORT"))
+            label(for="typePassport") Passport
           .radio
-            input#typeNin(type="radio" name="idType" value="NIN" checked=(idType === "NIN"))
-            label(for="typeNin") NIN
+            input#typeNational(type="radio" name="idType" value="NATIONAL_ID" checked=(idType === "NATIONAL_ID"))
+            label(for="typeNational") National ID card
+          .radio
+            input#typeLicense(type="radio" name="idType" value="DRIVERS_LICENSE" checked=(idType === "DRIVERS_LICENSE"))
+            label(for="typeLicense") Driver's licence
         .field
-          label(for="idNumber") Identifier number
-          input#idNumber(type="text" name="idNumber" required inputmode="numeric" autocomplete="off")
-          p.field-hint 11 digits.
+          label(for="idNumber") Document number
+          input#idNumber(type="text" name="idNumber" required autocomplete="off" spellcheck="false")
+          p.field-hint As printed on the document, without spaces.
           if errors.governmentId
             p.field-error= errors.governmentId
         button.btn.btn-primary(type="submit") Verify

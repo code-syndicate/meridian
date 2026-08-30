@@ -6,11 +6,13 @@ import type { KycProvider } from "../services/kyc-provider"
 import {
   validateName,
   validateDateOfBirth,
-  normalizeNigerianPhone,
+  normalizePhone,
   validateGovernmentId,
-  validateState,
+  validateCountry,
+  validateRegion,
+  idLabel,
 } from "../domain/kyc/validate"
-import { NIGERIAN_STATES } from "../domain/kyc/nigeria"
+import { COUNTRIES } from "../domain/kyc/countries"
 import { canEnter, nextStep, stepIndex } from "../domain/kyc/steps"
 import { KycError, type ConsentDocument, type GovernmentIdType } from "../domain/kyc/types"
 import { requireAuth } from "../middleware/session"
@@ -176,7 +178,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     }
 
     try {
-      patch.phone = normalizeNigerianPhone(values.phone)
+      patch.phone = normalizePhone(values.phone)
     } catch (error) {
       if (error instanceof KycError) errors.phone = error.message
       else throw error
@@ -215,7 +217,8 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
       path: req.path,
       ...stepLocals("government_id"),
       errors: {},
-      idType: state.profile.governmentIdType ?? "BVN",
+      idType: state.profile.governmentIdType ?? "PASSPORT",
+      idLabel: idLabel(state.profile.governmentIdType ?? "PASSPORT"),
       last4: state.profile.governmentIdLast4,
     })
   })
@@ -224,7 +227,10 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     const state = gate(req, res, "government_id")
     if (!state) return
     const body = req.body as Record<string, string | undefined>
-    const idType = (body.idType === "NIN" ? "NIN" : "BVN") as GovernmentIdType
+    const requested = String(body.idType ?? "")
+    const idType = (
+      requested === "NATIONAL_ID" || requested === "DRIVERS_LICENSE" ? requested : "PASSPORT"
+    ) as GovernmentIdType
 
     const render = (errors: Record<string, string>, status: number): void => {
       res.status(status).render("onboarding/government-id", {
@@ -234,6 +240,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
         ...stepLocals("government_id"),
         errors,
         idType,
+        idLabel: idLabel(idType),
         last4: state.profile.governmentIdLast4,
       })
     }
@@ -298,10 +305,11 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
       path: req.path,
       ...stepLocals("address"),
       errors: {},
-      states: NIGERIAN_STATES,
+      countries: COUNTRIES,
       values: {
-        state: state.profile.state ?? "",
-        lga: state.profile.lga ?? "",
+        country: state.profile.country ?? "",
+        region: state.profile.region ?? "",
+        city: state.profile.city ?? "",
         streetAddress: state.profile.streetAddress ?? "",
         postalCode: state.profile.postalCode ?? "",
       },
@@ -313,20 +321,26 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     if (!state) return
     const body = req.body as Record<string, string | undefined>
     const values = {
-      state: String(body.state ?? ""),
-      lga: String(body.lga ?? "").trim(),
+      country: String(body.country ?? ""),
+      region: String(body.region ?? "").trim(),
+      city: String(body.city ?? "").trim(),
       streetAddress: String(body.streetAddress ?? "").trim(),
       postalCode: String(body.postalCode ?? "").trim(),
     }
 
     const errors: Record<string, string> = {}
-    try {
-      validateState(values.state)
-    } catch (error) {
-      if (error instanceof KycError) errors.state = error.message
-      else throw error
+    for (const [fn, field] of [
+      [() => validateCountry(values.country), "country"],
+      [() => validateRegion(values.region), "region"],
+    ] as const) {
+      try {
+        fn()
+      } catch (error) {
+        if (error instanceof KycError) errors[field] = error.message
+        else throw error
+      }
     }
-    if (values.lga.length === 0) errors.lga = "Enter your local government area"
+    if (values.city.length === 0) errors.city = "Enter your city or town"
     if (values.streetAddress.length < 5) {
       errors.streetAddress = "Enter your full street address"
     }
@@ -338,14 +352,15 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
         path: "/onboarding/address",
         ...stepLocals("address"),
         errors,
-        states: NIGERIAN_STATES,
+        countries: COUNTRIES,
         values,
       })
     }
 
     deps.kyc.updateProfile(state.id, {
-      state: values.state,
-      lga: values.lga,
+      country: values.country,
+      region: values.region,
+      city: values.city,
       streetAddress: values.streetAddress,
       postalCode: values.postalCode || null,
     })

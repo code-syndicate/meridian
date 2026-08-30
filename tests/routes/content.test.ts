@@ -128,10 +128,16 @@ describe("content data", () => {
     expect(html.toLowerCase()).toContain("entire")
   })
 
-  test("the regulatory page names the current stage", async () => {
+  test("the regulatory page states the current licensing stage", async () => {
     const html = await (await createApp(config).inject("/regulatory")).text()
-    expect(html).toContain("Accelerated Regulatory Incubation")
-    expect(html.toLowerCase()).toContain("not registered")
+    expect(html.toLowerCase()).toContain("not yet licensed")
+    expect(html.toLowerCase()).toContain("licence applications")
+  })
+
+  test("the regulatory page names no single market as the whole business", async () => {
+    const html = (await (await createApp(config).inject("/regulatory")).text()).toLowerCase()
+    expect(html).not.toContain("nigeria")
+    expect(html).not.toContain("securities and exchange commission")
   })
 
   test("the security page describes third-party custody", async () => {

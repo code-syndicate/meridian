@@ -30,8 +30,9 @@ export interface KycProfile {
   governmentIdType: GovernmentIdType | null
   governmentIdLast4: string | null
   providerReference: string | null
-  state: string | null
-  lga: string | null
+  country: string | null
+  region: string | null
+  city: string | null
   streetAddress: string | null
   postalCode: string | null
 }
@@ -60,8 +61,9 @@ interface ProfileRow {
   government_id_type: GovernmentIdType | null
   government_id_last4: string | null
   provider_reference: string | null
-  state: string | null
-  lga: string | null
+  country: string | null
+  region: string | null
+  city: string | null
   street_address: string | null
   postal_code: string | null
 }
@@ -82,8 +84,9 @@ const PROFILE_COLUMNS: Record<keyof KycProfile, string> = {
   governmentIdType: "government_id_type",
   governmentIdLast4: "government_id_last4",
   providerReference: "provider_reference",
-  state: "state",
-  lga: "lga",
+  country: "country",
+  region: "region",
+  city: "city",
   streetAddress: "street_address",
   postalCode: "postal_code",
 }
@@ -115,8 +118,9 @@ function toProfile(row: ProfileRow): KycProfile {
     governmentIdType: row.government_id_type,
     governmentIdLast4: row.government_id_last4,
     providerReference: row.provider_reference,
-    state: row.state,
-    lga: row.lga,
+    country: row.country,
+    region: row.region,
+    city: row.city,
     streetAddress: row.street_address,
     postalCode: row.postal_code,
   }
@@ -184,7 +188,7 @@ export class KycRepository {
       .query<ProfileRow, [number]>(
         `SELECT first_name, middle_name, last_name, date_of_birth, phone, phone_verified_at,
                 government_id_type, government_id_last4, provider_reference,
-                state, lga, street_address, postal_code
+                country, region, city, street_address, postal_code
          FROM kyc_profiles WHERE application_id = ?`,
       )
       .get(applicationId)

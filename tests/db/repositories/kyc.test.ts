@@ -96,11 +96,11 @@ describe("profile", () => {
   test("stores only the last four of a government identifier", () => {
     const id = kyc.start(userId, 2)
     kyc.updateProfile(id, {
-      governmentIdType: "BVN", governmentIdLast4: "8901", providerReference: "sbx_abc",
+      governmentIdType: "PASSPORT", governmentIdLast4: "4567", providerReference: "sbx_abc",
     })
-    expect(kyc.profileFor(id)!.governmentIdLast4).toBe("8901")
+    expect(kyc.profileFor(id)!.governmentIdLast4).toBe("4567")
     const dump = JSON.stringify(db.query("SELECT * FROM kyc_profiles").all())
-    expect(dump).not.toContain("12345678901")
+    expect(dump).not.toContain("A01234567")
   })
 })
 
