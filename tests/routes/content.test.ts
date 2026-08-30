@@ -128,10 +128,19 @@ describe("content data", () => {
     expect(html.toLowerCase()).toContain("entire")
   })
 
-  test("the regulatory page states the current licensing stage", async () => {
-    const html = await (await createApp(config).inject("/regulatory")).text()
-    expect(html.toLowerCase()).toContain("not yet licensed")
-    expect(html.toLowerCase()).toContain("licence applications")
+  test("the regulatory page describes the compliance programme", async () => {
+    const html = (await (await createApp(config).inject("/regulatory")).text()).toLowerCase()
+    expect(html).toContain("sanctions")
+    expect(html).toContain("transaction monitoring")
+    expect(html).toContain("due diligence")
+  })
+
+  test("no content page claims a licence Meridian does not hold", async () => {
+    for (const slug of ["fees", "security", "regulatory", "about", "status"]) {
+      const html = await (await createApp(config).inject(`/${slug}`)).text()
+      expect(html).not.toMatch(/\b(we|meridian) (are|is) (licensed|registered|regulated|approved)\b/i)
+      expect(html).not.toMatch(/\bfully (licensed|regulated)\b/i)
+    }
   })
 
   test("the regulatory page names no single market as the whole business", async () => {

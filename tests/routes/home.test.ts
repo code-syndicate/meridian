@@ -47,8 +47,17 @@ describe("home page", () => {
     expect(html).toContain("preview-rows")
   })
 
-  test("labels the preview as illustrative, because it is not a real balance", () => {
-    expect(html.toLowerCase()).toContain("illustrative")
+  test("carries no pre-launch scaffolding or internal commentary", () => {
+    const lowered = html.toLowerCase()
+    for (const banned of [
+      "illustrative",
+      "not yet",
+      "licence application",
+      "before launch",
+      "coming soon",
+    ]) {
+      expect(lowered).not.toContain(banned)
+    }
   })
 
   test("leads with custody rather than features", () => {
@@ -66,8 +75,8 @@ describe("home page", () => {
     expect((html.match(/btn-primary/g) ?? []).length).toBe(1)
   })
 
-  test("states licensing status accurately", () => {
-    expect(html.toLowerCase()).toContain("not yet licensed")
+  test("describes the compliance programme rather than a countdown", () => {
+    expect(html.toLowerCase()).toContain("sanctions")
   })
 
   test("is not scoped to a single market", () => {

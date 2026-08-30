@@ -26,13 +26,13 @@ block content
           dd #{asset.confirmationsRequired} required
         .asset-fact
           dt Deposits
-          dd= asset.depositEnabled ? "Enabled" : "Not yet enabled"
+          dd= asset.depositEnabled ? "Enabled" : "Disabled"
         .asset-fact
           dt Withdrawals
-          dd= asset.withdrawalEnabled ? "Enabled" : "Not yet enabled"
+          dd= asset.withdrawalEnabled ? "Enabled" : "Disabled"
         .asset-fact
           dt Trading
-          dd= asset.tradingEnabled ? "Enabled" : "Not yet enabled"
+          dd= asset.tradingEnabled ? "Enabled" : "Disabled"
         if asset.contractAddress
           .asset-fact
             dt Contract address

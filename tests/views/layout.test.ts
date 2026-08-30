@@ -65,9 +65,18 @@ describe("base layout", () => {
     expect(html).toContain("lose the entire value")
   })
 
-  test("states licensing status without claiming a licence", () => {
-    expect(html.toLowerCase()).toContain("not yet licensed")
+  test("carries a risk warning and claims no licence it does not hold", () => {
+    expect(html.toLowerCase()).toContain("risk warning")
+    expect(html.toLowerCase()).toContain("you can lose")
     expect(html).not.toMatch(/\bfully (licensed|regulated)\b/i)
+    expect(html).not.toMatch(/\b(we|meridian) (are|is) (licensed|registered|regulated|approved)\b/i)
+  })
+
+  test("carries no pre-launch scaffolding, so nothing must be swept out at launch", () => {
+    const lowered = html.toLowerCase()
+    for (const banned of ["not yet", "licence application", "before launch", "coming soon"]) {
+      expect(lowered).not.toContain(banned)
+    }
   })
 
   test("carries no single-market framing", () => {

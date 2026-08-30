@@ -80,4 +80,5 @@ html(lang="en")
           p
             strong Risk warning.
             |  Digital assets are volatile and you can lose the entire value of what you put in. Nothing on this site is investment advice, and nothing here is a promise of any return. Meridian does not guarantee the value of any asset.
-          p Meridian is not yet licensed as a virtual asset service provider. Licence applications are in preparation. We are not accepting deposits or offering trading at this time.
+          if prelaunchNotice
+            p= prelaunchNotice

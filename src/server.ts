@@ -1,4 +1,5 @@
 import express from "express"
+import { PRELAUNCH_NOTICE } from "./content/site"
 import helmet from "helmet"
 import cookieParser from "cookie-parser"
 import { join } from "node:path"
@@ -191,6 +192,7 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
 
   app.use((req, res, next) => {
     res.locals.newsTicker = newsFeed.snapshot().slice(0, 12)
+    res.locals.prelaunchNotice = PRELAUNCH_NOTICE
     res.locals.destinations = req.user
       ? [...ACCOUNT_DESTINATIONS, ...PUBLIC_DESTINATIONS]
       : PUBLIC_DESTINATIONS

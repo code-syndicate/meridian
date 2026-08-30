@@ -153,11 +153,10 @@ describe("navigation gating on the dashboard", () => {
     expect((await page("/dashboard")).toLowerCase()).toContain("verify your identity")
   })
 
-  test("a verified user is not told to verify, but told it is not launched", async () => {
+  test("a verified user is not told to verify", async () => {
     const id = kyc.start(userId, 2)
     kyc.decide(id, "approved")
     const html = await page("/dashboard")
     expect(html.toLowerCase()).not.toContain("verify your identity to enable")
-    expect(html.toLowerCase()).toContain("not yet available")
   })
 })

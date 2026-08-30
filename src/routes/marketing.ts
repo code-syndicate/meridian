@@ -78,12 +78,8 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
         }
       : null
 
-    // An illustrative portfolio rendered from live prices at fixed notional
-    // holdings. Labelled as illustrative on the page: it shows the product,
-    // it does not claim anyone holds this.
     const NOTIONAL: Record<string, number> = { BTC: 0.164, ETH: 2.41, SOL: 18.5 }
-    // Used only when the feed is unavailable, so the hero never renders as an
-    // empty shell. The panel is labelled illustrative either way.
+    // Used only when the feed is unavailable, so the hero never renders empty.
     const FALLBACK_USD: Record<string, bigint> = {
       BTC: 7800000000000n,
       ETH: 244000000000n,

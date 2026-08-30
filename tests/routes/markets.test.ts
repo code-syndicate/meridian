@@ -63,9 +63,9 @@ describe("GET /markets", () => {
     expect(html).not.toContain('class="card"')
   })
 
-  test("makes clear that trading is not live", async () => {
-    const html = await (await (await build()).inject("/markets")).text()
-    expect(html.toLowerCase()).toContain("not yet")
+  test("says the prices do not price a transaction", async () => {
+    const html = (await (await (await build()).inject("/markets")).text()).toLowerCase()
+    expect(html).toContain("do not price any transaction")
   })
 })
 

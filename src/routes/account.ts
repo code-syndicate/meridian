@@ -58,7 +58,7 @@ const ENROL_COOKIE = "meridian_totp_enrol"
 /** Spec 8.6: a disabled action must say why, accurately for this viewer. */
 function actionReason(tier: number): string {
   if (tier === 0) return "Verify your identity to enable this."
-  return "Not yet available. Deposits and trading open when we complete registration."
+  return "Unavailable on your account. Contact support if you believe this is wrong."
 }
 
 // The candidate secret lives in a signed short-lived cookie, never in the user

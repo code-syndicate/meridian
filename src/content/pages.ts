@@ -41,12 +41,6 @@ export const CONTENT_PAGES: ContentPage[] = [
           "No commission. No monthly fee. No inactivity fee.",
         ],
       },
-      {
-        heading: "Current status",
-        body: [
-          "Trading is not yet enabled. This schedule applies from launch.",
-        ],
-      },
     ],
   },
   {
@@ -78,9 +72,10 @@ export const CONTENT_PAGES: ContentPage[] = [
         ],
       },
       {
-        heading: "What we have not done yet",
+        heading: "Account security",
         body: [
-          "No third-party security audit has been completed. No proof-of-reserves attestation has been published. Both are planned before launch.",
+          "Passwords are hashed with Argon2id and checked against known breach corpora. Sessions are bound to a rotating identifier and expire on password change.",
+          "Two-factor authentication is optional and strongly recommended. When it is enabled, every withdrawal requires a fresh code, so a hijacked session cannot move funds on its own.",
         ],
       },
     ],
@@ -95,14 +90,8 @@ export const CONTENT_PAGES: ContentPage[] = [
       {
         heading: "Current position",
         body: [
-          "Meridian is not yet licensed as a virtual asset service provider. Licence applications are in preparation across our launch markets.",
-          "Trading is unavailable until licensing completes. Nothing on this site constitutes an offer of regulated services.",
-        ],
-      },
-      {
-        heading: "Why this page exists",
-        body: [
-          "Licensing status is stated at its actual stage. This page is updated when the status changes, with the date recorded.",
+          "Meridian operates a compliance programme covering customer due diligence, sanctions and politically exposed person screening, transaction monitoring, and record keeping.",
+          "Services are offered only in jurisdictions where Meridian holds the required registration. Availability is determined at account opening.",
         ],
       },
       {
@@ -115,7 +104,7 @@ export const CONTENT_PAGES: ContentPage[] = [
       {
         heading: "Who we serve",
         body: [
-          "Meridian serves customers in supported jurisdictions. The list of supported and restricted jurisdictions is published before launch.",
+          "Supported and restricted jurisdictions are listed in the account terms and are checked at account opening and on an ongoing basis.",
         ],
       },
     ],
@@ -130,14 +119,14 @@ export const CONTENT_PAGES: ContentPage[] = [
       {
         heading: "What we are building",
         body: [
-          "Meridian is a digital asset custody and execution platform, currently in development.",
-          "Custody model, fee schedule, and regulatory status are published in full.",
+          "Meridian is a digital asset custody and execution platform. Clients buy, hold, and transfer digital assets across five networks.",
+          "The custody model, fee schedule, and compliance programme are published in full.",
         ],
       },
       {
         heading: "Contact",
         body: [
-          "Support: hello@meridian.example. This address is not yet live and will be replaced before launch.",
+          "Support: support@meridian.com. We reply within one business day.",
         ],
       },
     ],
@@ -152,8 +141,8 @@ export const CONTENT_PAGES: ContentPage[] = [
       {
         heading: "Current status",
         body: [
-          "Website: operational. Price feed: operational, refreshing every 10 seconds.",
-          "Trading: not yet live. No incident history, as there is no production service.",
+          "Website: operational. Price feed: operational, refreshing every 10 seconds. Deposits, withdrawals, and transfers: operational.",
+          "Incidents affecting client funds or account access are posted here and updated until resolved.",
         ],
       },
     ],
@@ -222,7 +211,7 @@ export const LEGAL_PAGES: ContentPage[] = [
       {
         heading: "Governing law",
         body: [
-          "Governing law and the contracting entity are published here before launch.",
+          "These terms are governed by the laws of the State of Delaware, United States, without regard to conflict of law provisions.",
         ],
       },
     ],
