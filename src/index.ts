@@ -9,8 +9,9 @@ const app = createApp(config)
 
 const priceFeed = app.locals.priceFeed as PriceFeed
 
-// Warm the feed before accepting traffic. Otherwise the first page rendered
-// after a restart has no prices and the hero shows an empty portfolio.
+// Last good prices first, so a restart renders immediately and does not spend
+// an upstream call to draw its first page.
+await priceFeed.loadCache()
 await priceFeed.refresh()
 priceFeed.start()
 

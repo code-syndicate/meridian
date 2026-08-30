@@ -229,7 +229,7 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
     createWalletRoutes({ assets, ledger, custody, kyc, service: custodyService, transfers: transferService, limits: limitService, users, config }),
   )
   app.use(createOnboardingRoutes({ kyc, audit, provider: kycProvider, config }))
-  app.use(createMarketingRoutes({ assets, feed: priceFeed, news: newsFeed }))
+  app.use(createMarketingRoutes({ assets, feed: priceFeed, news: newsFeed, ledger }))
 
   app.use((_req, res) => {
     res.status(404).json({ error: "not_found" })

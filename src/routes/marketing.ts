@@ -1,6 +1,9 @@
 import express from "express"
 import type { AssetRepository } from "../db/repositories/assets"
 import type { PriceFeed } from "../services/price-feed"
+import type { LedgerRepository } from "../db/repositories/ledger"
+import { buildPortfolio } from "../domain/portfolio"
+import { formatBalance } from "../domain/money"
 import { usdParts, formatChange, directionOf, formatUsd, formatCompactUsd } from "../domain/prices"
 import { buildSparkline } from "../domain/sparkline"
 import { CONTENT_PAGES, LEGAL_PAGES } from "../content/pages"
@@ -13,6 +16,7 @@ export interface MarketingDeps {
   assets: AssetRepository
   feed: PriceFeed
   news: NewsFeed
+  ledger: LedgerRepository
 }
 
 export function createMarketingRoutes(deps: MarketingDeps): express.Router {
@@ -100,18 +104,53 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
         }
       })
 
-    const previewTotal = previewRows.reduce((sum, r) => sum + r.valueUsd, 0n)
     const previewLead = quotes.get("BTC") ?? deps.feed.snapshot()[0]
-    const preview = {
-      total: usdParts(previewTotal),
-      change: previewLead ? formatChange(previewLead.change24h) : "0.00%",
-      direction: previewLead ? directionOf(previewLead.change24h) : "flat",
-      spark: previewLead ? buildSparkline(previewLead.sparkline, 300, 84) : null,
-      rows: previewRows.map((r) => {
-        const parts = usdParts(r.valueUsd)
-        return { name: r.name, symbol: r.symbol, amount: r.amount, value: `${parts.whole}.${parts.fraction}` }
-      }),
-    }
+    const previewSpark = previewLead ? buildSparkline(previewLead.sparkline, 300, 84) : null
+
+    // Signed in, the card shows what the viewer actually holds. Showing a
+    // notional portfolio to someone with a real one is the wrong card.
+    const own = req.user
+      ? buildPortfolio({
+          assets: deps.assets.all(),
+          balances: deps.ledger.balances(req.user.id),
+          quotes: deps.feed.snapshot(),
+        })
+      : null
+
+    const preview = own
+      ? {
+          mine: true,
+          empty: own.empty,
+          total: usdParts(own.totalUsd),
+          change: previewLead ? formatChange(previewLead.change24h) : "0.00%",
+          direction: previewLead ? directionOf(previewLead.change24h) : "flat",
+          spark: own.empty ? null : previewSpark,
+          rows: own.rows
+            .filter((row) => row.available + row.held > 0n)
+            .sort((a, b) => (b.valueUsd > a.valueUsd ? 1 : b.valueUsd < a.valueUsd ? -1 : 0))
+            .slice(0, 3)
+            .map((row) => {
+              const parts = usdParts(row.valueUsd)
+              return {
+                name: row.name,
+                symbol: row.displaySymbol,
+                amount: formatBalance(row.available + row.held, row.displayDecimals),
+                value: `${parts.whole}.${parts.fraction}`,
+              }
+            }),
+        }
+      : {
+          mine: false,
+          empty: false,
+          total: usdParts(previewRows.reduce((sum, r) => sum + r.valueUsd, 0n)),
+          change: previewLead ? formatChange(previewLead.change24h) : "0.00%",
+          direction: previewLead ? directionOf(previewLead.change24h) : "flat",
+          spark: previewSpark,
+          rows: previewRows.map((r) => {
+            const parts = usdParts(r.valueUsd)
+            return { name: r.name, symbol: r.symbol, amount: r.amount, value: `${parts.whole}.${parts.fraction}` }
+          }),
+        }
 
     res.render("marketing/home", {
       title: "Meridian",

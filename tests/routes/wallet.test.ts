@@ -306,10 +306,10 @@ describe("tier limits over the wire", () => {
   test("and is refused past it, with the reason and a way to raise it", async () => {
     await signIn(false, false)
     await fund(10000000000n)
-    // Every asset is priced at $1 in tests, so 2,000 units is $2,000 against
-    // the $1,000 default free-tier cap.
+    // Every asset is priced at $1 in tests, so 20,000 units is $20,000
+    // against the $10,000 default free-tier cap.
     const res = await post(app, "/wallet/withdraw/btc",
-      { destination: "bc1qexampledestination", amount: "2000", memo: "", totp: "" }, jar)
+      { destination: "bc1qexampledestination", amount: "20000", memo: "", totp: "" }, jar)
     expect(res.status).toBe(400)
     const html = (await res.text()).toLowerCase()
     expect(html).toContain("unverified accounts")
@@ -321,7 +321,7 @@ describe("tier limits over the wire", () => {
     await fund(10000000000n)
     const before = new LedgerRepository(db).balance(userId, "BTC")
     await post(app, "/wallet/withdraw/btc",
-      { destination: "bc1qexampledestination", amount: "2000", memo: "", totp: "" }, jar)
+      { destination: "bc1qexampledestination", amount: "20000", memo: "", totp: "" }, jar)
     const after = new LedgerRepository(db).balance(userId, "BTC")
     expect(after.available).toBe(before.available)
     expect(after.held).toBe(0n)
@@ -332,14 +332,14 @@ describe("tier limits over the wire", () => {
 
   test("transfers draw on the same allowance as withdrawals", async () => {
     await signIn(false, false)
-    await fund(200000000000n)
+    await fund(2000000000000n)
     const users = new UserRepository(db)
     const other = users.create("b@test.co", await hashPassword(PASSWORD))
     users.markEmailVerified(other)
     expect((await post(app, "/wallet/send/btc",
-      { recipient: "b@test.co", amount: "900", note: "" }, jar)).status).toBe(303)
+      { recipient: "b@test.co", amount: "9000", note: "" }, jar)).status).toBe(303)
     const res = await post(app, "/wallet/send/btc",
-      { recipient: "b@test.co", amount: "200", note: "" }, jar)
+      { recipient: "b@test.co", amount: "2000", note: "" }, jar)
     expect(res.status).toBe(400)
     expect((await res.text()).toLowerCase()).toContain("unverified accounts")
   })

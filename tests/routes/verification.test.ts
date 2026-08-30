@@ -120,7 +120,7 @@ describe("/account profile", () => {
   })
 
   test("shows no legal name before verification", async () => {
-    expect(await page("/account")).toContain("Not verified yet")
+    expect(await page("/account")).toContain("Added when you verify")
   })
 
   test("shows the verified name once an application has one", async () => {

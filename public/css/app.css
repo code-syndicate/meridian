@@ -1029,3 +1029,5 @@ fieldset.field legend { font-size: var(--t-sm); color: var(--text-muted); margin
   .idcard-copy { width: 100%; justify-content: center; }
 }
 [x-cloak] { display: none !important; }
+.preview-empty { padding: calc(var(--u) * 6) 0 calc(var(--u) * 2); text-align: center; }
+.preview-empty p { margin: 0 0 calc(var(--u) * 4); color: var(--text-muted); font-size: var(--t-sm); }

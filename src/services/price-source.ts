@@ -11,6 +11,18 @@ export interface PriceSource {
   fetch(ids: string[]): Promise<Map<string, RawPrice>>
 }
 
+/** Carries the server's own advice on when to come back, when it gives any. */
+export class PriceSourceError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly retryAfterMs: number | null,
+  ) {
+    super(message)
+    this.name = "PriceSourceError"
+  }
+}
+
 /**
  * Our symbols are chain-qualified; CoinGecko ids are not. Every chain variant
  * of a token maps to the same id, which is correct: USDT is USDT whichever
@@ -46,7 +58,13 @@ export class CoinGeckoSource implements PriceSource {
       headers: { accept: "application/json" },
     })
     if (!response.ok) {
-      throw new Error(`Price source returned ${response.status}`)
+      const header = response.headers.get("retry-after")
+      const seconds = header ? Number(header) : NaN
+      throw new PriceSourceError(
+        `Price source returned ${response.status}`,
+        response.status,
+        Number.isFinite(seconds) ? seconds * 1000 : null,
+      )
     }
 
     const body = (await response.json()) as Array<{

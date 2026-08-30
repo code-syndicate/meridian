@@ -42,7 +42,7 @@ block content
               i
               i
               i
-            span.preview-title PORTFOLIO
+            span.preview-title= preview.mine ? "YOUR PORTFOLIO" : "PORTFOLIO"
           .preview-body
             .preview-total-label Total value, USD
             .preview-total.num
@@ -52,14 +52,19 @@ block content
             if preview.spark
               .preview-chart
                 +sparkline(preview.spark, "Portfolio value over the last week")
-            .preview-rows
-              each row in preview.rows
-                .preview-row
-                  .who
-                    strong= row.name
-                    span.sym= row.symbol
-                  span.amt= row.amount
-                  span.val= row.value
+            if preview.mine && preview.empty
+              .preview-empty
+                p You have no assets yet.
+                a.btn(href="/wallet/deposit") Make a deposit
+            else
+              .preview-rows
+                each row in preview.rows
+                  .preview-row
+                    .who
+                      strong= row.name
+                      span.sym= row.symbol
+                    span.amt= row.amount
+                    span.val= row.value
 
     .section.section-line
       .section-head
