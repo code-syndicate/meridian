@@ -12,7 +12,8 @@
     "assets": "bun scripts/copy-fonts.ts",
     "new-mnemonic": "bun scripts/new-mnemonic.ts",
     "make-admin": "bun scripts/make-admin.ts",
-    "set-password": "bun scripts/set-password.ts"
+    "set-password": "bun scripts/set-password.ts",
+    "seed-demo": "bun scripts/seed-demo.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

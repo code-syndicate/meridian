@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: meridian
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      # Not "production": that setting refuses the sandbox and HD custody
+      # providers by design, and a demo has no real custodian behind it.
+      - key: NODE_ENV
+        value: development
+      - key: PORT
+        value: "10000"
+      # Free instances have no persistent disk. This resets on every deploy
+      # and whenever the service sleeps, which is why the demo re-seeds.
+      - key: DATABASE_PATH
+        value: /tmp/meridian.db
+      # Set these in the Render dashboard. Both need at least 32 characters.
+      - key: SESSION_SECRET
+        sync: false
+      - key: TOTP_ENCRYPTION_KEY
+        sync: false
+      - key: CUSTODY_PROVIDER
+        value: hd
+      # Generate with: bun run new-mnemonic
+      - key: CUSTODY_MNEMONIC
+        sync: false
+      - key: DEMO_PASSWORD
+        sync: false
