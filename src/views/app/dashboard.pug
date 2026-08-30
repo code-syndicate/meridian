@@ -3,6 +3,8 @@ include ../components/amount.pug
 include ../components/icons.pug
 include ../components/apptabs.pug
 
+include ../components/allowance.pug
+
 block content
   .shell
     .app
@@ -28,7 +30,7 @@ block content
             a.btn(href="/wallet/deposit") Deposit
             a.btn(href="/wallet/withdraw") Withdraw
             a.btn(href="/wallet/send") Send
-            button.btn(type="button" disabled title=actionReason) Trade
+            button.btn(type="button" disabled title="Trading opens shortly.") Trade
 
       .app-block
         .tiles
@@ -98,4 +100,4 @@ block content
                         span.alloc-pct= row.allocLabel
 
       .app-block
-        p.app-sub= actionReason
+        +allowanceNote(allowance, tier)

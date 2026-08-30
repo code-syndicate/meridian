@@ -1,4 +1,5 @@
 import { test, expect, describe, beforeEach } from "bun:test"
+import { testLimits, warmPriceFeed } from "../support/limits"
 import type { Database } from "bun:sqlite"
 import { createApp, type App } from "../../src/server"
 import { loadConfig } from "../../src/config"
@@ -44,6 +45,7 @@ async function signIn(verified: boolean, totp: boolean): Promise<void> {
   app = createApp(config, {
     db, email: new CapturingEmailSender(), breach: new NeverBreached(),
     kycProvider: new SandboxKycProvider(), custodyProvider: provider,
+    priceFeed: await warmPriceFeed(db),
   })
   const users = new UserRepository(db)
   userId = users.create("a@test.co", await hashPassword(PASSWORD))
@@ -75,16 +77,21 @@ describe("access control", () => {
     }
   })
 
-  test("an unverified user is gated out of a deposit address", async () => {
+  test("an unverified user can reach a deposit address", async () => {
     await signIn(false, true)
-    const res = await get("/wallet/deposit/btc")
-    expect(res.status).toBe(403)
-    expect((await res.text()).toLowerCase()).toContain("verify your identity first")
+    expect((await get("/wallet/deposit/btc")).status).toBe(200)
   })
 
-  test("an unverified user is gated out of withdrawing", async () => {
+  test("an unverified user can reach the withdraw form", async () => {
     await signIn(false, true)
-    expect((await get("/wallet/withdraw/btc")).status).toBe(403)
+    expect((await get("/wallet/withdraw/btc")).status).toBe(200)
+  })
+
+  test("an unverified user is shown the limit that applies to them", async () => {
+    await signIn(false, true)
+    const html = (await (await get("/wallet/withdraw/btc")).text()).toLowerCase()
+    expect(html).toContain("unverified account limit")
+    expect(html).toContain("verify your identity")
   })
 
   test("an unknown asset 404s", async () => {
@@ -134,6 +141,7 @@ describe("deposit", () => {
     const svc = new CustodyService({
       assets: new AssetRepository(db), ledger: new LedgerRepository(db),
       custody: new CustodyRepository(db), audit: new AuditRepository(db), provider,
+      limits: testLimits(db),
     })
     await svc.pollAndCredit()
     expect((await (await get("/wallet/deposit/btc")).text())).toContain("0xseeded")
@@ -271,5 +279,69 @@ describe("transactions", () => {
     const html = await (await get("/wallet/transactions")).text()
     expect(html).toContain("Deposit")
     expect(html).toContain("BTC")
+  })
+})
+
+describe("tier limits over the wire", () => {
+  async function fund(amount: bigint): Promise<void> {
+    const ledger = new LedgerRepository(db)
+    const external = ledger.ensureAccount(null, "BTC", "external_deposit")
+    const available = ledger.ensureAccount(userId, "BTC", "user_available")
+    ledger.post({
+      kind: "deposit", idempotencyKey: `limitfund-${amount}`,
+      entries: [
+        { accountId: external, asset: "BTC", amount: -amount },
+        { accountId: available, asset: "BTC", amount },
+      ],
+    })
+  }
+
+  test("an unverified user can withdraw under the limit", async () => {
+    await signIn(false, false)
+    await fund(100000000n)
+    const res = await post(app, "/wallet/withdraw/btc",
+      { destination: "bc1qexampledestination", amount: "0.01", memo: "", totp: "" }, jar)
+    expect(res.status).toBe(303)
+  })
+
+  test("and is refused past it, with the reason and a way to raise it", async () => {
+    await signIn(false, false)
+    await fund(10000000000n)
+    // Every asset is priced at $1 in tests, so 2,000 units is $2,000 against
+    // the $1,000 default free-tier cap.
+    const res = await post(app, "/wallet/withdraw/btc",
+      { destination: "bc1qexampledestination", amount: "2000", memo: "", totp: "" }, jar)
+    expect(res.status).toBe(400)
+    const html = (await res.text()).toLowerCase()
+    expect(html).toContain("unverified accounts")
+    expect(html).toContain("verify your identity")
+  })
+
+  test("a refused withdrawal moves no money and consumes no headroom", async () => {
+    await signIn(false, false)
+    await fund(10000000000n)
+    const before = new LedgerRepository(db).balance(userId, "BTC")
+    await post(app, "/wallet/withdraw/btc",
+      { destination: "bc1qexampledestination", amount: "2000", memo: "", totp: "" }, jar)
+    const after = new LedgerRepository(db).balance(userId, "BTC")
+    expect(after.available).toBe(before.available)
+    expect(after.held).toBe(0n)
+    // Headroom intact, so a legitimate withdrawal still goes through.
+    expect((await post(app, "/wallet/withdraw/btc",
+      { destination: "bc1qexampledestination", amount: "10", memo: "", totp: "" }, jar)).status).toBe(303)
+  })
+
+  test("transfers draw on the same allowance as withdrawals", async () => {
+    await signIn(false, false)
+    await fund(200000000000n)
+    const users = new UserRepository(db)
+    const other = users.create("b@test.co", await hashPassword(PASSWORD))
+    users.markEmailVerified(other)
+    expect((await post(app, "/wallet/send/btc",
+      { recipient: "b@test.co", amount: "900", note: "" }, jar)).status).toBe(303)
+    const res = await post(app, "/wallet/send/btc",
+      { recipient: "b@test.co", amount: "200", note: "" }, jar)
+    expect(res.status).toBe(400)
+    expect((await res.text()).toLowerCase()).toContain("unverified accounts")
   })
 })

@@ -11,6 +11,9 @@ export interface Config {
   emailFrom: string
   kycProvider: string
   custodyProvider: string
+  freeTierLimitUsd: number
+  tier1DailyLimitUsd: number
+  tier2DailyLimitUsd: number
 }
 
 const ENVIRONMENTS = ["development", "test", "production"] as const
@@ -80,6 +83,22 @@ export function loadConfig(
     )
   }
 
+  // How much value an account may move before it has to verify, and the daily
+  // ceilings once it has. Changing these changes an AML control, so they are
+  // configuration rather than constants buried in the domain.
+  function limitUsd(key: string, fallback: number): number {
+    const raw = source[key]
+    if (raw === undefined) return fallback
+    const value = Number(raw)
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`${key} must be a non-negative number, got "${raw}"`)
+    }
+    return value
+  }
+  const freeTierLimitUsd = limitUsd("FREE_TIER_LIMIT_USD", 1_000)
+  const tier1DailyLimitUsd = limitUsd("TIER1_DAILY_LIMIT_USD", 10_000)
+  const tier2DailyLimitUsd = limitUsd("TIER2_DAILY_LIMIT_USD", 100_000)
+
   return {
     env: env as Config["env"],
     port,
@@ -93,5 +112,8 @@ export function loadConfig(
     emailFrom: source.EMAIL_FROM ?? "Meridian <no-reply@meridian.example>",
     kycProvider,
     custodyProvider,
+    freeTierLimitUsd,
+    tier1DailyLimitUsd,
+    tier2DailyLimitUsd,
   }
 }

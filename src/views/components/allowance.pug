@@ -1,0 +1,21 @@
+mixin allowanceNote(allowance, tier)
+  if allowance.capUsd !== null
+    .allowance(class=allowance.remainingUsd === 0 ? "allowance-spent" : null)
+      .allowance-head
+        span.allowance-label
+          if allowance.window === "lifetime"
+            | Unverified account limit
+          else
+            | Daily limit
+        span.allowance-figure.num
+          | $#{allowance.usedUsd.toLocaleString("en-US")}
+          span.allowance-cap  / $#{allowance.capUsd.toLocaleString("en-US")}
+      .allowance-bar(aria-hidden="true")
+        .allowance-fill(style=null class="allowance-fill-" + Math.min(100, Math.round((allowance.usedUsd / Math.max(1, allowance.capUsd)) * 100 / 5) * 5))
+      p.allowance-sub
+        if allowance.window === "lifetime"
+          | $#{allowance.remainingUsd.toLocaleString("en-US")} left. 
+          a(href="/onboarding") Verify your identity
+          |  to raise this limit.
+        else
+          | $#{allowance.remainingUsd.toLocaleString("en-US")} left today. Resets at 00:00 UTC.

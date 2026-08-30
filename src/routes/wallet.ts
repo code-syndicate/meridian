@@ -9,7 +9,9 @@ import type { KycRepository } from "../db/repositories/kyc"
 import type { CustodyService } from "../services/custody"
 import { balanceParts, usdParts } from "../domain/prices"
 import { parseAmount, isRepresentableAtNative } from "../domain/money"
-import { tierFor, limitsFor } from "../domain/kyc/tiers"
+import { tierFor } from "../domain/kyc/tiers"
+import type { LimitService } from "../services/limits"
+import { LimitError } from "../services/custody"
 import { LedgerError } from "../domain/ledger/types"
 import { requireAuth } from "../middleware/session"
 import { TransferService, TransferError } from "../services/transfers"
@@ -22,6 +24,7 @@ export interface WalletDeps {
   kyc: KycRepository
   service: CustodyService
   transfers: TransferService
+  limits: LimitService
   users: UserRepository
   config: Config
 }
@@ -73,16 +76,9 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
     const user = req.user!
     const tier = tierOf(user.id)
 
-    if (tier === 0) {
-      return res.status(403).render("app/gated", {
-        title: "Verify first | Meridian",
-        description: "Identity verification is required.",
-        path: req.path,
-        heading: "Verify your identity first.",
-        message: "Deposits need a verified account. It takes a few minutes and you can leave and come back.",
-        cta: { href: "/onboarding", label: "Start verification" },
-      })
-    }
+    // Credits anything that has confirmed since the last pass, so the balance
+    // on screen is the balance the chain agrees with.
+    await deps.service.pollAndCredit()
 
     const { address, memo } = await deps.service.addressFor(user.id, asset)
     // Server-rendered SVG, so no client library and no CSP exception.
@@ -97,6 +93,8 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
       path: req.path,
       asset, address, memo, qr,
       enabled: asset.depositEnabled,
+      allowance: deps.limits.status(user.id, tier),
+      tier,
       deposits: deps.custody.depositsFor(user.id, 10).filter((d) => d.asset === asset.symbol),
     })
   })
@@ -134,7 +132,8 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
       available: balanceParts(balance.available, asset!.displayDecimals),
       held: balanceParts(balance.held, asset!.displayDecimals),
       fee: balanceParts(WITHDRAWAL_FEE[asset!.symbol] ?? 0n, asset!.displayDecimals),
-      dailyLimit: limitsFor(tier).dailyWithdrawalUsd,
+      allowance: deps.limits.status(user.id, tier),
+      tier,
       totpEnabled: user.totpEnabledAt !== null,
       withdrawals: deps.custody.withdrawalsFor(user.id, 10)
         .filter((w) => w.asset === asset!.symbol)
@@ -148,16 +147,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
   router.get("/wallet/withdraw/:symbol", async (req, res, next) => {
     const asset = deps.assets.find(String(req.params.symbol).toUpperCase())
     if (!asset) return next()
-    if (tierOf(req.user!.id) === 0) {
-      return res.status(403).render("app/gated", {
-        title: "Verify first | Meridian",
-        description: "Identity verification is required.",
-        path: req.path,
-        heading: "Verify your identity first.",
-        message: "Withdrawals need a verified account with two-factor authentication turned on.",
-        cta: { href: "/onboarding", label: "Start verification" },
-      })
-    }
+
     await deps.service.settleWithdrawals(req.user!.id)
     renderWithdraw(req, res, 200, asset, null, { destination: "", amount: "", memo: "", totp: "" })
   })
@@ -174,9 +164,6 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
       totp: String(body.totp ?? "").trim(),
     }
 
-    if (tierOf(user.id) === 0) {
-      return renderWithdraw(req, res, 403, asset, "Verify your identity before withdrawing.", values)
-    }
     // Two-factor is optional. When it is on, every withdrawal needs a fresh
     // code: account-level enrolment alone does not stop a hijacked session.
     if (user.totpEnabledAt) {
@@ -224,6 +211,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
     try {
       await deps.service.requestWithdrawal({
         userId: user.id,
+        tier: tierOf(user.id),
         asset,
         destination: values.destination,
         memo: values.memo || null,
@@ -233,9 +221,11 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
       })
     } catch (error) {
       const message =
-        error instanceof LedgerError && error.code === "insufficient_balance"
-          ? "That is more than your available balance, once the network fee is included."
-          : "We could not submit that withdrawal."
+        error instanceof LimitError
+          ? error.message
+          : error instanceof LedgerError && error.code === "insufficient_balance"
+            ? "That is more than your available balance, once the network fee is included."
+            : "We could not submit that withdrawal."
       return renderWithdraw(req, res, 400, asset, message, values)
     }
 
@@ -262,6 +252,8 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
       asset: asset!,
       error, values,
       available: balanceParts(balance.available, asset!.displayDecimals),
+      allowance: deps.limits.status(user.id, tierOf(user.id)),
+      tier: tierOf(user.id),
       transfers: deps.transfers
         .historyFor(user.id, 20)
         .filter((t) => t.asset === asset!.symbol)
@@ -282,16 +274,6 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
   router.get("/wallet/send/:symbol", (req, res, next) => {
     const asset = deps.assets.find(String(req.params.symbol).toUpperCase())
     if (!asset) return next()
-    if (tierOf(req.user!.id) === 0) {
-      return res.status(403).render("app/gated", {
-        title: "Verify first | Meridian",
-        description: "Identity verification is required.",
-        path: req.path,
-        heading: "Verify your identity first.",
-        message: "Sending to another account needs a verified account.",
-        cta: { href: "/onboarding", label: "Start verification" },
-      })
-    }
     renderSend(req, res, 200, asset, null, { recipient: "", amount: "", note: "" })
   })
 
@@ -306,9 +288,6 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
       note: String(body.note ?? "").trim(),
     }
 
-    if (tierOf(user.id) === 0) {
-      return renderSend(req, res, 403, asset, "Verify your identity before sending.", values)
-    }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(values.recipient)) {
       return renderSend(req, res, 400, asset, "Enter the recipient's email address.", values)
     }
@@ -324,6 +303,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
       const { masked } = deps.transfers.send({
         senderId: user.id,
         recipientEmail: values.recipient,
+        tier: tierOf(user.id),
         asset,
         amount,
         note: values.note || null,

@@ -4,10 +4,17 @@ import type { LedgerRepository } from "../db/repositories/ledger"
 import type { UserRepository } from "../db/repositories/users"
 import type { AuditRepository } from "../db/repositories/audit"
 import type { TransferRepository } from "../db/repositories/transfers"
+import type { LimitService } from "./limits"
 
 export class TransferError extends Error {
   constructor(
-    readonly code: "self" | "unknown_recipient" | "inactive_recipient" | "amount",
+    readonly code:
+      | "self"
+      | "unknown_recipient"
+      | "inactive_recipient"
+      | "amount"
+      | "over_limit"
+      | "no_price",
     message: string,
   ) {
     super(message)
@@ -45,6 +52,7 @@ export interface TransferDeps {
   users: UserRepository
   audit: AuditRepository
   transfers: TransferRepository
+  limits: LimitService
 }
 
 export class TransferService {
@@ -68,6 +76,7 @@ export class TransferService {
   send(input: {
     senderId: number
     recipientEmail: string
+    tier: number
     asset: Asset
     amount: bigint
     note: string | null
@@ -79,10 +88,22 @@ export class TransferService {
     }
     const recipient = this.resolve(input.senderId, input.recipientEmail)
 
+    // Reserved before the post, and given back below if the post fails.
+    const reservation = this.deps.limits.reserveOutbound({
+      userId: input.senderId,
+      tier: input.tier,
+      symbol: input.asset.symbol,
+      amount: input.amount,
+    })
+    if (!reservation.ok) {
+      throw new TransferError(reservation.denial.code, reservation.denial.message)
+    }
+
     const from = this.deps.ledger.ensureAccount(input.senderId, input.asset.symbol, "user_available")
     const to = this.deps.ledger.ensureAccount(recipient.id, input.asset.symbol, "user_available")
 
-    return this.deps.db.transaction(() => {
+    try {
+      return this.deps.db.transaction(() => {
       // One balanced transaction. Both sides settle or neither does.
       const { transactionId, replayed } = this.deps.ledger.post({
         kind: "transfer",
@@ -126,7 +147,15 @@ export class TransferService {
       }
 
       return { transferId, masked: recipient.masked }
-    })()
+      })()
+    } catch (error) {
+      this.deps.limits.releaseOutbound(
+        input.senderId,
+        reservation.windowKey,
+        reservation.amountUsd,
+      )
+      throw error
+    }
   }
 
   historyFor(userId: number, limit: number): TransferRecord[] {

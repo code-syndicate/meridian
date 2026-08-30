@@ -1,4 +1,5 @@
 import { test, expect, describe, beforeEach } from "bun:test"
+import { testLimits } from "../support/limits"
 import type { Database } from "bun:sqlite"
 import { TransferService, TransferError, maskEmail } from "../../src/services/transfers"
 import { TransferRepository } from "../../src/db/repositories/transfers"
@@ -39,6 +40,7 @@ function fund(userId: number, amount: bigint, key: string): void {
 function send(amount: bigint, key = "t1", to = "bob@test.co") {
   return svc.send({
     senderId: alice, recipientEmail: to, asset: assets.find(BTC)!,
+    tier: 2,
     amount, note: null, idempotencyKey: key, ip: null,
   })
 }
@@ -50,7 +52,7 @@ beforeEach(async () => {
   assets = new AssetRepository(db)
   svc = new TransferService({
     db, ledger, users, audit: new AuditRepository(db),
-    transfers: new TransferRepository(db),
+    transfers: new TransferRepository(db), limits: testLimits(db),
   })
   alice = await makeUser("alice@test.co")
   bob = await makeUser("bob@test.co")

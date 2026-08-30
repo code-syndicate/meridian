@@ -81,7 +81,8 @@ describe("/account/verification", () => {
     const html = await page()
     expect(html.toLowerCase()).toContain("you are verified")
     expect(html.toLowerCase()).toContain("tier 2")
-    expect(html).toContain("50000")
+    expect(html.toLowerCase()).toContain("daily, resets 00:00 utc")
+    expect(html).toContain("$100,000")
   })
 
   test("shows the rejection reason and offers one resubmission", async () => {
@@ -133,14 +134,14 @@ describe("/account profile", () => {
 })
 
 describe("navigation gating on the dashboard", () => {
-  test("deposit and withdraw are navigable, and gate on the destination page", async () => {
+  test("deposit and withdraw are navigable, and limited on the destination page", async () => {
     const html = await page("/dashboard")
     expect(html).toContain('href="/wallet/deposit"')
     expect(html).toContain('href="/wallet/withdraw"')
-    // An unverified user is stopped at the destination, not by a dead button.
-    const gated = await app.inject("/wallet/deposit/btc", { headers: { cookie: jar } })
-    expect(gated.status).toBe(403)
-    expect((await gated.text()).toLowerCase()).toContain("verify your identity first")
+    // An unverified user reaches the page and is limited there, not turned away.
+    const reached = await app.inject("/wallet/deposit/btc", { headers: { cookie: jar } })
+    expect(reached.status).toBe(200)
+    expect((await reached.text()).toLowerCase()).toContain("unverified account limit")
   })
 
   test("trade stays disabled, because there is no execution subsystem yet", async () => {

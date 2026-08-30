@@ -1,6 +1,8 @@
 extends ../layouts/base.pug
 include ../components/apptabs.pug
 
+include ../components/allowance.pug
+
 block content
   .shell
     .app
@@ -9,6 +11,8 @@ block content
           h1.app-title Deposit #{asset.displaySymbol}
           p.app-sub #{asset.networkLabel} · #{asset.confirmationsRequired} confirmations required
         +appTabs("deposit")
+
+      +allowanceNote(allowance, tier)
 
       .app-block
         .warn-note

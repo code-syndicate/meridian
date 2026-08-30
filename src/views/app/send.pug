@@ -2,6 +2,8 @@ extends ../layouts/base.pug
 include ../components/amount.pug
 include ../components/apptabs.pug
 
+include ../components/allowance.pug
+
 block content
   .shell
     .app
@@ -13,6 +15,8 @@ block content
 
       if error
         p.form-error= error
+
+      +allowanceNote(allowance, tier)
 
       .app-block
         .tiles

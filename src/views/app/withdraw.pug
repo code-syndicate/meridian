@@ -2,6 +2,8 @@ extends ../layouts/base.pug
 include ../components/amount.pug
 include ../components/apptabs.pug
 
+include ../components/allowance.pug
+
 block content
   .shell
     .app
@@ -13,6 +15,8 @@ block content
 
       if error
         p.form-error= error
+
+      +allowanceNote(allowance, tier)
 
       if !totpEnabled
         .app-block
@@ -37,8 +41,8 @@ block content
             .tile-value
               +amount(fee)
           .tile
-            .tile-label Daily limit
-            .tile-value.num= dailyLimit === null ? "None" : dailyLimit
+            .tile-label Limit remaining
+            .tile-value.num= allowance.remainingUsd === null ? "None" : "$" + allowance.remainingUsd.toLocaleString("en-US")
 
       .app-block
         .form-card

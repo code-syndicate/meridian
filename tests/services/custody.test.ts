@@ -1,4 +1,5 @@
 import { test, expect, describe, beforeEach } from "bun:test"
+import { testLimits } from "../support/limits"
 import type { Database } from "bun:sqlite"
 import { CustodyService } from "../../src/services/custody"
 import { SandboxCustodyProvider } from "../../src/services/custody-provider"
@@ -26,7 +27,7 @@ beforeEach(() => {
   ledger = new LedgerRepository(db)
   assets = new AssetRepository(db)
   provider = new SandboxCustodyProvider()
-  svc = new CustodyService({ assets, ledger, custody, audit: new AuditRepository(db), provider })
+  svc = new CustodyService({ assets, ledger, custody, audit: new AuditRepository(db), provider, limits: testLimits(db) })
   userId = createUser(db)
 })
 
@@ -172,7 +173,7 @@ describe("withdrawals", () => {
   test("places a hold covering amount plus fee", async () => {
     await fund(BTC, 100000000n)
     await svc.requestWithdrawal({
-      userId, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
+      userId, tier: 2, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
       amount: 50000000n, fee: 1000n, idempotencyKey: "w1",
     })
     const balance = ledger.balance(userId, BTC)
@@ -184,7 +185,7 @@ describe("withdrawals", () => {
     await fund(BTC, 10000000n)
     expect(
       svc.requestWithdrawal({
-        userId, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
+        userId, tier: 2, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
         amount: 90000000n, fee: 0n, idempotencyKey: "w2",
       }),
     ).rejects.toBeInstanceOf(LedgerError)
@@ -195,7 +196,7 @@ describe("withdrawals", () => {
     // USDT has 6 native decimals; 8-decimal precision cannot be sent.
     expect(
       svc.requestWithdrawal({
-        userId, asset: assets.find("USDT_TRC20")!, destination: "Tdest", memo: null,
+        userId, tier: 2, asset: assets.find("USDT_TRC20")!, destination: "Tdest", memo: null,
         amount: 10000001n, fee: 0n, idempotencyKey: "w3",
       }),
     ).rejects.toBeInstanceOf(LedgerError)
@@ -204,7 +205,7 @@ describe("withdrawals", () => {
   test("confirming consumes the hold and removes the value", async () => {
     await fund(BTC, 100000000n)
     const { withdrawalId } = await svc.requestWithdrawal({
-      userId, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
+      userId, tier: 2, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
       amount: 50000000n, fee: 0n, idempotencyKey: "w4",
     })
     svc.confirmWithdrawal(withdrawalId, "0xdone")
@@ -216,7 +217,7 @@ describe("withdrawals", () => {
   test("failing releases the hold and returns the balance", async () => {
     await fund(BTC, 100000000n)
     const { withdrawalId } = await svc.requestWithdrawal({
-      userId, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
+      userId, tier: 2, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
       amount: 50000000n, fee: 0n, idempotencyKey: "w5",
     })
     svc.failWithdrawal(withdrawalId, "network rejected")
@@ -228,7 +229,7 @@ describe("withdrawals", () => {
   test("a settled withdrawal cannot be settled again", async () => {
     await fund(BTC, 100000000n)
     const { withdrawalId } = await svc.requestWithdrawal({
-      userId, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
+      userId, tier: 2, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
       amount: 50000000n, fee: 0n, idempotencyKey: "w6",
     })
     svc.confirmWithdrawal(withdrawalId, "0xdone")
@@ -240,7 +241,7 @@ describe("withdrawals", () => {
   test("a provider failure releases the hold rather than stranding it", async () => {
     await fund(BTC, 100000000n)
     const { withdrawalId } = await svc.requestWithdrawal({
-      userId, asset: assets.find(BTC)!, destination: "bc1qshouldfail", memo: null,
+      userId, tier: 2, asset: assets.find(BTC)!, destination: "bc1qshouldfail", memo: null,
       amount: 50000000n, fee: 0n, idempotencyKey: "w7",
     })
     await svc.settleWithdrawals(userId)
@@ -251,7 +252,7 @@ describe("withdrawals", () => {
   test("settling a broadcast withdrawal confirms it", async () => {
     await fund(BTC, 100000000n)
     const { withdrawalId } = await svc.requestWithdrawal({
-      userId, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
+      userId, tier: 2, asset: assets.find(BTC)!, destination: "bc1qdest", memo: null,
       amount: 50000000n, fee: 0n, idempotencyKey: "w8",
     })
     const ref = custody.findWithdrawal(withdrawalId)!.providerRef!
@@ -282,7 +283,7 @@ describe("polling", () => {
 
   test("a provider failure does not throw", async () => {
     const broken = new CustodyService({
-      assets, ledger, custody, audit: new AuditRepository(db),
+      assets, ledger, custody, audit: new AuditRepository(db), limits: testLimits(db),
       provider: { ...provider, async pollDeposits() { throw new Error("down") } } as never,
     })
     expect(broken.pollAndCredit()).resolves.toEqual({ credited: 0, confirming: 0 })

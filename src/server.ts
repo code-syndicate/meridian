@@ -1,4 +1,7 @@
 import express from "express"
+import { LimitService } from "./services/limits"
+import { DepositPoller } from "./services/deposit-poller"
+import { UsageRepository } from "./db/repositories/usage"
 import { PRELAUNCH_NOTICE } from "./content/site"
 import helmet from "helmet"
 import cookieParser from "cookie-parser"
@@ -132,7 +135,7 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   const users = new UserRepository(db)
   const sessions = new SessionRepository(db)
   const audit = new AuditRepository(db)
-  const limits = new RateLimitRepository(db)
+  const rateLimits = new RateLimitRepository(db)
   const emailTokens = new EmailTokenRepository(db)
   const recoveryCodes = new RecoveryCodeRepository(db)
   const kyc = new KycRepository(db)
@@ -144,13 +147,19 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   const kycProvider = deps.kycProvider ?? new SandboxKycProvider()
   const newsFeed = deps.newsFeed ?? new NewsFeed(new RssNewsSource())
   const custodyProvider = deps.custodyProvider ?? new SandboxCustodyProvider()
+  const limitService = new LimitService({
+    usage: new UsageRepository(db),
+    prices: priceFeed,
+    config,
+  })
   const transferService = new TransferService({
-    db, ledger, users, audit, transfers: new TransferRepository(db),
+    db, ledger, users, audit, transfers: new TransferRepository(db), limits: limitService,
   })
   const custodyService = new CustodyService({
-    assets, ledger, custody, audit, provider: custodyProvider,
+    assets, ledger, custody, audit, provider: custodyProvider, limits: limitService,
   })
 
+  app.locals.depositPoller = new DepositPoller(custodyService)
   app.locals.priceFeed = priceFeed
   app.locals.newsFeed = newsFeed
 
@@ -209,7 +218,7 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
       users,
       sessions,
       audit,
-      limits,
+      limits: rateLimits,
       emailTokens,
       assets,
       ledger,
@@ -219,9 +228,9 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
       db,
     }),
   )
-  app.use(createAccountRoutes({ users, sessions, audit, assets, ledger, feed: priceFeed, recoveryCodes, kyc, config }))
+  app.use(createAccountRoutes({ limits: limitService, users, sessions, audit, assets, ledger, feed: priceFeed, recoveryCodes, kyc, config }))
   app.use(
-    createWalletRoutes({ assets, ledger, custody, kyc, service: custodyService, transfers: transferService, users, config }),
+    createWalletRoutes({ assets, ledger, custody, kyc, service: custodyService, transfers: transferService, limits: limitService, users, config }),
   )
   app.use(createOnboardingRoutes({ kyc, audit, provider: kycProvider, config }))
   app.use(createMarketingRoutes({ assets, feed: priceFeed, news: newsFeed }))

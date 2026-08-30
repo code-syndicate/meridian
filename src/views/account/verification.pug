@@ -34,15 +34,18 @@ block content
           table.table
             tbody
               tr
-                td Deposits
-                td.n= limits.depositEnabled ? "Permitted at this tier" : "Not permitted at this tier"
+                td Limit
+                td.n= allowance.window === "lifetime" ? "Lifetime" : "Daily, resets 00:00 UTC"
               tr
-                td Trading
-                td.n= limits.tradingEnabled ? "Permitted at this tier" : "Not permitted at this tier"
+                td Cap
+                td.n.num= allowance.capUsd === null ? "None" : "$" + allowance.capUsd.toLocaleString("en-US")
               tr
-                td Daily withdrawal cap
-                td.n.num= limits.dailyWithdrawalUsd
-        p These limits are what your tier allows. Deposits, withdrawals, and trading are not switched on yet for anyone, and that is separate from your verification.
+                td Used
+                td.n.num= "$" + allowance.usedUsd.toLocaleString("en-US")
+              tr
+                td Remaining
+                td.n.num= allowance.remainingUsd === null ? "Unlimited" : "$" + allowance.remainingUsd.toLocaleString("en-US")
+        p The limit counts value sent out of your account: withdrawals and transfers. Deposits are not counted against it.
       else if status === "rejected"
         h1 Your verification was not approved.
         if rejectionReason

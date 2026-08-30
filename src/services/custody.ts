@@ -2,9 +2,17 @@ import type { AssetRepository, Asset } from "../db/repositories/assets"
 import type { LedgerRepository } from "../db/repositories/ledger"
 import type { AuditRepository } from "../db/repositories/audit"
 import type { CustodyRepository } from "../db/repositories/custody"
+import type { LimitService, LimitDenial } from "./limits"
 import type { CustodyProvider, ChainDeposit } from "./custody-provider"
 import { fromNative, toNative, isRepresentableAtNative } from "../domain/money"
 import { LedgerError } from "../domain/ledger/types"
+
+export class LimitError extends Error {
+  constructor(readonly denial: LimitDenial) {
+    super(denial.message)
+    this.name = "LimitError"
+  }
+}
 
 export interface CustodyDeps {
   assets: AssetRepository
@@ -12,6 +20,7 @@ export interface CustodyDeps {
   custody: CustodyRepository
   audit: AuditRepository
   provider: CustodyProvider
+  limits: LimitService
 }
 
 export interface CreditResult {
@@ -111,6 +120,9 @@ export class CustodyService {
     })
 
     this.deps.custody.setDust(userId, asset.symbol, dust)
+    // Deposits are recorded for monitoring but never refused: the funds have
+    // already arrived on chain and there is nothing to reject.
+    this.deps.limits.recordInbound(userId, asset.symbol, base)
     this.deps.custody.markDepositCredited({
       id: depositId,
       creditedAmount: base,
@@ -154,6 +166,7 @@ export class CustodyService {
    */
   async requestWithdrawal(input: {
     userId: number
+    tier: number
     asset: Asset
     destination: string
     memo: string | null
@@ -169,13 +182,31 @@ export class CustodyService {
       )
     }
 
-    const { holdId } = this.deps.ledger.hold(
-      input.userId,
+    // Reserved against the tier allowance before any hold is placed, and
+    // given back on every path where the money does not leave.
+    const reservation = this.deps.limits.reserveOutbound({
+      userId: input.userId,
+      tier: input.tier,
+      symbol: input.asset.symbol,
+      amount: total,
+    })
+    if (!reservation.ok) {
+      throw new LimitError(reservation.denial)
+    }
+
+    let holdId: number
+    try {
+      ;({ holdId } = this.deps.ledger.hold(
+        input.userId,
       input.asset.symbol,
       total,
-      `withdrawal:${input.idempotencyKey}`,
-      `wd-hold:${input.idempotencyKey}`,
-    )
+        `withdrawal:${input.idempotencyKey}`,
+        `wd-hold:${input.idempotencyKey}`,
+      ))
+    } catch (error) {
+      this.deps.limits.releaseOutbound(input.userId, reservation.windowKey, reservation.amountUsd)
+      throw error
+    }
 
     const withdrawalId = this.deps.custody.createWithdrawal({
       userId: input.userId,
@@ -211,9 +242,10 @@ export class CustodyService {
         txHash: submission.txHash,
       })
     } catch (error) {
-      // Submission failed, so the money never left. Release the hold rather
-      // than stranding the balance.
+      // Submission failed, so the money never left. Release the hold and the
+      // limit headroom rather than stranding either.
       this.failWithdrawal(withdrawalId, String(error))
+      this.deps.limits.releaseOutbound(input.userId, reservation.windowKey, reservation.amountUsd)
     }
 
     return { withdrawalId }

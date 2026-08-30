@@ -11,14 +11,6 @@ block content
           p.app-sub Choose the asset and network you are sending to
         +appTabs("withdraw")
 
-      if tier === 0
-        .app-block
-          .warn-note
-            h2 Verify your identity first
-            p Withdrawals need a verified account with two-factor authentication turned on.
-          .actions
-            a.btn.btn-primary(href="/onboarding") Start verification
-
       .app-block
         .panel-table
           .panel-table-head

@@ -8,7 +8,7 @@ import type { AssetRepository } from "../db/repositories/assets"
 import type { LedgerRepository } from "../db/repositories/ledger"
 import type { RecoveryCodeRepository } from "../db/repositories/recovery-codes"
 import type { KycRepository } from "../db/repositories/kyc"
-import { tierFor, limitsFor } from "../domain/kyc/tiers"
+import { tierFor } from "../domain/kyc/tiers"
 import { canResubmit } from "../domain/kyc/steps"
 import {
   validatePasswordPolicy,
@@ -28,7 +28,10 @@ import { buildPortfolio } from "../domain/portfolio"
 import { IdentityError } from "../domain/identity/errors"
 import { requireAuth, setSessionCookie } from "../middleware/session"
 
+import type { LimitService } from "../services/limits"
+
 export interface AccountDeps {
+  limits: LimitService
   users: UserRepository
   sessions: SessionRepository
   audit: AuditRepository
@@ -55,11 +58,6 @@ const ACTION_LABELS: Record<string, string> = {
 
 const ENROL_COOKIE = "meridian_totp_enrol"
 
-/** Spec 8.6: a disabled action must say why, accurately for this viewer. */
-function actionReason(tier: number): string {
-  if (tier === 0) return "Verify your identity to enable this."
-  return "Unavailable on your account. Contact support if you believe this is wrong."
-}
 
 // The candidate secret lives in a signed short-lived cookie, never in the user
 // row, so an abandoned enrolment cannot leave a usable secret behind.
@@ -128,7 +126,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
     })
 
     const assets = deps.assets.all()
-    const limits = limitsFor(kycTier)
+    const allowance = deps.limits.status(user.id, kycTier)
     let availableUsd = 0n
     let heldUsd = 0n
     for (const row of portfolio.rows) {
@@ -154,12 +152,14 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
       description: "Your Meridian account.",
       path: req.path,
       tier: kycTier,
-      tierNote: kycTier === 0 ? "Not verified yet" : "Verified",
+      tierNote: kycTier === 0 ? "Not verified" : "Verified",
+      allowance,
       withdrawalLimit:
-        limits.dailyWithdrawalUsd === null ? "None" : limits.dailyWithdrawalUsd.toLocaleString("en-US"),
+        allowance.remainingUsd === null
+          ? "None"
+          : `$${allowance.remainingUsd.toLocaleString("en-US")}`,
       assetCount: assets.length,
       networkCount: new Set(assets.map((a) => a.chain)).size,
-      actionReason: actionReason(kycTier),
       total: usdParts(portfolio.totalUsd),
       availableTotal: (() => { const p = usdParts(availableUsd); return `${p.whole}.${p.fraction}` })(),
       heldTotal: (() => { const p = usdParts(heldUsd); return `${p.whole}.${p.fraction}` })(),
@@ -211,7 +211,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
       currentStep: application?.currentStep ?? null,
       rejectionReason: application?.rejectionReason ?? null,
       tier,
-      limits: limitsFor(tier),
+      allowance: deps.limits.status(user.id, tier),
       last4: profile?.governmentIdLast4 ?? null,
       canResubmit: application
         ? canResubmit(application.status, deps.kyc.attemptsFor(user.id))
