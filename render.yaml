@@ -30,3 +30,8 @@ services:
         sync: false
       - key: DEMO_PASSWORD
         sync: false
+      # Without a key the price feed is rate limited by IP, and a free
+      # instance shares its egress address with other tenants. Get one from
+      # coingecko.com/en/api/pricing (Demo tier, free).
+      - key: COINGECKO_API_KEY
+        sync: false

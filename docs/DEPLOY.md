@@ -34,6 +34,20 @@ repo):
 | `TOTP_ENCRYPTION_KEY` | 32+ random characters |
 | `CUSTODY_MNEMONIC` | output of `bun run new-mnemonic` |
 | `DEMO_PASSWORD` | optional, defaults to `demo1234` |
+| `COINGECKO_API_KEY` | optional, but see below |
+
+### The price feed will rate limit without a key
+
+`CoinGeckoSource` calls the public endpoint. Anonymous callers are limited by
+IP, and a free instance shares its egress address with other tenants, so the
+quota is spent by people you never meet: the feed returns 429 having made
+almost no calls of its own. The failure is contained — it backs off, honours
+`retry-after`, and keeps serving the last good prices — but on a cold start
+there are no cached prices to serve and the page shows none.
+
+A Demo key from coingecko.com/en/api/pricing is free and moves the limit onto
+the key rather than the address. Set it as `COINGECKO_API_KEY`; the source
+sends it as `x-cg-demo-api-key` and works unchanged without one.
 
 Generate the secrets with:
 

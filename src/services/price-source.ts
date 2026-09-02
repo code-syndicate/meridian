@@ -46,7 +46,15 @@ export const COINGECKO_IDS: Record<string, string> = {
 const ENDPOINT = "https://api.coingecko.com/api/v3/coins/markets"
 
 export class CoinGeckoSource implements PriceSource {
-  constructor(private readonly timeoutMs = 5000) {}
+  /**
+   * Without a key the endpoint is rate limited per IP, and a free Render
+   * instance shares its egress address with other tenants, so the quota is
+   * spent by people you never meet. A demo key moves the limit onto the key.
+   */
+  constructor(
+    private readonly apiKey: string | null = null,
+    private readonly timeoutMs = 5000,
+  ) {}
 
   async fetch(ids: string[]): Promise<Map<string, RawPrice>> {
     const url =
@@ -55,7 +63,10 @@ export class CoinGeckoSource implements PriceSource {
 
     const response = await fetch(url, {
       signal: AbortSignal.timeout(this.timeoutMs),
-      headers: { accept: "application/json" },
+      headers: {
+        accept: "application/json",
+        ...(this.apiKey ? { "x-cg-demo-api-key": this.apiKey } : {}),
+      },
     })
     if (!response.ok) {
       const header = response.headers.get("retry-after")

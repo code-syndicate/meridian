@@ -142,7 +142,7 @@ export async function createApp(config: Config, deps: AppDeps = {}): Promise<App
   const kyc = new KycRepository(db)
   const custody = new CustodyRepository(db)
 
-  const priceFeed = deps.priceFeed ?? new PriceFeed(new CoinGeckoSource(), await assets.all())
+  const priceFeed = deps.priceFeed ?? new PriceFeed(new CoinGeckoSource(config.coingeckoApiKey), await assets.all())
   const email = deps.email ?? createEmailSender(config)
   const kycProvider = deps.kycProvider ?? new SandboxKycProvider()
   const newsFeed = deps.newsFeed ?? new NewsFeed(new RssNewsSource())

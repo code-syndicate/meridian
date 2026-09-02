@@ -4,6 +4,8 @@ export interface Config {
   databasePath: string
   /** Set only for a remote libSQL database; a local file needs no token. */
   databaseAuthToken: string | undefined
+  /** Optional CoinGecko demo key. Without it the price feed is limited by IP. */
+  coingeckoApiKey: string | null
   sessionSecret: string
   totpEncryptionKey: string
   smtpHost: string | null
@@ -122,6 +124,7 @@ export function loadConfig(
     port,
     databasePath: source.DATABASE_PATH as string,
     databaseAuthToken: source.DATABASE_AUTH_TOKEN,
+    coingeckoApiKey: source.COINGECKO_API_KEY ?? null,
     sessionSecret,
     totpEncryptionKey,
     smtpHost,
