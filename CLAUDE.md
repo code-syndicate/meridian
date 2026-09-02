@@ -37,7 +37,7 @@ layer is therefore async: every repository method returns a promise.
 - A repository method takes an optional executor as its last argument. Pass the transaction down when the call belongs to a caller's transaction; omit it and the method runs on its own.
 - Remote libSQL holds a lock for the life of a transaction and times out after five seconds, so keep transaction bodies to as few round trips as the work needs.
 - UI copy is plain and direct. No marketing inflation, no em dashes.
-- Git identity here is `timileyindev <timmypelumy@gmail.com>`, set locally.
+- Git identity here is `0xalpha <nulldev0x@proton.me>`, set locally.
 
 ## Compliance context
 
