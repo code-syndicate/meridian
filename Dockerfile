@@ -12,6 +12,7 @@ ENV NODE_ENV=development
 ENV PORT=10000
 EXPOSE 10000
 
-# The database is rebuilt on every start because free hosting has no
-# persistent disk. Seeding failures must not stop the server from booting.
+# Seeding is idempotent and skips an already-seeded database, so this is safe
+# against the remote database on every restart. A seeding failure must not stop
+# the server from booting.
 CMD ["sh", "-c", "bun scripts/seed-demo.ts || true; exec bun src/index.ts"]

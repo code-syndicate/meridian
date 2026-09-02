@@ -14,16 +14,16 @@ const config = loadConfig({
 const componentsSource = readFileSync("public/js/alpine-components.js", "utf8")
 
 describe("alpine components file", () => {
-  test("registers every component through Alpine.data", () => {
+  test("registers every component through Alpine.data", async () => {
     expect(componentsSource).toContain("Alpine.data(")
     expect(componentsSource).toContain('Alpine.data("ticker"')
   })
 
-  test("registers on the alpine:init event", () => {
+  test("registers on the alpine:init event", async () => {
     expect(componentsSource).toContain("alpine:init")
   })
 
-  test("uses no eval or Function constructor", () => {
+  test("uses no eval or Function constructor", async () => {
     expect(componentsSource).not.toMatch(/\beval\s*\(/)
     expect(componentsSource).not.toMatch(/new\s+Function\s*\(/)
   })
@@ -45,11 +45,11 @@ describe("templates obey the CSP build's rules", () => {
     text: readFileSync(path, "utf8"),
   }))
 
-  test("finds templates to check", () => {
+  test("finds templates to check", async () => {
     expect(sources.length).toBeGreaterThan(0)
   })
 
-  test("x-data never contains an inline object literal", () => {
+  test("x-data never contains an inline object literal", async () => {
     for (const { path, text } of sources) {
       const matches = text.match(/x-data\s*=\s*"([^"]*)"/g) ?? []
       for (const match of matches) {
@@ -58,7 +58,7 @@ describe("templates obey the CSP build's rules", () => {
     }
   })
 
-  test("x-on handlers name a method rather than an expression", () => {
+  test("x-on handlers name a method rather than an expression", async () => {
     for (const { path, text } of sources) {
       const matches = text.match(/x-on:[a-z]+\s*=\s*"([^"]*)"/g) ?? []
       for (const match of matches) {
@@ -72,16 +72,16 @@ describe("templates obey the CSP build's rules", () => {
 describe("rendered pages", () => {
   let html: string
   beforeAll(async () => {
-    html = await (await createApp(config).inject("/")).text()
+    html = await (await ((await createApp(config)).inject("/"))).text()
   })
 
-  test("load alpine from our own origin", () => {
+  test("load alpine from our own origin", async () => {
     expect(html).toContain('src="/static/js/alpine.js?v=')
     expect(html).not.toContain("unpkg.com")
     expect(html).not.toContain("jsdelivr")
   })
 
-  test("load the component registrations before alpine itself", () => {
+  test("load the component registrations before alpine itself", async () => {
     expect(html.indexOf("alpine-components.js")).toBeLessThan(html.indexOf('/static/js/alpine.js?v='))
   })
 })

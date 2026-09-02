@@ -5,7 +5,7 @@ import { createApp } from "../src/server"
 import { loadConfig } from "../src/config"
 import { CapturingEmailSender } from "../src/services/email"
 import { SandboxKycProvider } from "../src/services/kyc-provider"
-import { openDatabase, migrate } from "../src/db"
+import { migrate, openDatabase } from "../src/db"
 import { UserRepository } from "../src/db/repositories/users"
 import { KycRepository } from "../src/db/repositories/kyc"
 import { hashPassword } from "../src/domain/identity/password"
@@ -48,7 +48,7 @@ interface AxeViolation {
 }
 
 async function violationsFor(path: string): Promise<AxeViolation[]> {
-  const html = await (await createApp(config).inject(path)).text()
+  const html = await (await ((await createApp(config)).inject(path))).text()
   const dom = new JSDOM(html, { runScripts: "outside-only" })
   dom.window.eval(axeSource)
   const results = (await dom.window.eval(
@@ -74,7 +74,7 @@ describe("accessibility", () => {
 describe("document structure", () => {
   test("every page has exactly one h1", async () => {
     for (const route of ROUTES) {
-      const html = await (await createApp(config).inject(route)).text()
+      const html = await (await ((await createApp(config)).inject(route))).text()
       const h1s = (html.match(/<h1[\s>]/g) ?? []).length
       expect(`${route}: ${h1s}`).toBe(`${route}: 1`)
     }
@@ -83,7 +83,7 @@ describe("document structure", () => {
   test("every page sets a unique, non-empty title", async () => {
     const titles = new Set<string>()
     for (const route of ROUTES) {
-      const html = await (await createApp(config).inject(route)).text()
+      const html = await (await ((await createApp(config)).inject(route))).text()
       const title = html.match(/<title>(.*?)<\/title>/)?.[1] ?? ""
       expect(title.length).toBeGreaterThan(0)
       titles.add(title)
@@ -93,7 +93,7 @@ describe("document structure", () => {
 
   test("every page sets a meta description", async () => {
     for (const route of ROUTES) {
-      const html = await (await createApp(config).inject(route)).text()
+      const html = await (await ((await createApp(config)).inject(route))).text()
       expect(`${route}: ${/name="description"/.test(html)}`).toContain("true")
     }
   }, 30_000)
@@ -122,16 +122,16 @@ describe("accessibility of authenticated pages", () => {
   ]
 
   test("every authenticated route has no axe violations", async () => {
-    const db = openDatabase(":memory:")
-    migrate(db)
-    const app = createApp(config, {
+    const db = await openDatabase(":memory:")
+    await migrate(db)
+    const app = await createApp(config, {
       db,
       email: new CapturingEmailSender(),
       kycProvider: new SandboxKycProvider(),
     })
     const users = new UserRepository(db)
-    const userId = users.create("a@test.co", await hashPassword("correct horse battery staple 7"))
-    users.markEmailVerified(userId)
+    const userId = await users.create("a@test.co", await hashPassword("correct horse battery staple 7"))
+    await users.markEmailVerified(userId)
     const jar = cookiesFrom(
       await post(app, "/login", {
         email: "a@test.co",
@@ -141,8 +141,8 @@ describe("accessibility of authenticated pages", () => {
 
     // Push the application to the last step so every wizard screen renders.
     const kyc = new KycRepository(db)
-    const id = kyc.start(userId, 2)
-    kyc.advance(id, "disclosures")
+    const id = await kyc.start(userId, 2)
+    await kyc.advance(id, "disclosures")
 
     const failures: string[] = []
     for (const route of AUTH_ROUTES) {

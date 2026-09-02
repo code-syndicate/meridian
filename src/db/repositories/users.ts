@@ -1,4 +1,5 @@
-import type { Database } from "bun:sqlite"
+import type { Client, Executor } from "../index"
+import { get, run } from "../index"
 import { generateAccountId, normalizeAccountId } from "../../domain/identity/account-id"
 import { normalizeEmail } from "../../domain/identity/tokens"
 
@@ -45,26 +46,24 @@ const COLUMNS = `id, account_id, email, password_hash, email_verified_at, totp_e
   status, role, kyc_tier, created_at`
 
 export class UserRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: Client) {}
 
-  create(email: string, passwordHash: string): number {
+  async create(email: string, passwordHash: string, ex: Executor = this.db): Promise<number> {
     const now = new Date().toISOString()
     // Retried rather than trusted: 32^10 makes a clash vanishingly unlikely,
     // but the unique index is the thing that actually guarantees it.
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
-        this.db
-          .query(
-            `INSERT INTO users (account_id, email, email_normalized, password_hash, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-          )
-          .run(
+        const result = await run(
+          ex,
+          `INSERT INTO users (account_id, email, email_normalized, password_hash, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
             generateAccountId((n) => crypto.getRandomValues(new Uint8Array(n))),
             email, normalizeEmail(email), passwordHash, now, now,
-          )
-        return Number(
-          this.db.query<{ id: number }, []>("SELECT last_insert_rowid() AS id").get()!.id,
+          ],
         )
+        return Number(result.lastInsertRowid)
       } catch (error) {
         if (attempt === 4 || !String(error).includes("idx_users_account_id")) throw error
       }
@@ -72,76 +71,87 @@ export class UserRepository {
     throw new Error("could not allocate an account id")
   }
 
-  findByAccountId(accountId: string): User | null {
-    const row = this.db
-      .query<UserRow, [string]>(`SELECT ${COLUMNS} FROM users WHERE account_id = ?`)
-      .get(normalizeAccountId(accountId))
+  async findByAccountId(accountId: string, ex: Executor = this.db): Promise<User | null> {
+    const row = await get<UserRow>(ex, `SELECT ${COLUMNS} FROM users WHERE account_id = ?`, [
+      normalizeAccountId(accountId),
+    ])
     return row ? toUser(row) : null
   }
 
-  findByEmail(email: string): (User & { passwordHash: string }) | null {
-    const row = this.db
-      .query<UserRow, [string]>(`SELECT ${COLUMNS} FROM users WHERE email_normalized = ?`)
-      .get(normalizeEmail(email))
+  async findByEmail(
+    email: string,
+    ex: Executor = this.db,
+  ): Promise<(User & { passwordHash: string }) | null> {
+    const row = await get<UserRow>(ex, `SELECT ${COLUMNS} FROM users WHERE email_normalized = ?`, [
+      normalizeEmail(email),
+    ])
     return row ? { ...toUser(row), passwordHash: row.password_hash } : null
   }
 
-  findById(id: number): User | null {
-    const row = this.db
-      .query<UserRow, [number]>(`SELECT ${COLUMNS} FROM users WHERE id = ?`)
-      .get(id)
+  async findById(id: number, ex: Executor = this.db): Promise<User | null> {
+    const row = await get<UserRow>(ex, `SELECT ${COLUMNS} FROM users WHERE id = ?`, [id])
     return row ? toUser(row) : null
   }
 
-  private update(id: number, sql: string, value: string): void {
-    this.db
-      .query(`UPDATE users SET ${sql} = ?, updated_at = ? WHERE id = ?`)
-      .run(value, new Date().toISOString(), id)
+  private async update(id: number, sql: string, value: string, ex: Executor): Promise<void> {
+    await run(ex, `UPDATE users SET ${sql} = ?, updated_at = ? WHERE id = ?`, [
+      value,
+      new Date().toISOString(),
+      id,
+    ])
   }
 
-  markEmailVerified(id: number): void {
-    this.update(id, "email_verified_at", new Date().toISOString())
+  async markEmailVerified(id: number, ex: Executor = this.db): Promise<void> {
+    await this.update(id, "email_verified_at", new Date().toISOString(), ex)
   }
 
-  setPasswordHash(id: number, hash: string): void {
-    this.update(id, "password_hash", hash)
+  async setPasswordHash(id: number, hash: string, ex: Executor = this.db): Promise<void> {
+    await this.update(id, "password_hash", hash, ex)
   }
 
-  setTotpSecret(id: number, encrypted: string): void {
-    this.update(id, "totp_secret_encrypted", encrypted)
+  async setTotpSecret(id: number, encrypted: string, ex: Executor = this.db): Promise<void> {
+    await this.update(id, "totp_secret_encrypted", encrypted, ex)
   }
 
-  enableTotp(id: number): void {
-    this.update(id, "totp_enabled_at", new Date().toISOString())
+  async enableTotp(id: number, ex: Executor = this.db): Promise<void> {
+    await this.update(id, "totp_enabled_at", new Date().toISOString(), ex)
   }
 
-  disableTotp(id: number): void {
-    this.db
-      .query(
-        `UPDATE users SET totp_enabled_at = NULL, totp_secret_encrypted = NULL, updated_at = ?
-         WHERE id = ?`,
-      )
-      .run(new Date().toISOString(), id)
+  async disableTotp(id: number, ex: Executor = this.db): Promise<void> {
+    await run(
+      ex,
+      `UPDATE users SET totp_enabled_at = NULL, totp_secret_encrypted = NULL, updated_at = ?
+       WHERE id = ?`,
+      [new Date().toISOString(), id],
+    )
   }
 
-  getTotpSecret(id: number): string | null {
-    const row = this.db
-      .query<{ totp_secret_encrypted: string | null }, [number]>(
-        "SELECT totp_secret_encrypted FROM users WHERE id = ?",
-      )
-      .get(id)
+  async getTotpSecret(id: number, ex: Executor = this.db): Promise<string | null> {
+    const row = await get<{ totp_secret_encrypted: string | null }>(
+      ex,
+      "SELECT totp_secret_encrypted FROM users WHERE id = ?",
+      [id],
+    )
     return row?.totp_secret_encrypted ?? null
   }
 
-  setStatus(id: number, status: "active" | "suspended" | "closed"): void {
-    this.db
-      .query("UPDATE users SET status = ?, updated_at = ? WHERE id = ?")
-      .run(status, new Date().toISOString(), id)
+  async setStatus(
+    id: number,
+    status: "active" | "suspended" | "closed",
+    ex: Executor = this.db,
+  ): Promise<void> {
+    await run(ex, "UPDATE users SET status = ?, updated_at = ? WHERE id = ?", [
+      status,
+      new Date().toISOString(),
+      id,
+    ])
   }
 
-  setRole(id: number, role: "user" | "admin"): void {
-    this.db
-      .query("UPDATE users SET role = ?, updated_at = ? WHERE id = ?")
-      .run(role, new Date().toISOString(), id)
+  async setRole(id: number, role: "user" | "admin", ex: Executor = this.db): Promise<void> {
+    await run(ex, "UPDATE users SET role = ?, updated_at = ? WHERE id = ?", [
+      role,
+      new Date().toISOString(),
+      id,
+    ])
   }
 }

@@ -1,4 +1,4 @@
-import { openDatabase, migrate } from "../src/db"
+import { migrate, openDatabase } from "../src/db"
 import { loadConfig } from "../src/config"
 import { UserRepository } from "../src/db/repositories/users"
 import { AuditRepository } from "../src/db/repositories/audit"
@@ -10,16 +10,16 @@ if (!email) {
 }
 
 const config = loadConfig()
-const db = openDatabase(config.databasePath)
-migrate(db)
+const db = await openDatabase(config.databasePath, config.databaseAuthToken)
+await migrate(db)
 const users = new UserRepository(db)
-const user = users.findByEmail(email)
+const user = await users.findByEmail(email)
 if (!user) {
   console.error(`No account uses ${email}`)
   process.exit(1)
 }
-users.setRole(user.id, "admin")
-new AuditRepository(db).record({
+await users.setRole(user.id, "admin")
+await new AuditRepository(db).record({
   userId: user.id,
   actorType: "system",
   action: "admin.role_granted",

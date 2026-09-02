@@ -1,19 +1,19 @@
 import { test, expect, describe, beforeEach } from "bun:test"
-import type { Database } from "bun:sqlite"
+import type { Client } from "../../../src/db"
 import { LedgerRepository } from "../../../src/db/repositories/ledger"
 import { LedgerError } from "../../../src/domain/ledger/types"
-import { moneyQuery } from "../../../src/db"
+import { get, moneyGet } from "../../../src/db"
 import { freshDb, createUser } from "../../support/fixtures"
 
-let db: Database
+let db: Client
 let ledger: LedgerRepository
 let userId: number
 let userBtc: number
 let externalBtc: number
 
-function codeOf(fn: () => void): string {
+async function codeOf(fn: () => Promise<unknown>): Promise<string> {
   try {
-    fn()
+    await fn()
   } catch (error) {
     if (error instanceof LedgerError) return error.code
     throw error
@@ -23,36 +23,33 @@ function codeOf(fn: () => void): string {
 
 // Money is always read as bigint. bun:sqlite returns INTEGER as a lossy JS
 // number unless safeIntegers is set on the statement.
-function balanceOf(accountId: number): bigint {
-  return moneyQuery<{ amount: bigint }, [number]>(
-    db,
-    "SELECT amount FROM account_balances WHERE account_id = ?",
-  ).get(accountId)!.amount
+async function balanceOf(accountId: number): Promise<bigint> {
+  return (await moneyGet<{ amount: bigint }>(db, "SELECT amount FROM account_balances WHERE account_id = ?", [accountId]))!.amount
 }
 
-beforeEach(() => {
-  db = freshDb()
+beforeEach(async () => {
+  db = await freshDb()
   ledger = new LedgerRepository(db)
-  userId = createUser(db)
-  userBtc = ledger.ensureAccount(userId, "BTC", "user_available")
-  externalBtc = ledger.ensureAccount(null, "BTC", "external_deposit")
+  userId = await createUser(db)
+  userBtc = await ledger.ensureAccount(userId, "BTC", "user_available")
+  externalBtc = await ledger.ensureAccount(null, "BTC", "external_deposit")
 })
 
 describe("ensureAccount", () => {
-  test("creates an account once and returns the same id thereafter", () => {
-    const first = ledger.ensureAccount(userId, "ETH", "user_available")
-    const second = ledger.ensureAccount(userId, "ETH", "user_available")
+  test("creates an account once and returns the same id thereafter", async () => {
+    const first = await ledger.ensureAccount(userId, "ETH", "user_available")
+    const second = await ledger.ensureAccount(userId, "ETH", "user_available")
     expect(second).toBe(first)
   })
 
-  test("creates a zeroed balance row alongside the account", () => {
-    expect(balanceOf(userBtc)).toBe(0n)
+  test("creates a zeroed balance row alongside the account", async () => {
+    expect(await balanceOf(userBtc)).toBe(0n)
   })
 })
 
 describe("post", () => {
-  test("writes a balanced posting and returns its transaction id", () => {
-    const { transactionId, replayed } = ledger.post({
+  test("writes a balanced posting and returns its transaction id", async () => {
+    const { transactionId, replayed } = await ledger.post({
       kind: "deposit",
       idempotencyKey: "dep-1",
       entries: [
@@ -64,8 +61,8 @@ describe("post", () => {
     expect(replayed).toBe(false)
   })
 
-  test("updates the materialized balance inside the same transaction", () => {
-    ledger.post({
+  test("updates the materialized balance inside the same transaction", async () => {
+    await ledger.post({
       kind: "deposit",
       idempotencyKey: "dep-1",
       entries: [
@@ -73,12 +70,12 @@ describe("post", () => {
         { accountId: userBtc, asset: "BTC", amount: 100000000n },
       ],
     })
-    expect(balanceOf(userBtc)).toBe(100000000n)
+    expect(await balanceOf(userBtc)).toBe(100000000n)
   })
 
-  test("accumulates across multiple postings", () => {
+  test("accumulates across multiple postings", async () => {
     for (const key of ["a", "b", "c"]) {
-      ledger.post({
+      await ledger.post({
         kind: "deposit",
         idempotencyKey: key,
         entries: [
@@ -87,10 +84,10 @@ describe("post", () => {
         ],
       })
     }
-    expect(balanceOf(userBtc)).toBe(150000000n)
+    expect(await balanceOf(userBtc)).toBe(150000000n)
   })
 
-  test("replaying an idempotency key returns the original transaction and writes nothing", () => {
+  test("replaying an idempotency key returns the original transaction and writes nothing", async () => {
     const input = {
       kind: "deposit",
       idempotencyKey: "dep-1",
@@ -99,24 +96,22 @@ describe("post", () => {
         { accountId: userBtc, asset: "BTC", amount: 100000000n },
       ],
     }
-    const first = ledger.post(input)
-    const second = ledger.post(input)
+    const first = await ledger.post(input)
+    const second = await ledger.post(input)
 
     expect(second.transactionId).toBe(first.transactionId)
     expect(second.replayed).toBe(true)
 
-    const entryCount = db
-      .query<{ n: number }, []>("SELECT COUNT(*) AS n FROM ledger_entries")
-      .get()!.n
+    const entryCount = (await get<{ n: number }>(db, "SELECT COUNT(*) AS n FROM ledger_entries"))!.n
     expect(entryCount).toBe(2)
 
-    expect(balanceOf(userBtc)).toBe(100000000n)
+    expect(await balanceOf(userBtc)).toBe(100000000n)
   })
 
-  test("rejects an unbalanced posting and writes nothing", () => {
+  test("rejects an unbalanced posting and writes nothing", async () => {
     expect(
-      codeOf(() =>
-        ledger.post({
+      await codeOf(async () =>
+        await ledger.post({
           kind: "deposit",
           idempotencyKey: "bad",
           entries: [
@@ -127,16 +122,14 @@ describe("post", () => {
       ),
     ).toBe("unbalanced")
 
-    const txCount = db
-      .query<{ n: number }, []>("SELECT COUNT(*) AS n FROM ledger_transactions")
-      .get()!.n
+    const txCount = (await get<{ n: number }>(db, "SELECT COUNT(*) AS n FROM ledger_transactions"))!.n
     expect(txCount).toBe(0)
   })
 
-  test("rejects a posting that would drive a user account negative", () => {
+  test("rejects a posting that would drive a user account negative", async () => {
     expect(
-      codeOf(() =>
-        ledger.post({
+      await codeOf(async () =>
+        await ledger.post({
           kind: "withdrawal",
           idempotencyKey: "over",
           entries: [
@@ -148,24 +141,22 @@ describe("post", () => {
     ).toBe("insufficient_balance")
   })
 
-  test("permits a platform account to go negative", () => {
-    const treasury = ledger.ensureAccount(null, "BTC", "platform_treasury")
-    expect(() =>
-      ledger.post({
-        kind: "adjustment",
-        idempotencyKey: "neg",
-        entries: [
-          { accountId: treasury, asset: "BTC", amount: -100n },
-          { accountId: userBtc, asset: "BTC", amount: 100n },
-        ],
-      }),
-    ).not.toThrow()
+  test("permits a platform account to go negative", async () => {
+    const treasury = await ledger.ensureAccount(null, "BTC", "platform_treasury")
+    await ledger.post({
+      kind: "adjustment",
+      idempotencyKey: "neg",
+      entries: [
+        { accountId: treasury, asset: "BTC", amount: -100n },
+        { accountId: userBtc, asset: "BTC", amount: 100n },
+      ],
+    })
   })
 
-  test("rejects an entry whose asset does not match its account", () => {
+  test("rejects an entry whose asset does not match its account", async () => {
     expect(
-      codeOf(() =>
-        ledger.post({
+      await codeOf(async () =>
+        await ledger.post({
           kind: "deposit",
           idempotencyKey: "mismatch",
           entries: [
@@ -177,10 +168,10 @@ describe("post", () => {
     ).toBe("asset_mismatch")
   })
 
-  test("rejects an entry referencing an account that does not exist", () => {
+  test("rejects an entry referencing an account that does not exist", async () => {
     expect(
-      codeOf(() =>
-        ledger.post({
+      await codeOf(async () =>
+        await ledger.post({
           kind: "deposit",
           idempotencyKey: "ghost",
           entries: [
@@ -192,8 +183,8 @@ describe("post", () => {
     ).toBe("account_not_found")
   })
 
-  test("persists metadata and external reference", () => {
-    const { transactionId } = ledger.post({
+  test("persists metadata and external reference", async () => {
+    const { transactionId } = await ledger.post({
       kind: "deposit",
       idempotencyKey: "meta",
       externalRef: "txhash-abc",
@@ -203,20 +194,16 @@ describe("post", () => {
         { accountId: userBtc, asset: "BTC", amount: 100n },
       ],
     })
-    const row = db
-      .query<{ external_ref: string; metadata: string }, [number]>(
-        "SELECT external_ref, metadata FROM ledger_transactions WHERE id = ?",
-      )
-      .get(transactionId)!
+    const row = (await get<{ external_ref: string; metadata: string }>(db, "SELECT external_ref, metadata FROM ledger_transactions WHERE id = ?", [transactionId]))!
     expect(row.external_ref).toBe("txhash-abc")
     expect(JSON.parse(row.metadata)).toEqual({ chain: "bitcoin", confirmations: 2 })
   })
 
-  test("handles a balance beyond 2^53 without precision loss", () => {
+  test("handles a balance beyond 2^53 without precision loss", async () => {
     // bun:sqlite returns INTEGER as a lossy JS number by default. Money reads
     // must use safeIntegers, or this amount comes back rounded.
     const huge = 9007199254740993n // 2^53 + 1
-    ledger.post({
+    await ledger.post({
       kind: "deposit",
       idempotencyKey: "huge",
       entries: [
@@ -224,14 +211,14 @@ describe("post", () => {
         { accountId: userBtc, asset: "BTC", amount: huge },
       ],
     })
-    expect(balanceOf(userBtc)).toBe(huge)
+    expect(await balanceOf(userBtc)).toBe(huge)
   })
 
-  test("still rejects a negative balance when amounts exceed 2^53", () => {
+  test("still rejects a negative balance when amounts exceed 2^53", async () => {
     const huge = 9007199254740993n
     expect(
-      codeOf(() =>
-        ledger.post({
+      await codeOf(async () =>
+        await ledger.post({
           kind: "withdrawal",
           idempotencyKey: "huge-over",
           entries: [
@@ -243,9 +230,9 @@ describe("post", () => {
     ).toBe("insufficient_balance")
   })
 
-  test("preserves conservation: all entries for an asset sum to zero", () => {
+  test("preserves conservation: all entries for an asset sum to zero", async () => {
     for (let i = 0; i < 50; i++) {
-      ledger.post({
+      await ledger.post({
         kind: "deposit",
         idempotencyKey: `k-${i}`,
         entries: [
@@ -254,11 +241,7 @@ describe("post", () => {
         ],
       })
     }
-    const total = db
-      .query<{ total: number }, []>(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM ledger_entries WHERE asset = 'BTC'",
-      )
-      .get()!.total
+    const total = (await get<{ total: number }>(db, "SELECT COALESCE(SUM(amount), 0) AS total FROM ledger_entries WHERE asset = 'BTC'"))!.total
     expect(total).toBe(0)
   })
 })

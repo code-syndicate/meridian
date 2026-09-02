@@ -13,9 +13,9 @@ export interface RateLimitOptions {
 }
 
 export function rateLimit(options: RateLimitOptions): RequestHandler {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const key = options.bucket(req)
-    const result = options.repo.consume(
+    const result = await options.repo.consume(
       key,
       options.capacity,
       options.refillPerSecond,
@@ -24,7 +24,7 @@ export function rateLimit(options: RateLimitOptions): RequestHandler {
 
     if (result.allowed) return next()
 
-    options.audit.record({
+    await options.audit.record({
       actorType: "system",
       action: `rate_limited.${options.action}`,
       target: key,

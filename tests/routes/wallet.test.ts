@@ -1,12 +1,12 @@
 import { test, expect, describe, beforeEach } from "bun:test"
 import { testLimits, warmPriceFeed } from "../support/limits"
-import type { Database } from "bun:sqlite"
+import type { Client } from "../../src/db"
 import { createApp, type App } from "../../src/server"
 import { loadConfig } from "../../src/config"
 import { CapturingEmailSender } from "../../src/services/email"
 import { SandboxKycProvider } from "../../src/services/kyc-provider"
 import { SandboxCustodyProvider } from "../../src/services/custody-provider"
-import { openDatabase, migrate } from "../../src/db"
+import { get as dbGet, migrate, openDatabase } from "../../src/db"
 import { UserRepository } from "../../src/db/repositories/users"
 import { KycRepository } from "../../src/db/repositories/kyc"
 import { LedgerRepository } from "../../src/db/repositories/ledger"
@@ -23,7 +23,7 @@ const config = loadConfig({
 })
 const PASSWORD = "correct horse battery staple 7"
 
-let db: Database
+let db: Client
 let app: App
 let provider: SandboxCustodyProvider
 let userId: number
@@ -38,33 +38,33 @@ function currentCode(): string {
 }
 
 async function signIn(verified: boolean, totp: boolean): Promise<void> {
-  db = openDatabase(":memory:")
-  migrate(db)
+  db = await openDatabase(":memory:")
+  await migrate(db)
   provider = new SandboxCustodyProvider()
-  app = createApp(config, {
+  app = await createApp(config, {
     db, email: new CapturingEmailSender(),
     kycProvider: new SandboxKycProvider(), custodyProvider: provider,
     priceFeed: await warmPriceFeed(db),
   })
   const users = new UserRepository(db)
-  userId = users.create("a@test.co", await hashPassword(PASSWORD))
-  users.markEmailVerified(userId)
+  userId = await users.create("a@test.co", await hashPassword(PASSWORD))
+  await users.markEmailVerified(userId)
   if (verified) {
     const kyc = new KycRepository(db)
-    kyc.decide(kyc.start(userId, 2), "approved")
+    await kyc.decide(await kyc.start(userId, 2), "approved")
   }
   // Sign in first. Enabling TOTP beforehand would stop login at the second
   // factor and never issue a session.
   jar = cookiesFrom(await post(app, "/login", { email: "a@test.co", password: PASSWORD }))
   totpSecret = generateTotpSecret()
   if (totp) {
-    users.setTotpSecret(userId, encryptSecret(totpSecret, TOTP_KEY))
-    users.enableTotp(userId)
+    await users.setTotpSecret(userId, encryptSecret(totpSecret, TOTP_KEY))
+    await users.enableTotp(userId)
   }
 }
 
 async function get(path: string): Promise<Response> {
-  return app.inject(path, { headers: { cookie: jar }, redirect: "manual" })
+  return await app.inject(path, { headers: { cookie: jar }, redirect: "manual" })
 }
 
 describe("access control", () => {
@@ -150,9 +150,9 @@ describe("deposit", () => {
 describe("withdraw", () => {
   async function fundBtc(amount: bigint): Promise<void> {
     const ledger = new LedgerRepository(db)
-    const external = ledger.ensureAccount(null, "BTC", "external_deposit")
-    const available = ledger.ensureAccount(userId, "BTC", "user_available")
-    ledger.post({
+    const external = await ledger.ensureAccount(null, "BTC", "external_deposit")
+    const available = await ledger.ensureAccount(userId, "BTC", "user_available")
+    await ledger.post({
       kind: "deposit", idempotencyKey: `fund-${amount}`,
       entries: [
         { accountId: external, asset: "BTC", amount: -amount },
@@ -229,9 +229,9 @@ describe("withdraw", () => {
   test("refuses a precision the network cannot send", async () => {
     await signIn(true, true)
     const ledger = new LedgerRepository(db)
-    const external = ledger.ensureAccount(null, "USDT_TRC20", "external_deposit")
-    const available = ledger.ensureAccount(userId, "USDT_TRC20", "user_available")
-    ledger.post({
+    const external = await ledger.ensureAccount(null, "USDT_TRC20", "external_deposit")
+    const available = await ledger.ensureAccount(userId, "USDT_TRC20", "user_available")
+    await ledger.post({
       kind: "deposit", idempotencyKey: "fund-usdt",
       entries: [
         { accountId: external, asset: "USDT_TRC20", amount: -100000000000n },
@@ -251,8 +251,8 @@ describe("withdraw", () => {
       { destination: "bc1qdestination", amount: "0.5", totp: currentCode() }, jar)
     expect(res.status).toBe(303)
     const balance = new LedgerRepository(db).balance(userId, "BTC")
-    expect(balance.held).toBe(50015000n)
-    expect(balance.available).toBe(49985000n)
+    expect((await balance).held).toBe(50015000n)
+    expect((await balance).available).toBe(49985000n)
   })
 })
 
@@ -266,9 +266,9 @@ describe("transactions", () => {
   test("lists a deposit once it is credited", async () => {
     await signIn(true, true)
     const ledger = new LedgerRepository(db)
-    const external = ledger.ensureAccount(null, "BTC", "external_deposit")
-    const available = ledger.ensureAccount(userId, "BTC", "user_available")
-    ledger.post({
+    const external = await ledger.ensureAccount(null, "BTC", "external_deposit")
+    const available = await ledger.ensureAccount(userId, "BTC", "user_available")
+    await ledger.post({
       kind: "deposit", idempotencyKey: "tx-1",
       entries: [
         { accountId: external, asset: "BTC", amount: -100000000n },
@@ -284,9 +284,9 @@ describe("transactions", () => {
 describe("tier limits over the wire", () => {
   async function fund(amount: bigint): Promise<void> {
     const ledger = new LedgerRepository(db)
-    const external = ledger.ensureAccount(null, "BTC", "external_deposit")
-    const available = ledger.ensureAccount(userId, "BTC", "user_available")
-    ledger.post({
+    const external = await ledger.ensureAccount(null, "BTC", "external_deposit")
+    const available = await ledger.ensureAccount(userId, "BTC", "user_available")
+    await ledger.post({
       kind: "deposit", idempotencyKey: `limitfund-${amount}`,
       entries: [
         { accountId: external, asset: "BTC", amount: -amount },
@@ -323,8 +323,8 @@ describe("tier limits over the wire", () => {
     await post(app, "/wallet/withdraw/btc",
       { destination: "bc1qexampledestination", amount: "20000", memo: "", totp: "" }, jar)
     const after = new LedgerRepository(db).balance(userId, "BTC")
-    expect(after.available).toBe(before.available)
-    expect(after.held).toBe(0n)
+    expect((await after).available).toBe((await before).available)
+    expect((await after).held).toBe(0n)
     // Headroom intact, so a legitimate withdrawal still goes through.
     expect((await post(app, "/wallet/withdraw/btc",
       { destination: "bc1qexampledestination", amount: "10", memo: "", totp: "" }, jar)).status).toBe(303)
@@ -334,8 +334,8 @@ describe("tier limits over the wire", () => {
     await signIn(false, false)
     await fund(2000000000000n)
     const users = new UserRepository(db)
-    const other = users.create("b@test.co", await hashPassword(PASSWORD))
-    users.markEmailVerified(other)
+    const other = await users.create("b@test.co", await hashPassword(PASSWORD))
+    await users.markEmailVerified(other)
     expect((await post(app, "/wallet/send/btc",
       { recipient: "b@test.co", amount: "9000", note: "" }, jar)).status).toBe(303)
     const res = await post(app, "/wallet/send/btc",

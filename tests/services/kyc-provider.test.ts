@@ -11,10 +11,10 @@ const validInput = {
   dateOfBirth: "1994-05-12",
 }
 
-beforeEach(() => { provider = new SandboxKycProvider() })
+beforeEach(async () => { provider = new SandboxKycProvider() })
 
 describe("verifyGovernmentId", () => {
-  test("names itself, so the application can record which provider decided", () => {
+  test("names itself, so the application can record which provider decided", async () => {
     expect(provider.name).toBe("sandbox")
   })
   test("verifies a normal identifier", async () => {

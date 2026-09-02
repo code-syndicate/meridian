@@ -1,4 +1,5 @@
-import type { Database } from "bun:sqlite"
+import type { Client, Executor } from "../index"
+import { all, get, run } from "../index"
 import { randomToken } from "../../domain/identity/tokens"
 
 export interface Session {
@@ -36,18 +37,21 @@ function toSession(row: SessionRow): Session {
 }
 
 export class SessionRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: Client) {}
 
-  create(userId: number, ctx: { ip?: string | null; userAgent?: string | null }): string {
+  async create(
+    userId: number,
+    ctx: { ip?: string | null; userAgent?: string | null },
+    ex: Executor = this.db,
+  ): Promise<string> {
     const id = randomToken(32)
     const now = new Date()
     const expires = new Date(now.getTime() + ABSOLUTE_DAYS * 86_400_000)
-    this.db
-      .query(
-        `INSERT INTO sessions (id, user_id, created_at, last_seen_at, expires_at, ip, user_agent)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
+    await run(
+      ex,
+      `INSERT INTO sessions (id, user_id, created_at, last_seen_at, expires_at, ip, user_agent)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
         id,
         userId,
         now.toISOString(),
@@ -55,50 +59,54 @@ export class SessionRepository {
         expires.toISOString(),
         ctx.ip ?? null,
         ctx.userAgent ?? null,
-      )
+      ],
+    )
     return id
   }
 
-  find(id: string): Session | null {
-    const row = this.db
-      .query<SessionRow, [string, string]>(
-        `SELECT id, user_id, created_at, last_seen_at, expires_at, ip, user_agent
-         FROM sessions
-         WHERE id = ? AND revoked_at IS NULL AND expires_at > ?`,
-      )
-      .get(id, new Date().toISOString())
+  async find(id: string, ex: Executor = this.db): Promise<Session | null> {
+    const row = await get<SessionRow>(
+      ex,
+      `SELECT id, user_id, created_at, last_seen_at, expires_at, ip, user_agent
+       FROM sessions
+       WHERE id = ? AND revoked_at IS NULL AND expires_at > ?`,
+      [id, new Date().toISOString()],
+    )
     return row ? toSession(row) : null
   }
 
-  touch(id: string): void {
-    this.db
-      .query("UPDATE sessions SET last_seen_at = ? WHERE id = ?")
-      .run(new Date().toISOString(), id)
+  async touch(id: string, ex: Executor = this.db): Promise<void> {
+    await run(ex, "UPDATE sessions SET last_seen_at = ? WHERE id = ?", [
+      new Date().toISOString(),
+      id,
+    ])
   }
 
-  revoke(id: string): void {
-    this.db
-      .query("UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")
-      .run(new Date().toISOString(), id)
+  async revoke(id: string, ex: Executor = this.db): Promise<void> {
+    await run(ex, "UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", [
+      new Date().toISOString(),
+      id,
+    ])
   }
 
-  revokeAllFor(userId: number): number {
-    const active = this.listActive(userId).length
-    this.db
-      .query("UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL")
-      .run(new Date().toISOString(), userId)
+  async revokeAllFor(userId: number, ex: Executor = this.db): Promise<number> {
+    const active = (await this.listActive(userId, ex)).length
+    await run(ex, "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL", [
+      new Date().toISOString(),
+      userId,
+    ])
     return active
   }
 
-  listActive(userId: number): Session[] {
-    return this.db
-      .query<SessionRow, [number, string]>(
-        `SELECT id, user_id, created_at, last_seen_at, expires_at, ip, user_agent
-         FROM sessions
-         WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ?
-         ORDER BY created_at DESC, rowid DESC`,
-      )
-      .all(userId, new Date().toISOString())
-      .map(toSession)
+  async listActive(userId: number, ex: Executor = this.db): Promise<Session[]> {
+    const rows = await all<SessionRow>(
+      ex,
+      `SELECT id, user_id, created_at, last_seen_at, expires_at, ip, user_agent
+       FROM sessions
+       WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ?
+       ORDER BY created_at DESC, rowid DESC`,
+      [userId, new Date().toISOString()],
+    )
+    return rows.map(toSession)
   }
 }

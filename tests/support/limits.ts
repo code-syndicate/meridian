@@ -1,7 +1,7 @@
 import { LimitService } from "../../src/services/limits"
 import { UsageRepository } from "../../src/db/repositories/usage"
 import { priceFromFeed, type Quote } from "../../src/domain/prices"
-import type { Database } from "bun:sqlite"
+import type { Client } from "../../src/db"
 
 /** Every supported asset priced at $1 unless overridden, so amounts read as dollars. */
 export function fakePrices(overrides: Record<string, number> = {}) {
@@ -25,7 +25,7 @@ export function fakePrices(overrides: Record<string, number> = {}) {
 
 /** Caps high enough that a test not about limits is unaffected by them. */
 export function testLimits(
-  db: Database,
+  db: Client,
   options: {
     prices?: { snapshot: () => Quote[] }
     freeTierLimitUsd?: number
@@ -48,20 +48,20 @@ export function testLimits(
  * A pre-warmed feed. Route tests need one because limits fail closed without a
  * price, which is the intended behaviour but would otherwise fail every test.
  */
-export async function warmPriceFeed(db: Database, usd = 1) {
+export async function warmPriceFeed(db: Client, usd = 1) {
   const { PriceFeed, COINGECKO_IDS } = await import("../../src/services/price-feed")
   const { AssetRepository } = await import("../../src/db/repositories/assets")
   const source = {
     async fetch() {
       return new Map(
-        Object.values(COINGECKO_IDS).map((id) => [
+        (await Object.values(COINGECKO_IDS)).map((id) => [
           id,
-          { usd, change24h: 0, sparkline: [], marketCap: 0, volume24h: 0 },
+          { usd, change24h: 0, sparkline:[], marketCap: 0, volume24h: 0 },
         ]),
       )
     },
   }
-  const feed = new PriceFeed(source as never, new AssetRepository(db).all())
+  const feed = new PriceFeed(source as never, await new AssetRepository(db).all())
   await feed.refresh()
   return feed
 }

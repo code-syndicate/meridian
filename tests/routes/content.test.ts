@@ -26,23 +26,23 @@ const ROUTES = [
 describe("content routes", () => {
   for (const route of ROUTES) {
     test(`${route} responds 200 with a heading`, async () => {
-      const res = await createApp(config).inject(route)
-      expect(res.status).toBe(200)
-      const html = await res.text()
+      const res = (await createApp(config)).inject(route)
+      expect((await res).status).toBe(200)
+      const html = await (await res).text()
       expect(html).toContain("<h1")
       expect(html).toContain("Risk warning")
     })
   }
 
   test("an unknown legal page 404s", async () => {
-    expect((await createApp(config).inject("/legal/nope")).status).toBe(404)
+    expect((await ((await createApp(config)).inject("/legal/nope"))).status).toBe(404)
   })
 })
 
 describe("content data", () => {
   const all = [...CONTENT_PAGES, ...LEGAL_PAGES]
 
-  test("every page has a slug, title, heading, and at least one section", () => {
+  test("every page has a slug, title, heading, and at least one section", async () => {
     for (const page of all) {
       expect(page.slug.length).toBeGreaterThan(0)
       expect(page.title.length).toBeGreaterThan(0)
@@ -51,7 +51,7 @@ describe("content data", () => {
     }
   })
 
-  test("no section is empty", () => {
+  test("no section is empty", async () => {
     for (const page of all) {
       for (const section of page.sections) {
         expect(section.heading.length).toBeGreaterThan(0)
@@ -63,12 +63,12 @@ describe("content data", () => {
     }
   })
 
-  test("slugs are unique", () => {
+  test("slugs are unique", async () => {
     const slugs = all.map((p) => p.slug)
     expect(new Set(slugs).size).toBe(slugs.length)
   })
 
-  test("copy contains no em dashes", () => {
+  test("copy contains no em dashes", async () => {
     for (const page of all) {
       for (const section of page.sections) {
         for (const paragraph of section.body) {
@@ -79,7 +79,7 @@ describe("content data", () => {
     }
   })
 
-  test("copy contains no placeholder text", () => {
+  test("copy contains no placeholder text", async () => {
     for (const page of all) {
       for (const section of page.sections) {
         for (const paragraph of section.body) {
@@ -93,7 +93,7 @@ describe("content data", () => {
     }
   })
 
-  test("copy makes no claim that Meridian is licensed or registered", () => {
+  test("copy makes no claim that Meridian is licensed or registered", async () => {
     for (const page of all) {
       for (const section of page.sections) {
         for (const paragraph of section.body) {
@@ -109,7 +109,7 @@ describe("content data", () => {
     }
   })
 
-  test("copy makes no return or safety promise", () => {
+  test("copy makes no return or safety promise", async () => {
     for (const page of all) {
       for (const section of page.sections) {
         for (const paragraph of section.body) {
@@ -123,13 +123,13 @@ describe("content data", () => {
   })
 
   test("the risk disclosure states total loss plainly", async () => {
-    const html = await (await createApp(config).inject("/legal/risk")).text()
+    const html = await (await ((await createApp(config)).inject("/legal/risk"))).text()
     expect(html.toLowerCase()).toContain("lose")
     expect(html.toLowerCase()).toContain("entire")
   })
 
   test("the regulatory page describes the compliance programme", async () => {
-    const html = (await (await createApp(config).inject("/regulatory")).text()).toLowerCase()
+    const html = (await (await ((await createApp(config)).inject("/regulatory"))).text()).toLowerCase()
     expect(html).toContain("sanctions")
     expect(html).toContain("transaction monitoring")
     expect(html).toContain("due diligence")
@@ -137,26 +137,26 @@ describe("content data", () => {
 
   test("no content page claims a licence Meridian does not hold", async () => {
     for (const slug of ["fees", "security", "regulatory", "about", "status"]) {
-      const html = await (await createApp(config).inject(`/${slug}`)).text()
+      const html = await (await ((await createApp(config)).inject(`/${slug}`))).text()
       expect(html).not.toMatch(/\b(we|meridian) (are|is) (licensed|registered|regulated|approved)\b/i)
       expect(html).not.toMatch(/\bfully (licensed|regulated)\b/i)
     }
   })
 
   test("the regulatory page names no single market as the whole business", async () => {
-    const html = (await (await createApp(config).inject("/regulatory")).text()).toLowerCase()
+    const html = (await (await ((await createApp(config)).inject("/regulatory"))).text()).toLowerCase()
     expect(html).not.toContain("nigeria")
     expect(html).not.toContain("securities and exchange commission")
   })
 
   test("the security page describes third-party custody", async () => {
-    const html = await (await createApp(config).inject("/security")).text()
+    const html = await (await ((await createApp(config)).inject("/security"))).text()
     expect(html.toLowerCase()).toContain("custody provider")
     expect(html.toLowerCase()).toContain("multi-party")
   })
 
   test("the fees page states deposits are free", async () => {
-    const html = await (await createApp(config).inject("/fees")).text()
+    const html = await (await ((await createApp(config)).inject("/fees"))).text()
     expect(html.toLowerCase()).toContain("deposits are free")
   })
 })

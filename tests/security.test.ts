@@ -1,11 +1,11 @@
 import { test, expect, describe, beforeEach } from "bun:test"
 import { readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
-import type { Database } from "bun:sqlite"
+import type { Client } from "../src/db"
 import { createApp, type App } from "../src/server"
 import { loadConfig } from "../src/config"
 import { CapturingEmailSender } from "../src/services/email"
-import { openDatabase, migrate } from "../src/db"
+import { migrate, openDatabase, run } from "../src/db"
 import { UserRepository } from "../src/db/repositories/users"
 import { SessionRepository } from "../src/db/repositories/sessions"
 import { hashPassword } from "../src/domain/identity/password"
@@ -31,13 +31,13 @@ const STATE_CHANGING = [
   "/account/sessions/revoke-others",
 ]
 
-let db: Database
+let db: Client
 let app: App
 
-beforeEach(() => {
-  db = openDatabase(":memory:")
-  migrate(db)
-  app = createApp(config, {
+beforeEach(async () => {
+  db = await openDatabase(":memory:")
+  await migrate(db)
+  app = await createApp(config, {
     db,
     email: new CapturingEmailSender(),
   })
@@ -45,8 +45,8 @@ beforeEach(() => {
 
 async function signedInJar(): Promise<{ jar: string; userId: number }> {
   const users = new UserRepository(db)
-  const userId = users.create("a@test.co", await hashPassword(PASSWORD))
-  users.markEmailVerified(userId)
+  const userId = await users.create("a@test.co", await hashPassword(PASSWORD))
+  await users.markEmailVerified(userId)
   const res = await post(app, "/login", { email: "a@test.co", password: PASSWORD })
   return { jar: cookiesFrom(res), userId }
 }
@@ -102,7 +102,7 @@ describe("secrets never reach the client", () => {
 
   test("no rendered page contains a live session identifier", async () => {
     const { jar, userId } = await signedInJar()
-    const sessionId = new SessionRepository(db).listActive(userId)[0]!.id
+    const sessionId = (await new SessionRepository(db).listActive(userId))[0]!.id
     for (const route of ["/dashboard", "/account/security", "/account/activity"]) {
       const html = await (await app.inject(route, { headers: { cookie: jar } })).text()
       expect(`${route}: ${html.includes(sessionId)}`).toBe(`${route}: false`)
@@ -111,8 +111,8 @@ describe("secrets never reach the client", () => {
 
   test("the session cookie is http-only", async () => {
     const users = new UserRepository(db)
-    const id = users.create("a@test.co", await hashPassword(PASSWORD))
-    users.markEmailVerified(id)
+    const id = await users.create("a@test.co", await hashPassword(PASSWORD))
+    await users.markEmailVerified(id)
     const res = await post(app, "/login", { email: "a@test.co", password: PASSWORD })
     const session = res.headers.getSetCookie().find((c) => c.includes("session"))!
     expect(session.toLowerCase()).toContain("httponly")
@@ -121,10 +121,8 @@ describe("secrets never reach the client", () => {
   test("one user cannot see another user's activity", async () => {
     const { jar } = await signedInJar()
     const other = new UserRepository(db).create("b@test.co", await hashPassword(PASSWORD))
-    db.query(
-      `INSERT INTO audit_log (user_id, actor_type, action, ip, created_at)
-       VALUES (?, 'user', 'user.login', '198.51.100.9', '2026-01-01')`,
-    ).run(other)
+    await run(db, `INSERT INTO audit_log (user_id, actor_type, action, ip, created_at)
+       VALUES (?, 'user', 'user.login', '198.51.100.9', '2026-01-01')`, [await other])
     const html = await (
       await app.inject("/account/activity", { headers: { cookie: jar } })
     ).text()
@@ -143,7 +141,7 @@ describe("source-level guarantees", () => {
     return out
   }
 
-  test("no template renders a secret-bearing field", () => {
+  test("no template renders a secret-bearing field", async () => {
     for (const path of filesUnder("src/views", ".pug")) {
       const text = readFileSync(path, "utf8")
       for (const banned of ["totpSecretEncrypted", "passwordHash", "session.id"]) {
@@ -152,7 +150,7 @@ describe("source-level guarantees", () => {
     }
   })
 
-  test("no source file logs a password, token, or secret variable", () => {
+  test("no source file logs a password, token, or secret variable", async () => {
     for (const path of filesUnder("src", ".ts")) {
       const text = readFileSync(path, "utf8")
       const logs = text.match(/console\.(log|error|warn)\([^;]*?\)/gs) ?? []
@@ -163,7 +161,7 @@ describe("source-level guarantees", () => {
     }
   })
 
-  test("no source file logs a name, identifier, or address", () => {
+  test("no source file logs a name, identifier, or address", async () => {
     for (const path of filesUnder("src", ".ts")) {
       const text = readFileSync(path, "utf8")
       const logs = text.match(/console\.(log|error|warn)\([^;]*?\)/gs) ?? []
@@ -177,7 +175,7 @@ describe("source-level guarantees", () => {
     }
   })
 
-  test("no template renders a full government identifier", () => {
+  test("no template renders a full government identifier", async () => {
     // An input NAMED idNumber is required: that is where the user types it.
     // What must never happen is a template interpolating the value back out.
     const rendering = [
@@ -197,7 +195,7 @@ describe("source-level guarantees", () => {
     }
   })
 
-  test("kyc consents keep their append-only triggers", () => {
+  test("kyc consents keep their append-only triggers", async () => {
     const migrations = filesUnder("src/db/migrations", ".sql")
       .map((p) => readFileSync(p, "utf8"))
       .join("\n")
@@ -205,7 +203,7 @@ describe("source-level guarantees", () => {
     expect(migrations).toContain("kyc_consents_no_delete")
   })
 
-  test("domain code imports neither express nor bun:sqlite", () => {
+  test("domain code imports neither express nor bun:sqlite", async () => {
     for (const path of filesUnder("src/domain", ".ts")) {
       const text = readFileSync(path, "utf8")
       expect(`${path}: ${/from "express"/.test(text)}`).toBe(`${path}: false`)
@@ -213,7 +211,7 @@ describe("source-level guarantees", () => {
     }
   })
 
-  test("no SQL lives outside the repository layer", () => {
+  test("no SQL lives outside the repository layer", async () => {
     for (const path of filesUnder("src", ".ts")) {
       if (path.startsWith("src/db/")) continue
       const text = readFileSync(path, "utf8")
@@ -222,7 +220,7 @@ describe("source-level guarantees", () => {
     }
   })
 
-  test("the ledger and audit log keep their append-only triggers", () => {
+  test("the ledger and audit log keep their append-only triggers", async () => {
     const migrations = filesUnder("src/db/migrations", ".sql")
       .map((p) => readFileSync(p, "utf8"))
       .join("\n")

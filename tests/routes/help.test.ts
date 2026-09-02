@@ -12,11 +12,11 @@ const config = loadConfig({
 
 describe("GET /help", () => {
   test("responds 200", async () => {
-    expect((await createApp(config).inject("/help")).status).toBe(200)
+    expect((await ((await createApp(config)).inject("/help"))).status).toBe(200)
   })
 
   test("lists every article", async () => {
-    const html = await (await createApp(config).inject("/help")).text()
+    const html = await (await ((await createApp(config)).inject("/help"))).text()
     for (const article of HELP_ARTICLES) {
       expect(html).toContain(article.title)
       expect(html).toContain(`/help/${article.slug}`)
@@ -24,7 +24,7 @@ describe("GET /help", () => {
   })
 
   test("groups articles by category", async () => {
-    const html = await (await createApp(config).inject("/help")).text()
+    const html = await (await ((await createApp(config)).inject("/help"))).text()
     for (const category of new Set(HELP_ARTICLES.map((a) => a.category))) {
       expect(html).toContain(category)
     }
@@ -34,31 +34,31 @@ describe("GET /help", () => {
 describe("GET /help/:slug", () => {
   for (const article of HELP_ARTICLES) {
     test(`${article.slug} renders`, async () => {
-      const res = await createApp(config).inject(`/help/${article.slug}`)
-      expect(res.status).toBe(200)
-      expect(await res.text()).toContain(article.title)
+      const res = (await createApp(config)).inject(`/help/${article.slug}`)
+      expect((await res).status).toBe(200)
+      expect(await (await res).text()).toContain(article.title)
     })
   }
 
   test("returns 404 for an unknown article", async () => {
-    expect((await createApp(config).inject("/help/nope")).status).toBe(404)
+    expect((await ((await createApp(config)).inject("/help/nope"))).status).toBe(404)
   })
 })
 
 describe("help content", () => {
-  test("slugs are unique", () => {
+  test("slugs are unique", async () => {
     const slugs = HELP_ARTICLES.map((a) => a.slug)
     expect(new Set(slugs).size).toBe(slugs.length)
   })
 
-  test("every article has a summary and at least one section", () => {
+  test("every article has a summary and at least one section", async () => {
     for (const article of HELP_ARTICLES) {
       expect(article.summary.trim().length).toBeGreaterThan(0)
       expect(article.sections.length).toBeGreaterThan(0)
     }
   })
 
-  test("there is an article explaining networks, which is the costliest mistake", () => {
+  test("there is an article explaining networks, which is the costliest mistake", async () => {
     const networks = HELP_ARTICLES.find((a) => a.slug === "choosing-the-right-network")
     expect(networks).toBeDefined()
     const text = networks!.sections.flatMap((s) => s.body).join(" ").toLowerCase()
@@ -67,7 +67,7 @@ describe("help content", () => {
     expect(text).toContain("reverse")
   })
 
-  test("copy contains no em dashes", () => {
+  test("copy contains no em dashes", async () => {
     for (const article of HELP_ARTICLES) {
       for (const section of article.sections) {
         for (const paragraph of section.body) {

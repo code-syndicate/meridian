@@ -12,7 +12,7 @@ class Failing implements NewsSource {
 
 let feed: NewsFeed
 
-beforeEach(() => {
+beforeEach(async () => {
   feed = new NewsFeed(
     new StaticNewsSource([
       item("old", "2026-08-01T00:00:00Z"),
@@ -23,7 +23,7 @@ beforeEach(() => {
 })
 
 describe("NewsFeed", () => {
-  test("is empty before the first refresh", () => {
+  test("is empty before the first refresh", async () => {
     expect(feed.snapshot()).toEqual([])
   })
 

@@ -1,4 +1,5 @@
-import type { Database } from "bun:sqlite"
+import type { Client } from "../db/index"
+import { withTransaction } from "../db/index"
 import type { Asset } from "../db/repositories/assets"
 import type { LedgerRepository } from "../db/repositories/ledger"
 import type { UserRepository } from "../db/repositories/users"
@@ -48,7 +49,7 @@ export function maskEmail(email: string): string {
 }
 
 export interface TransferDeps {
-  db: Database
+  db: Client
   ledger: LedgerRepository
   users: UserRepository
   audit: AuditRepository
@@ -63,11 +64,14 @@ export class TransferService {
    * Takes an account ID or an email address. Which one was used never changes
    * what comes back, so neither can be used to probe for the other.
    */
-  resolve(senderId: number, recipientRef: string): { id: number; masked: string } {
+  async resolve(
+    senderId: number,
+    recipientRef: string,
+  ): Promise<{ id: number; masked: string }> {
     const reference = recipientRef.trim()
     const recipient = looksLikeAccountId(reference)
-      ? this.deps.users.findByAccountId(reference)
-      : this.deps.users.findByEmail(reference)
+      ? await this.deps.users.findByAccountId(reference)
+      : await this.deps.users.findByEmail(reference)
     if (!recipient) {
       throw new TransferError(
         "unknown_recipient",
@@ -83,7 +87,7 @@ export class TransferService {
     return { id: recipient.id, masked: maskEmail(recipient.email) }
   }
 
-  send(input: {
+  async send(input: {
     senderId: number
     recipientRef: string
     tier: number
@@ -92,14 +96,14 @@ export class TransferService {
     note: string | null
     idempotencyKey: string
     ip: string | null
-  }): { transferId: number; masked: string } {
+  }): Promise<{ transferId: number; masked: string }> {
     if (input.amount <= 0n) {
       throw new TransferError("amount", "Enter an amount greater than zero.")
     }
-    const recipient = this.resolve(input.senderId, input.recipientRef)
+    const recipient = await this.resolve(input.senderId, input.recipientRef)
 
     // Reserved before the post, and given back below if the post fails.
-    const reservation = this.deps.limits.reserveOutbound({
+    const reservation = await this.deps.limits.reserveOutbound({
       userId: input.senderId,
       tier: input.tier,
       symbol: input.asset.symbol,
@@ -109,57 +113,77 @@ export class TransferService {
       throw new TransferError(reservation.denial.code, reservation.denial.message)
     }
 
-    const from = this.deps.ledger.ensureAccount(input.senderId, input.asset.symbol, "user_available")
-    const to = this.deps.ledger.ensureAccount(recipient.id, input.asset.symbol, "user_available")
+    const from = await this.deps.ledger.ensureAccount(
+      input.senderId,
+      input.asset.symbol,
+      "user_available",
+    )
+    const to = await this.deps.ledger.ensureAccount(
+      recipient.id,
+      input.asset.symbol,
+      "user_available",
+    )
 
     try {
-      return this.deps.db.transaction(() => {
-      // One balanced transaction. Both sides settle or neither does.
-      const { transactionId, replayed } = this.deps.ledger.post({
-        kind: "transfer",
-        idempotencyKey: input.idempotencyKey,
-        metadata: { internal: true },
-        entries: [
-          { accountId: from, asset: input.asset.symbol, amount: -input.amount },
-          { accountId: to, asset: input.asset.symbol, amount: input.amount },
-        ],
+      return await withTransaction(this.deps.db, async (tx) => {
+        // One balanced transaction. Both sides settle or neither does.
+        const { transactionId, replayed } = await this.deps.ledger.post(
+          {
+            kind: "transfer",
+            idempotencyKey: input.idempotencyKey,
+            metadata: { internal: true },
+            entries: [
+              { accountId: from, asset: input.asset.symbol, amount: -input.amount },
+              { accountId: to, asset: input.asset.symbol, amount: input.amount },
+            ],
+          },
+          tx,
+        )
+
+        // The ledger already no-ops a replay. Recording a second transfer row
+        // would hit the unique key, so return the original instead.
+        if (replayed) {
+          const existing = await this.deps.transfers.findByIdempotencyKey(
+            input.idempotencyKey,
+            tx,
+          )
+          if (existing !== null) return { transferId: existing, masked: recipient.masked }
+        }
+
+        const transferId = await this.deps.transfers.record(
+          {
+            senderId: input.senderId,
+            recipientId: recipient.id,
+            asset: input.asset.symbol,
+            amount: input.amount,
+            note: input.note,
+            ledgerTxId: transactionId,
+            idempotencyKey: input.idempotencyKey,
+          },
+          tx,
+        )
+
+        for (const [userId, action] of [
+          [input.senderId, "transfer.sent"],
+          [recipient.id, "transfer.received"],
+        ] as const) {
+          await this.deps.audit.record(
+            {
+              userId,
+              actorType: "user",
+              action,
+              target: input.asset.symbol,
+              ip: input.ip,
+              metadata: { transferId },
+            },
+            tx,
+          )
+        }
+
+        return { transferId, masked: recipient.masked }
       })
-
-      // The ledger already no-ops a replay. Recording a second transfer row
-      // would hit the unique key, so return the original instead.
-      if (replayed) {
-        const existing = this.deps.transfers.findByIdempotencyKey(input.idempotencyKey)
-        if (existing !== null) return { transferId: existing, masked: recipient.masked }
-      }
-
-      const transferId = this.deps.transfers.record({
-        senderId: input.senderId,
-        recipientId: recipient.id,
-        asset: input.asset.symbol,
-        amount: input.amount,
-        note: input.note,
-        ledgerTxId: transactionId,
-        idempotencyKey: input.idempotencyKey,
-      })
-
-      for (const [userId, action] of [
-        [input.senderId, "transfer.sent"],
-        [recipient.id, "transfer.received"],
-      ] as const) {
-        this.deps.audit.record({
-          userId,
-          actorType: "user",
-          action,
-          target: input.asset.symbol,
-          ip: input.ip,
-          metadata: { transferId },
-        })
-      }
-
-      return { transferId, masked: recipient.masked }
-      })()
     } catch (error) {
-      this.deps.limits.releaseOutbound(
+      await this.deps.limits.releaseOutbound(
         input.senderId,
         reservation.windowKey,
         reservation.amountUsd,
@@ -168,8 +192,9 @@ export class TransferService {
     }
   }
 
-  historyFor(userId: number, limit: number): TransferRecord[] {
-    return this.deps.transfers.forUser(userId, limit).map((row) => {
+  async historyFor(userId: number, limit: number): Promise<TransferRecord[]> {
+    const rows = await this.deps.transfers.forUser(userId, limit)
+    return rows.map((row) => {
       const sent = row.senderId === userId
       return {
         id: row.id,

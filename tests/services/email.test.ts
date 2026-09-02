@@ -15,19 +15,19 @@ const base = {
 }
 
 describe("createEmailSender", () => {
-  test("falls back to the console sender outside production", () => {
+  test("falls back to the console sender outside production", async () => {
     expect(createEmailSender({ ...base, env: "development" })).toBeInstanceOf(ConsoleEmailSender)
   })
 
-  test("falls back to the console sender in test", () => {
+  test("falls back to the console sender in test", async () => {
     expect(createEmailSender({ ...base, env: "test" })).toBeInstanceOf(ConsoleEmailSender)
   })
 
-  test("refuses to fall back in production", () => {
+  test("refuses to fall back in production", async () => {
     expect(() => createEmailSender({ ...base, env: "production" })).toThrow(/SMTP/)
   })
 
-  test("uses smtp when fully configured", () => {
+  test("uses smtp when fully configured", async () => {
     const sender = createEmailSender({
       ...base,
       env: "development",
@@ -38,7 +38,7 @@ describe("createEmailSender", () => {
     expect(sender).toBeInstanceOf(SmtpEmailSender)
   })
 
-  test("treats a partially configured smtp as unconfigured", () => {
+  test("treats a partially configured smtp as unconfigured", async () => {
     const sender = createEmailSender({
       ...base,
       env: "development",

@@ -50,24 +50,24 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
    * after redirecting when the requested step is ahead of the user's saved
    * progress, so a URL cannot skip verification.
    */
-  function gate(
+  async function gate(
     req: express.Request,
     res: express.Response,
     step: Parameters<typeof canEnter>[0],
-  ): { id: number; profile: KycProfile; current: string } | null {
+  ): Promise<{ id: number; profile: KycProfile; current: string } | null> {
     const user = req.user!
-    let application = deps.kyc.openFor(user.id)
+    let application = await deps.kyc.openFor(user.id)
 
     if (!application) {
-      const id = deps.kyc.start(user.id, 2)
-      deps.audit.record({
+      const id = await deps.kyc.start(user.id, 2)
+      await deps.audit.record({
         userId: user.id,
         actorType: "user",
         action: "kyc.started",
         ip: req.ip ?? null,
         userAgent: req.get("user-agent") ?? null,
       })
-      application = deps.kyc.openFor(user.id)!
+      application = (await deps.kyc.openFor(user.id))!
       void id
     }
 
@@ -83,7 +83,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
 
     return {
       id: application.id,
-      profile: deps.kyc.profileFor(application.id)!,
+      profile: (await deps.kyc.profileFor(application.id))!,
       current: application.currentStep,
     }
   }
@@ -92,9 +92,9 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     return { stepNumber: stepIndex(step as never) + 1, stepTotal: 5 }
   }
 
-  router.get("/onboarding", (req, res) => {
+  router.get("/onboarding", async (req, res) => {
     const user = req.user!
-    let application = deps.kyc.openFor(user.id)
+    let application = await deps.kyc.openFor(user.id)
 
     if (application && application.status !== "draft") {
       return res.redirect(303, "/account/verification")
@@ -103,23 +103,23 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     // This is the entry point, so it starts the application rather than
     // leaving that to whichever step template happens to load first.
     if (!application) {
-      deps.kyc.start(user.id, 2)
-      deps.audit.record({
+      await deps.kyc.start(user.id, 2)
+      await deps.audit.record({
         userId: user.id,
         actorType: "user",
         action: "kyc.started",
         ip: req.ip ?? null,
         userAgent: req.get("user-agent") ?? null,
       })
-      application = deps.kyc.openFor(user.id)!
+      application = (await deps.kyc.openFor(user.id))!
     }
 
     res.redirect(303, STEP_PATHS[application.currentStep]!)
   })
 
   // Step 1: identity
-  router.get("/onboarding/identity", (req, res) => {
-    const state = gate(req, res, "identity")
+  router.get("/onboarding/identity", async (req, res) => {
+    const state = await gate(req, res, "identity")
     if (!state) return
     res.render("onboarding/identity", {
       title: "Verify your identity | Meridian",
@@ -137,8 +137,8 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     })
   })
 
-  router.post("/onboarding/identity", (req, res) => {
-    const state = gate(req, res, "identity")
+  router.post("/onboarding/identity", async (req, res) => {
+    const state = await gate(req, res, "identity")
     if (!state) return
     const body = req.body as Record<string, string | undefined>
     const values = {
@@ -195,9 +195,9 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
       })
     }
 
-    deps.kyc.updateProfile(state.id, patch)
-    if (state.current === "identity") deps.kyc.advance(state.id, nextStep("identity"))
-    deps.audit.record({
+    await deps.kyc.updateProfile(state.id, patch)
+    if (state.current === "identity") await deps.kyc.advance(state.id, nextStep("identity"))
+    await deps.audit.record({
       userId: req.user!.id,
       actorType: "user",
       action: "kyc.step_completed",
@@ -208,8 +208,8 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
   })
 
   // Step 2: government id
-  router.get("/onboarding/government-id", (req, res) => {
-    const state = gate(req, res, "government_id")
+  router.get("/onboarding/government-id", async (req, res) => {
+    const state = await gate(req, res, "government_id")
     if (!state) return
     res.render("onboarding/government-id", {
       title: "Government ID | Meridian",
@@ -224,7 +224,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
   })
 
   router.post("/onboarding/government-id", async (req, res) => {
-    const state = gate(req, res, "government_id")
+    const state = await gate(req, res, "government_id")
     if (!state) return
     const body = req.body as Record<string, string | undefined>
     const requested = String(body.idType ?? "")
@@ -261,10 +261,10 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
       dateOfBirth: state.profile.dateOfBirth ?? "",
     })
 
-    deps.kyc.setProvider(state.id, deps.provider.name, result.reference)
+    await deps.kyc.setProvider(state.id, deps.provider.name, result.reference)
 
     if (!result.verified) {
-      deps.audit.record({
+      await deps.audit.record({
         userId: req.user!.id,
         actorType: "user",
         action: "kyc.government_id_failed",
@@ -279,13 +279,13 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
 
     // Only the last four digits are retained. The full value stays in this
     // request and is never written anywhere.
-    deps.kyc.updateProfile(state.id, {
+    await deps.kyc.updateProfile(state.id, {
       governmentIdType: idType,
       governmentIdLast4: idNumber.slice(-4),
       providerReference: result.reference,
     })
-    if (state.current === "government_id") deps.kyc.advance(state.id, nextStep("government_id"))
-    deps.audit.record({
+    if (state.current === "government_id") await deps.kyc.advance(state.id, nextStep("government_id"))
+    await deps.audit.record({
       userId: req.user!.id,
       actorType: "user",
       action: "kyc.step_completed",
@@ -296,8 +296,8 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
   })
 
   // Step 3: address
-  router.get("/onboarding/address", (req, res) => {
-    const state = gate(req, res, "address")
+  router.get("/onboarding/address", async (req, res) => {
+    const state = await gate(req, res, "address")
     if (!state) return
     res.render("onboarding/address", {
       title: "Your address | Meridian",
@@ -316,8 +316,8 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     })
   })
 
-  router.post("/onboarding/address", (req, res) => {
-    const state = gate(req, res, "address")
+  router.post("/onboarding/address", async (req, res) => {
+    const state = await gate(req, res, "address")
     if (!state) return
     const body = req.body as Record<string, string | undefined>
     const values = {
@@ -357,15 +357,15 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
       })
     }
 
-    deps.kyc.updateProfile(state.id, {
+    await deps.kyc.updateProfile(state.id, {
       country: values.country,
       region: values.region,
       city: values.city,
       streetAddress: values.streetAddress,
       postalCode: values.postalCode || null,
     })
-    if (state.current === "address") deps.kyc.advance(state.id, nextStep("address"))
-    deps.audit.record({
+    if (state.current === "address") await deps.kyc.advance(state.id, nextStep("address"))
+    await deps.audit.record({
       userId: req.user!.id,
       actorType: "user",
       action: "kyc.step_completed",
@@ -377,10 +377,10 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
 
   // Step 4: document and liveness, handled entirely by the provider
   router.get("/onboarding/document", async (req, res) => {
-    const state = gate(req, res, "document")
+    const state = await gate(req, res, "document")
     if (!state) return
 
-    const application = deps.kyc.openFor(req.user!.id)!
+    const application = (await deps.kyc.openFor(req.user!.id))!
     let sessionId = application.documentSession
     let status: "pending" | "passed" | "failed" = "pending"
     let reason: string | undefined
@@ -392,8 +392,8 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     }
 
     if (status === "passed") {
-      if (state.current === "document") deps.kyc.advance(state.id, nextStep("document"))
-      deps.audit.record({
+      if (state.current === "document") await deps.kyc.advance(state.id, nextStep("document"))
+      await deps.audit.record({
         userId: req.user!.id,
         actorType: "user",
         action: "kyc.step_completed",
@@ -408,7 +408,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
         applicationId: state.id,
         redirectUrl: "/onboarding/document",
       })
-      deps.kyc.setDocumentSession(state.id, session.sessionId)
+      await deps.kyc.setDocumentSession(state.id, session.sessionId)
       sessionId = session.sessionId
       res.render("onboarding/document", {
         title: "Photo ID and selfie | Meridian",
@@ -432,8 +432,8 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
   })
 
   // Step 5: disclosures
-  router.get("/onboarding/disclosures", (req, res) => {
-    const state = gate(req, res, "disclosures")
+  router.get("/onboarding/disclosures", async (req, res) => {
+    const state = await gate(req, res, "disclosures")
     if (!state) return
     res.render("onboarding/disclosures", {
       title: "Disclosures | Meridian",
@@ -445,8 +445,8 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     })
   })
 
-  router.post("/onboarding/disclosures", (req, res) => {
-    const state = gate(req, res, "disclosures")
+  router.post("/onboarding/disclosures", async (req, res) => {
+    const state = await gate(req, res, "disclosures")
     if (!state) return
     const body = req.body as Record<string, string | undefined>
 
@@ -464,10 +464,10 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     }
 
     for (const document of CONSENT_DOCUMENTS) {
-      deps.kyc.recordConsent(state.id, document, DOCUMENT_VERSION, req.ip ?? null)
+      await deps.kyc.recordConsent(state.id, document, DOCUMENT_VERSION, req.ip ?? null)
     }
-    deps.kyc.submit(state.id)
-    deps.audit.record({
+    await deps.kyc.submit(state.id)
+    await deps.audit.record({
       userId: req.user!.id,
       actorType: "user",
       action: "kyc.submitted",
@@ -478,7 +478,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     res.redirect(303, "/onboarding/submitted")
   })
 
-  router.get("/onboarding/submitted", (req, res) => {
+  router.get("/onboarding/submitted", async (req, res) => {
     res.render("onboarding/submitted", {
       title: "Verification submitted | Meridian",
       description: "Your verification is with our reviewers.",

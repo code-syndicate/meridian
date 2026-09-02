@@ -1,4 +1,5 @@
-import type { Database } from "bun:sqlite"
+import type { Client, Executor } from "../index"
+import { all as allRows, get } from "../index"
 
 export interface Asset {
   symbol: string
@@ -61,28 +62,27 @@ const COLUMNS = `symbol, display_symbol, name, kind, chain, network_label, contr
   deposit_enabled, withdrawal_enabled, trading_enabled, sort_order`
 
 export class AssetRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: Client) {}
 
-  all(): Asset[] {
-    return this.db
-      .query<AssetRow, []>(`SELECT ${COLUMNS} FROM assets ORDER BY sort_order`)
-      .all()
-      .map(toAsset)
+  async all(ex: Executor = this.db): Promise<Asset[]> {
+    const rows = await allRows<AssetRow>(
+      ex,
+      `SELECT ${COLUMNS} FROM assets ORDER BY sort_order`,
+    )
+    return rows.map(toAsset)
   }
 
-  find(symbol: string): Asset | null {
-    const row = this.db
-      .query<AssetRow, [string]>(`SELECT ${COLUMNS} FROM assets WHERE symbol = ?`)
-      .get(symbol)
+  async find(symbol: string, ex: Executor = this.db): Promise<Asset | null> {
+    const row = await get<AssetRow>(ex, `SELECT ${COLUMNS} FROM assets WHERE symbol = ?`, [symbol])
     return row ? toAsset(row) : null
   }
 
-  byChain(chain: string): Asset[] {
-    return this.db
-      .query<AssetRow, [string]>(
-        `SELECT ${COLUMNS} FROM assets WHERE chain = ? ORDER BY sort_order`,
-      )
-      .all(chain)
-      .map(toAsset)
+  async byChain(chain: string, ex: Executor = this.db): Promise<Asset[]> {
+    const rows = await allRows<AssetRow>(
+      ex,
+      `SELECT ${COLUMNS} FROM assets WHERE chain = ? ORDER BY sort_order`,
+      [chain],
+    )
+    return rows.map(toAsset)
   }
 }

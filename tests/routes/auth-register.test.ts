@@ -1,9 +1,9 @@
 import { test, expect, describe, beforeEach } from "bun:test"
-import type { Database } from "bun:sqlite"
+import type { Client } from "../../src/db"
 import { createApp, type App } from "../../src/server"
 import { loadConfig } from "../../src/config"
 import { CapturingEmailSender } from "../../src/services/email"
-import { openDatabase, migrate } from "../../src/db"
+import { get, migrate, openDatabase, run } from "../../src/db"
 import { UserRepository } from "../../src/db/repositories/users"
 import { AuditRepository } from "../../src/db/repositories/audit"
 import { post } from "../support/http"
@@ -17,18 +17,18 @@ const config = loadConfig({
 
 const PASSWORD = "correct horse battery staple 7"
 
-let db: Database
+let db: Client
 let app: App
 let email: CapturingEmailSender
 
-function build(overrides: Record<string, unknown> = {}): void {
-  db = openDatabase(":memory:")
-  migrate(db)
+async function build(overrides: Record<string, unknown> = {}): Promise<void> {
+  db = await openDatabase(":memory:")
+  await migrate(db)
   email = new CapturingEmailSender()
-  app = createApp(config, { db, email, ...overrides })
+  app = await createApp(config, { db, email, ...overrides })
 }
 
-beforeEach(() => build())
+beforeEach(async () => await build())
 
 describe("GET /register", () => {
   test("renders the form", async () => {
@@ -49,7 +49,7 @@ describe("POST /register", () => {
   test("creates a user and sends a verification email", async () => {
     const res = await post(app, "/register", { email: "a@test.co", password: PASSWORD })
     expect(res.status).toBe(303)
-    expect(new UserRepository(db).findByEmail("a@test.co")).not.toBeNull()
+    expect(await new UserRepository(db).findByEmail("a@test.co")).not.toBeNull()
     expect(email.sent).toHaveLength(1)
     expect(email.sent[0]!.to).toBe("a@test.co")
   })
@@ -61,7 +61,7 @@ describe("POST /register", () => {
 
   test("never stores the password in plaintext", async () => {
     await post(app, "/register", { email: "a@test.co", password: PASSWORD })
-    const stored = new UserRepository(db).findByEmail("a@test.co")!.passwordHash
+    const stored = (await new UserRepository(db).findByEmail("a@test.co"))!.passwordHash
     expect(stored).not.toContain("correct horse")
     expect(stored).toStartWith("$argon2id$")
   })
@@ -69,45 +69,39 @@ describe("POST /register", () => {
   test("stores the verification token hashed, not raw", async () => {
     await post(app, "/register", { email: "a@test.co", password: PASSWORD })
     const raw = email.sent[0]!.text.match(/token=([\w-]+)/)![1]!
-    const row = db.query("SELECT token_hash FROM email_tokens").get() as { token_hash: string }
+    const row = await get(db, "SELECT token_hash FROM email_tokens") as { token_hash: string }
     expect(row.token_hash).not.toBe(raw)
   })
 
   test("writes an audit entry", async () => {
     await post(app, "/register", { email: "a@test.co", password: PASSWORD })
-    const user = new UserRepository(db).findByEmail("a@test.co")!
-    expect(new AuditRepository(db).forUser(user.id, 10).map((e) => e.action)).toContain(
+    const user = (await new UserRepository(db).findByEmail("a@test.co"))!
+    expect((await new AuditRepository(db).forUser(user.id, 10)).map((e) => e.action)).toContain(
       "user.registered",
     )
   })
 
   test("provisions a ledger account pair for every asset at registration", async () => {
     await post(app, "/register", { email: "a@test.co", password: PASSWORD })
-    const user = new UserRepository(db).findByEmail("a@test.co")!
-    const row = db
-      .query<{ n: number }, [number]>("SELECT COUNT(*) AS n FROM accounts WHERE user_id = ?")
-      .get(user.id)!
+    const user = (await new UserRepository(db).findByEmail("a@test.co"))!
+    const row = (await get<{ n: number }>(db, "SELECT COUNT(*) AS n FROM accounts WHERE user_id = ?", [(await user).id]))!
     // Ten assets, each with an available and a hold account.
     expect(row.n).toBe(20)
   })
 
   test("provisioned accounts all start at zero", async () => {
     await post(app, "/register", { email: "a@test.co", password: PASSWORD })
-    const user = new UserRepository(db).findByEmail("a@test.co")!
-    const nonZero = db
-      .query<{ n: number }, [number]>(
-        `SELECT COUNT(*) AS n FROM account_balances b
+    const user = (await new UserRepository(db).findByEmail("a@test.co"))!
+    const nonZero = (await get<{ n: number }>(db, `SELECT COUNT(*) AS n FROM account_balances b
          JOIN accounts a ON a.id = b.account_id
-         WHERE a.user_id = ? AND b.amount <> 0`,
-      )
-      .get(user.id)!
+         WHERE a.user_id = ? AND b.amount <> 0`, [(await user).id]))!
     expect(nonZero.n).toBe(0)
   })
 
   test("rejects a short password", async () => {
     const res = await post(app, "/register", { email: "a@test.co", password: "short" })
     expect(res.status).toBe(400)
-    expect(new UserRepository(db).findByEmail("a@test.co")).toBeNull()
+    expect(await new UserRepository(db).findByEmail("a@test.co")).toBeNull()
   })
 
   test("does not reveal that an address is already registered", async () => {
@@ -123,7 +117,7 @@ describe("POST /register", () => {
   test("does not create a second account for a duplicate address", async () => {
     await post(app, "/register", { email: "a@test.co", password: PASSWORD })
     await post(app, "/register", { email: "a@test.co", password: "a different passphrase here 6" })
-    expect((db.query("SELECT COUNT(*) AS n FROM users").get() as { n: number }).n).toBe(1)
+    expect((await get(db, "SELECT COUNT(*) AS n FROM users") as { n: number }).n).toBe(1)
   })
 
   test("does not send a second verification email for a duplicate address", async () => {
@@ -145,7 +139,7 @@ describe("GET /verify-email", () => {
     const res = await app.inject(`/verify-email?token=${token}`, { redirect: "manual" })
     expect(res.status).toBe(303)
     expect(res.headers.getSetCookie().some((c) => c.includes("session"))).toBe(true)
-    expect(new UserRepository(db).findByEmail("a@test.co")!.emailVerifiedAt).not.toBeNull()
+    expect((await new UserRepository(db).findByEmail("a@test.co"))!.emailVerifiedAt).not.toBeNull()
   })
 
   test("rejects an unknown token", async () => {
@@ -162,7 +156,7 @@ describe("GET /verify-email", () => {
 
   test("rejects an expired token", async () => {
     const token = await registerAndGetToken()
-    db.query("UPDATE email_tokens SET expires_at = '2020-01-01T00:00:00.000Z'").run()
+    await run(db, "UPDATE email_tokens SET expires_at = '2020-01-01T00:00:00.000Z'")
     const res = await app.inject(`/verify-email?token=${token}`, { redirect: "manual" })
     expect(res.status).toBe(400)
   })
@@ -170,8 +164,8 @@ describe("GET /verify-email", () => {
   test("writes an audit entry", async () => {
     const token = await registerAndGetToken()
     await app.inject(`/verify-email?token=${token}`, { redirect: "manual" })
-    const user = new UserRepository(db).findByEmail("a@test.co")!
-    expect(new AuditRepository(db).forUser(user.id, 10).map((e) => e.action)).toContain(
+    const user = (await new UserRepository(db).findByEmail("a@test.co"))!
+    expect((await new AuditRepository(db).forUser(user.id, 10)).map((e) => e.action)).toContain(
       "user.email_verified",
     )
   })

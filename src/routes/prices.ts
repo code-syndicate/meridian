@@ -18,7 +18,7 @@ export function createPriceRoutes(feed: PriceFeed): express.Router {
     res.type("application/json").send(payload(feed))
   })
 
-  router.get("/api/prices/stream", (req, res) => {
+  router.get("/api/prices/stream", async (req, res) => {
     res.set({
       "content-type": "text/event-stream",
       "cache-control": "no-store",

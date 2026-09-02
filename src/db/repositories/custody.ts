@@ -1,5 +1,5 @@
-import type { Database } from "bun:sqlite"
-import { moneyQuery } from "../index"
+import type { Client, Executor, Tx } from "../index"
+import { all, get, moneyAll, moneyGet, run, withTransaction } from "../index"
 
 export interface DepositAddress {
   address: string
@@ -41,34 +41,40 @@ export interface WithdrawalRecord {
 }
 
 export class CustodyRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: Client) {}
 
   // ---- addresses ----
 
-  findAddress(userId: number, asset: string): DepositAddress | null {
-    const row = this.db
-      .query<{ address: string; memo: string | null; provider: string }, [number, string]>(
-        "SELECT address, memo, provider FROM deposit_addresses WHERE user_id = ? AND asset = ?",
-      )
-      .get(userId, asset)
+  async findAddress(
+    userId: number,
+    asset: string,
+    ex: Executor = this.db,
+  ): Promise<DepositAddress | null> {
+    const row = await get<{ address: string; memo: string | null; provider: string }>(
+      ex,
+      "SELECT address, memo, provider FROM deposit_addresses WHERE user_id = ? AND asset = ?",
+      [userId, asset],
+    )
     return row ? { address: row.address, memo: row.memo, provider: row.provider } : null
   }
 
-  saveAddress(input: {
-    userId: number
-    asset: string
-    address: string
-    memo: string | null
-    provider: string
-    providerRef: string
-  }): void {
-    this.db
-      .query(
-        `INSERT INTO deposit_addresses (user_id, asset, address, memo, provider, provider_ref, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(user_id, asset) DO NOTHING`,
-      )
-      .run(
+  async saveAddress(
+    input: {
+      userId: number
+      asset: string
+      address: string
+      memo: string | null
+      provider: string
+      providerRef: string
+    },
+    ex: Executor = this.db,
+  ): Promise<void> {
+    await run(
+      ex,
+      `INSERT INTO deposit_addresses (user_id, asset, address, memo, provider, provider_ref, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(user_id, asset) DO NOTHING`,
+      [
         input.userId,
         input.asset,
         input.address,
@@ -76,42 +82,50 @@ export class CustodyRepository {
         input.provider,
         input.providerRef,
         new Date().toISOString(),
-      )
+      ],
+    )
   }
 
-  ownerOfAddress(asset: string, address: string): number | null {
-    const row = this.db
-      .query<{ user_id: number }, [string, string]>(
-        "SELECT user_id FROM deposit_addresses WHERE asset = ? AND address = ?",
-      )
-      .get(asset, address)
+  async ownerOfAddress(
+    asset: string,
+    address: string,
+    ex: Executor = this.db,
+  ): Promise<number | null> {
+    const row = await get<{ user_id: number }>(
+      ex,
+      "SELECT user_id FROM deposit_addresses WHERE asset = ? AND address = ?",
+      [asset, address],
+    )
     return row ? Number(row.user_id) : null
   }
 
   // ---- deposits ----
 
-  findDeposit(asset: string, txHash: string, outputIndex: number): DepositRecord | null {
-    const row = moneyQuery<
-      {
-        id: bigint
-        user_id: bigint
-        asset: string
-        tx_hash: string
-        output_index: bigint
-        native_amount: string
-        credited_amount: bigint
-        confirmations: bigint
-        status: DepositRecord["status"]
-        first_seen_at: string
-        credited_at: string | null
-      },
-      [string, string, number]
-    >(
-      this.db,
+  async findDeposit(
+    asset: string,
+    txHash: string,
+    outputIndex: number,
+    ex: Executor = this.db,
+  ): Promise<DepositRecord | null> {
+    const row = await moneyGet<{
+      id: bigint
+      user_id: bigint
+      asset: string
+      tx_hash: string
+      output_index: bigint
+      native_amount: string
+      credited_amount: bigint
+      confirmations: bigint
+      status: DepositRecord["status"]
+      first_seen_at: string
+      credited_at: string | null
+    }>(
+      ex,
       `SELECT id, user_id, asset, tx_hash, output_index, native_amount, credited_amount,
               confirmations, status, first_seen_at, credited_at
        FROM deposits WHERE asset = ? AND tx_hash = ? AND output_index = ?`,
-    ).get(asset, txHash, outputIndex)
+      [asset, txHash, outputIndex],
+    )
     if (!row) return null
     return {
       id: Number(row.id),
@@ -128,24 +142,26 @@ export class CustodyRepository {
     }
   }
 
-  recordDeposit(input: {
-    userId: number
-    asset: string
-    address: string
-    txHash: string
-    outputIndex: number
-    nativeAmount: string
-    confirmations: number
-    status: DepositRecord["status"]
-  }): number {
+  async recordDeposit(
+    input: {
+      userId: number
+      asset: string
+      address: string
+      txHash: string
+      outputIndex: number
+      nativeAmount: string
+      confirmations: number
+      status: DepositRecord["status"]
+    },
+    ex: Executor = this.db,
+  ): Promise<number> {
     const now = new Date().toISOString()
-    this.db
-      .query(
-        `INSERT INTO deposits (user_id, asset, address, tx_hash, output_index, native_amount,
-           confirmations, status, first_seen_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
+    const result = await run(
+      ex,
+      `INSERT INTO deposits (user_id, asset, address, tx_hash, output_index, native_amount,
+         confirmations, status, first_seen_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
         input.userId,
         input.asset,
         input.address,
@@ -156,33 +172,41 @@ export class CustodyRepository {
         input.status,
         now,
         now,
-      )
-    return Number(
-      this.db.query<{ id: number }, []>("SELECT last_insert_rowid() AS id").get()!.id,
+      ],
+    )
+    return Number(result.lastInsertRowid)
+  }
+
+  async updateDepositProgress(
+    id: number,
+    confirmations: number,
+    status: DepositRecord["status"],
+    ex: Executor = this.db,
+  ): Promise<void> {
+    await run(
+      ex,
+      "UPDATE deposits SET confirmations = ?, status = ?, updated_at = ? WHERE id = ?",
+      [confirmations, status, new Date().toISOString(), id],
     )
   }
 
-  updateDepositProgress(id: number, confirmations: number, status: DepositRecord["status"]): void {
-    this.db
-      .query("UPDATE deposits SET confirmations = ?, status = ?, updated_at = ? WHERE id = ?")
-      .run(confirmations, status, new Date().toISOString(), id)
-  }
-
-  markDepositCredited(input: {
-    id: number
-    creditedAmount: bigint
-    dustAmount: string
-    ledgerTxId: number
-    confirmations: number
-  }): void {
+  async markDepositCredited(
+    input: {
+      id: number
+      creditedAmount: bigint
+      dustAmount: string
+      ledgerTxId: number
+      confirmations: number
+    },
+    ex: Executor = this.db,
+  ): Promise<void> {
     const now = new Date().toISOString()
-    this.db
-      .query(
-        `UPDATE deposits SET status = 'credited', credited_amount = ?, dust_amount = ?,
-           ledger_tx_id = ?, confirmations = ?, credited_at = ?, updated_at = ?
-         WHERE id = ?`,
-      )
-      .run(
+    await run(
+      ex,
+      `UPDATE deposits SET status = 'credited', credited_amount = ?, dust_amount = ?,
+         ledger_tx_id = ?, confirmations = ?, credited_at = ?, updated_at = ?
+       WHERE id = ?`,
+      [
         input.creditedAmount,
         input.dustAmount,
         input.ledgerTxId,
@@ -190,113 +214,122 @@ export class CustodyRepository {
         now,
         now,
         input.id,
-      )
+      ],
+    )
   }
 
-  depositsFor(userId: number, limit: number): DepositRecord[] {
-    return moneyQuery<
-      {
-        id: bigint
-        user_id: bigint
-        asset: string
-        tx_hash: string
-        output_index: bigint
-        native_amount: string
-        credited_amount: bigint
-        confirmations: bigint
-        status: DepositRecord["status"]
-        first_seen_at: string
-        credited_at: string | null
-      },
-      [number, number]
-    >(
-      this.db,
+  async depositsFor(
+    userId: number,
+    limit: number,
+    ex: Executor = this.db,
+  ): Promise<DepositRecord[]> {
+    const rows = await moneyAll<{
+      id: bigint
+      user_id: bigint
+      asset: string
+      tx_hash: string
+      output_index: bigint
+      native_amount: string
+      credited_amount: bigint
+      confirmations: bigint
+      status: DepositRecord["status"]
+      first_seen_at: string
+      credited_at: string | null
+    }>(
+      ex,
       `SELECT id, user_id, asset, tx_hash, output_index, native_amount, credited_amount,
               confirmations, status, first_seen_at, credited_at
        FROM deposits WHERE user_id = ? ORDER BY id DESC LIMIT ?`,
+      [userId, limit],
     )
-      .all(userId, limit)
-      .map((row) => ({
-        id: Number(row.id),
-        userId: Number(row.user_id),
-        asset: row.asset,
-        txHash: row.tx_hash,
-        outputIndex: Number(row.output_index),
-        nativeAmount: row.native_amount,
-        creditedAmount: row.credited_amount,
-        confirmations: Number(row.confirmations),
-        status: row.status,
-        firstSeenAt: row.first_seen_at,
-        creditedAt: row.credited_at,
-      }))
+    return rows.map((row) => ({
+      id: Number(row.id),
+      userId: Number(row.user_id),
+      asset: row.asset,
+      txHash: row.tx_hash,
+      outputIndex: Number(row.output_index),
+      nativeAmount: row.native_amount,
+      creditedAmount: row.credited_amount,
+      confirmations: Number(row.confirmations),
+      status: row.status,
+      firstSeenAt: row.first_seen_at,
+      creditedAt: row.credited_at,
+    }))
   }
 
   // ---- dust ----
 
-  addDust(userId: number, asset: string, amount: bigint): bigint {
+  async addDust(userId: number, asset: string, amount: bigint, ex: Tx = this.db): Promise<bigint> {
     const now = new Date().toISOString()
-    return this.db.transaction(() => {
-      const row = this.db
-        .query<{ native_dust: string }, [number, string]>(
-          "SELECT native_dust FROM dust_remainders WHERE user_id = ? AND asset = ?",
-        )
-        .get(userId, asset)
+    return withTransaction(ex, async (tx) => {
+      const row = await get<{ native_dust: string }>(
+        tx,
+        "SELECT native_dust FROM dust_remainders WHERE user_id = ? AND asset = ?",
+        [userId, asset],
+      )
       const total = BigInt(row?.native_dust ?? "0") + amount
-      this.db
-        .query(
-          `INSERT INTO dust_remainders (user_id, asset, native_dust, updated_at)
-           VALUES (?, ?, ?, ?)
-           ON CONFLICT(user_id, asset) DO UPDATE SET native_dust = ?, updated_at = ?`,
-        )
-        .run(userId, asset, total.toString(), now, total.toString(), now)
-      return total
-    })()
-  }
-
-  setDust(userId: number, asset: string, amount: bigint): void {
-    // Upsert: the first deposit for an asset has no row yet, and an UPDATE
-    // would silently discard the remainder.
-    const now = new Date().toISOString()
-    this.db
-      .query(
+      await run(
+        tx,
         `INSERT INTO dust_remainders (user_id, asset, native_dust, updated_at)
          VALUES (?, ?, ?, ?)
          ON CONFLICT(user_id, asset) DO UPDATE SET native_dust = ?, updated_at = ?`,
+        [userId, asset, total.toString(), now, total.toString(), now],
       )
-      .run(userId, asset, amount.toString(), now, amount.toString(), now)
+      return total
+    })
   }
 
-  dustFor(userId: number, asset: string): bigint {
-    const row = this.db
-      .query<{ native_dust: string }, [number, string]>(
-        "SELECT native_dust FROM dust_remainders WHERE user_id = ? AND asset = ?",
-      )
-      .get(userId, asset)
+  async setDust(
+    userId: number,
+    asset: string,
+    amount: bigint,
+    ex: Executor = this.db,
+  ): Promise<void> {
+    // Upsert: the first deposit for an asset has no row yet, and an UPDATE
+    // would silently discard the remainder.
+    const now = new Date().toISOString()
+    await run(
+      ex,
+      `INSERT INTO dust_remainders (user_id, asset, native_dust, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(user_id, asset) DO UPDATE SET native_dust = ?, updated_at = ?`,
+      [userId, asset, amount.toString(), now, amount.toString(), now],
+    )
+  }
+
+  async dustFor(userId: number, asset: string, ex: Executor = this.db): Promise<bigint> {
+    const row = await get<{ native_dust: string }>(
+      ex,
+      "SELECT native_dust FROM dust_remainders WHERE user_id = ? AND asset = ?",
+      [userId, asset],
+    )
     return BigInt(row?.native_dust ?? "0")
   }
 
   // ---- withdrawals ----
 
-  createWithdrawal(input: {
-    userId: number
-    asset: string
-    destination: string
-    memo: string | null
-    amount: bigint
-    fee: bigint
-    holdId: number
-    idempotencyKey: string
-    limitWindow?: string | null
-    limitUsd?: bigint | null
-  }): number {
+  async createWithdrawal(
+    input: {
+      userId: number
+      asset: string
+      destination: string
+      memo: string | null
+      amount: bigint
+      fee: bigint
+      holdId: number
+      idempotencyKey: string
+      limitWindow?: string | null
+      limitUsd?: bigint | null
+    },
+    ex: Executor = this.db,
+  ): Promise<number> {
     const now = new Date().toISOString()
-    this.db
-      .query(
-        `INSERT INTO withdrawals (user_id, asset, destination, memo, amount, fee, status,
-           hold_id, idempotency_key, requested_at, updated_at, limit_window, limit_usd)
-         VALUES (?, ?, ?, ?, ?, ?, 'requested', ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
+    const result = await run(
+      ex,
+      `INSERT INTO withdrawals (user_id, asset, destination, memo, amount, fee, status,
+         hold_id, idempotency_key, requested_at, updated_at, limit_window, limit_usd)
+       VALUES (?, ?, ?, ?, ?, ?, 'requested', ?, ?, ?, ?, ?, ?)`,
+      [
         input.userId,
         input.asset,
         input.destination,
@@ -309,40 +342,37 @@ export class CustodyRepository {
         now,
         input.limitWindow ?? null,
         input.limitUsd ?? null,
-      )
-    return Number(
-      this.db.query<{ id: number }, []>("SELECT last_insert_rowid() AS id").get()!.id,
+      ],
     )
+    return Number(result.lastInsertRowid)
   }
 
-  findWithdrawal(id: number): WithdrawalRecord | null {
-    const row = moneyQuery<
-      {
-        id: bigint
-        user_id: bigint
-        asset: string
-        destination: string
-        memo: string | null
-        amount: bigint
-        fee: bigint
-        status: WithdrawalRecord["status"]
-        hold_id: bigint | null
-        provider_ref: string | null
-        tx_hash: string | null
-        failure_reason: string | null
-        requested_at: string
-        settled_at: string | null
-        limit_window: string | null
-        limit_usd: bigint | null
-      },
-      [number]
-    >(
-      this.db,
+  async findWithdrawal(id: number, ex: Executor = this.db): Promise<WithdrawalRecord | null> {
+    const row = await moneyGet<{
+      id: bigint
+      user_id: bigint
+      asset: string
+      destination: string
+      memo: string | null
+      amount: bigint
+      fee: bigint
+      status: WithdrawalRecord["status"]
+      hold_id: bigint | null
+      provider_ref: string | null
+      tx_hash: string | null
+      failure_reason: string | null
+      requested_at: string
+      settled_at: string | null
+      limit_window: string | null
+      limit_usd: bigint | null
+    }>(
+      ex,
       `SELECT id, user_id, asset, destination, memo, amount, fee, status, hold_id,
               provider_ref, tx_hash, failure_reason, requested_at, settled_at,
               limit_window, limit_usd
        FROM withdrawals WHERE id = ?`,
-    ).get(id)
+      [id],
+    )
     if (!row) return null
     return {
       id: Number(row.id),
@@ -364,7 +394,7 @@ export class CustodyRepository {
     }
   }
 
-  updateWithdrawal(
+  async updateWithdrawal(
     id: number,
     patch: {
       status?: WithdrawalRecord["status"]
@@ -377,7 +407,8 @@ export class CustodyRepository {
       reviewedAt?: string
       reviewNote?: string | null
     },
-  ): void {
+    ex: Executor = this.db,
+  ): Promise<void> {
     const now = new Date().toISOString()
     const sets: string[] = []
     const params: (string | null)[] = []
@@ -391,28 +422,36 @@ export class CustodyRepository {
     if (patch.reviewNote !== undefined) { sets.push("review_note = ?"); params.push(patch.reviewNote) }
     if (patch.settled) { sets.push("settled_at = ?"); params.push(now) }
     if (sets.length === 0) return
-    this.db
-      .query(`UPDATE withdrawals SET ${sets.join(", ")}, updated_at = ? WHERE id = ?`)
-      .run(...params, now, id)
+    await run(ex, `UPDATE withdrawals SET ${sets.join(", ")}, updated_at = ? WHERE id = ?`, [
+      ...params,
+      now,
+      id,
+    ])
   }
 
-  withdrawalsFor(userId: number, limit: number): WithdrawalRecord[] {
-    const ids = this.db
-      .query<{ id: number }, [number, number]>(
-        "SELECT id FROM withdrawals WHERE user_id = ? ORDER BY id DESC LIMIT ?",
-      )
-      .all(userId, limit)
-    return ids.map((row) => this.findWithdrawal(Number(row.id))!).filter(Boolean)
+  async withdrawalsFor(
+    userId: number,
+    limit: number,
+    ex: Executor = this.db,
+  ): Promise<WithdrawalRecord[]> {
+    const ids = await all<{ id: number }>(
+      ex,
+      "SELECT id FROM withdrawals WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+      [userId, limit],
+    )
+    const found = await Promise.all(ids.map((row) => this.findWithdrawal(Number(row.id), ex)))
+    return found.filter((row): row is WithdrawalRecord => row !== null)
   }
 
   // ---- reserves ----
 
-  setReserve(asset: string, confirmed: bigint): void {
-    this.db
-      .query(
-        `INSERT INTO reserves (asset, confirmed, updated_at) VALUES (?, ?, ?)
-         ON CONFLICT(asset) DO UPDATE SET confirmed = ?, updated_at = ?`,
-      )
-      .run(asset, confirmed, new Date().toISOString(), confirmed, new Date().toISOString())
+  async setReserve(asset: string, confirmed: bigint, ex: Executor = this.db): Promise<void> {
+    const now = new Date().toISOString()
+    await run(
+      ex,
+      `INSERT INTO reserves (asset, confirmed, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(asset) DO UPDATE SET confirmed = ?, updated_at = ?`,
+      [asset, confirmed, now, confirmed, now],
+    )
   }
 }

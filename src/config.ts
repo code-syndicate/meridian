@@ -2,6 +2,8 @@ export interface Config {
   env: "development" | "test" | "production"
   port: number
   databasePath: string
+  /** Set only for a remote libSQL database; a local file needs no token. */
+  databaseAuthToken: string | undefined
   sessionSecret: string
   totpEncryptionKey: string
   smtpHost: string | null
@@ -119,6 +121,7 @@ export function loadConfig(
     env: env as Config["env"],
     port,
     databasePath: source.DATABASE_PATH as string,
+    databaseAuthToken: source.DATABASE_AUTH_TOKEN,
     sessionSecret,
     totpEncryptionKey,
     smtpHost,

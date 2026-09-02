@@ -1,16 +1,21 @@
-import type { Database } from "bun:sqlite"
-import { openDatabase, migrate } from "../../src/db"
+import type { Client } from "../../src/db"
+import { get, migrate, openDatabase, run } from "../../src/db"
 
-export function freshDb(): Database {
-  const db = openDatabase(":memory:")
-  migrate(db)
+export async function freshDb(): Promise<Client> {
+  const db = await openDatabase(":memory:")
+  await migrate(db)
   return db
 }
 
-export function createUser(db: Database, email = `u${Math.random()}@test.co`): number {
-  db.query(
+export async function createUser(
+  db: Client,
+  email = `u${Math.random()}@test.co`,
+): Promise<number> {
+  const result = await run(
+    db,
     `INSERT INTO users (email, email_normalized, password_hash, created_at, updated_at)
      VALUES (?, ?, 'hash', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`,
-  ).run(email, email.toLowerCase())
-  return Number(db.query<{ id: number }, []>("SELECT last_insert_rowid() AS id").get()!.id)
+    [email, email.toLowerCase()],
+  )
+  return Number(result.lastInsertRowid)
 }

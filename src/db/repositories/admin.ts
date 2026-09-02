@@ -1,5 +1,5 @@
-import type { Database } from "bun:sqlite"
-import { moneyQuery } from "../index"
+import type { Client, Executor } from "../index"
+import { all, get, moneyAll, moneyGet } from "../index"
 
 export interface AdminUserRow {
   id: number
@@ -62,58 +62,49 @@ export interface KycQueueRow {
 }
 
 export class AdminRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: Client) {}
 
-  counts(): { users: number; pendingWithdrawals: number; pendingKyc: number; suspended: number } {
-    const one = (sql: string): number =>
-      Number(this.db.query<{ c: number }, []>(sql).get()!.c)
+  async counts(
+    ex: Executor = this.db,
+  ): Promise<{ users: number; pendingWithdrawals: number; pendingKyc: number; suspended: number }> {
+    const one = async (sql: string): Promise<number> =>
+      Number((await get<{ c: number }>(ex, sql))!.c)
     return {
-      users: one("SELECT COUNT(*) AS c FROM users"),
-      pendingWithdrawals: one("SELECT COUNT(*) AS c FROM withdrawals WHERE status = 'requested'"),
-      pendingKyc: one(
+      users: await one("SELECT COUNT(*) AS c FROM users"),
+      pendingWithdrawals: await one(
+        "SELECT COUNT(*) AS c FROM withdrawals WHERE status = 'requested'",
+      ),
+      pendingKyc: await one(
         "SELECT COUNT(*) AS c FROM kyc_applications WHERE status IN ('submitted','in_review')",
       ),
-      suspended: one("SELECT COUNT(*) AS c FROM users WHERE status = 'suspended'"),
+      suspended: await one("SELECT COUNT(*) AS c FROM users WHERE status = 'suspended'"),
     }
   }
 
-  users(search: string, limit: number): AdminUserRow[] {
+  async users(search: string, limit: number, ex: Executor = this.db): Promise<AdminUserRow[]> {
     const like = `%${search.trim().toLowerCase()}%`
-    const rows = this.db
-      .query<
-        {
-          id: number
-          account_id: string
-          email: string
-          status: string
-          role: string
-          email_verified_at: string | null
-          totp_enabled_at: string | null
-          kyc_status: string | null
-          created_at: string
-        },
-        [string, string, string, number]
-      >(
-        `SELECT u.id, u.account_id, u.email, u.status, u.role, u.email_verified_at,
-                u.totp_enabled_at, u.created_at,
-                (SELECT status FROM kyc_applications k WHERE k.user_id = u.id
-                  ORDER BY k.id DESC LIMIT 1) AS kyc_status
-           FROM users u
-          WHERE (? = '%%' OR LOWER(u.email) LIKE ? OR u.account_id LIKE ?)
-          ORDER BY u.id DESC
-          LIMIT ?`,
-      )
-      .all(like, like, like.toUpperCase(), limit) as never as Array<{
-        id: number
-        account_id: string
-        email: string
-        status: string
-        role: string
-        email_verified_at: string | null
-        totp_enabled_at: string | null
-        kyc_status: string | null
-        created_at: string
-      }>
+    const rows = await all<{
+      id: number
+      account_id: string
+      email: string
+      status: string
+      role: string
+      email_verified_at: string | null
+      totp_enabled_at: string | null
+      kyc_status: string | null
+      created_at: string
+    }>(
+      ex,
+      `SELECT u.id, u.account_id, u.email, u.status, u.role, u.email_verified_at,
+              u.totp_enabled_at, u.created_at,
+              (SELECT status FROM kyc_applications k WHERE k.user_id = u.id
+                ORDER BY k.id DESC LIMIT 1) AS kyc_status
+         FROM users u
+        WHERE (? = '%%' OR LOWER(u.email) LIKE ? OR u.account_id LIKE ?)
+        ORDER BY u.id DESC
+        LIMIT ?`,
+      [like, like, like.toUpperCase(), limit],
+    )
     return rows.map((row) => ({
       id: Number(row.id),
       accountId: row.account_id,
@@ -127,31 +118,33 @@ export class AdminRepository {
     }))
   }
 
-  withdrawalQueue(status: string, limit: number): QueuedWithdrawal[] {
-    const rows = moneyQuery<
-      {
-        id: bigint
-        user_id: bigint
-        email: string
-        account_id: string
-        asset: string
-        destination: string
-        memo: string | null
-        amount: bigint
-        fee: bigint
-        status: string
-        requested_at: string
-        review_note: string | null
-      },
-      [string, string, number]
-    >(
-      this.db,
+  async withdrawalQueue(
+    status: string,
+    limit: number,
+    ex: Executor = this.db,
+  ): Promise<QueuedWithdrawal[]> {
+    const rows = await moneyAll<{
+      id: bigint
+      user_id: bigint
+      email: string
+      account_id: string
+      asset: string
+      destination: string
+      memo: string | null
+      amount: bigint
+      fee: bigint
+      status: string
+      requested_at: string
+      review_note: string | null
+    }>(
+      ex,
       `SELECT w.id, w.user_id, u.email, u.account_id, w.asset, w.destination, w.memo,
               w.amount, w.fee, w.status, w.requested_at, w.review_note
          FROM withdrawals w JOIN users u ON u.id = w.user_id
         WHERE (? = 'all' OR w.status = ?)
         ORDER BY w.id DESC LIMIT ?`,
-    ).all(status, status, limit)
+      [status, status, limit],
+    )
     return rows.map((row) => ({
       id: Number(row.id),
       userId: Number(row.user_id),
@@ -168,28 +161,26 @@ export class AdminRepository {
     }))
   }
 
-  deposits(limit: number): AdminDeposit[] {
-    const rows = moneyQuery<
-      {
-        id: bigint
-        user_id: bigint | null
-        email: string | null
-        asset: string
-        address: string
-        tx_hash: string
-        credited_amount: bigint | null
-        status: string
-        confirmations: bigint
-        first_seen_at: string
-      },
-      [number]
-    >(
-      this.db,
+  async deposits(limit: number, ex: Executor = this.db): Promise<AdminDeposit[]> {
+    const rows = await moneyAll<{
+      id: bigint
+      user_id: bigint | null
+      email: string | null
+      asset: string
+      address: string
+      tx_hash: string
+      credited_amount: bigint | null
+      status: string
+      confirmations: bigint
+      first_seen_at: string
+    }>(
+      ex,
       `SELECT d.id, d.user_id, u.email, d.asset, d.address, d.tx_hash,
               d.credited_amount, d.status, d.confirmations, d.first_seen_at
          FROM deposits d LEFT JOIN users u ON u.id = d.user_id
         ORDER BY d.id DESC LIMIT ?`,
-    ).all(limit)
+      [limit],
+    )
     return rows.map((row) => ({
       id: Number(row.id),
       userId: row.user_id === null ? null : Number(row.user_id),
@@ -204,43 +195,40 @@ export class AdminRepository {
     }))
   }
 
-  kycQueue(status: string, limit: number): KycQueueRow[] {
-    const rows = this.db
-      .query<
-        {
-          id: number
-          user_id: number
-          email: string
-          account_id: string
-          status: string
-          target_tier: number
-          current_step: string | null
-          submitted_at: string | null
-          first_name: string | null
-          last_name: string | null
-          country: string | null
-          region: string | null
-          city: string | null
-          phone: string | null
-          government_id_type: string | null
-          government_id_last4: string | null
-          date_of_birth: string | null
-        },
-        [string, string, string, number]
-      >(
-        `SELECT k.id, k.user_id, u.email, u.account_id, k.status, k.target_tier,
-                k.current_step, k.submitted_at,
-                p.first_name, p.last_name, p.country, p.region, p.city, p.phone,
-                p.government_id_type, p.government_id_last4, p.date_of_birth
-           FROM kyc_applications k
-           JOIN users u ON u.id = k.user_id
-           LEFT JOIN kyc_profiles p ON p.application_id = k.id
-          WHERE (? = 'all'
-                 OR (? = 'pending' AND k.status IN ('submitted','in_review'))
-                 OR k.status = ?)
-          ORDER BY k.id DESC LIMIT ?`,
-      )
-      .all(status, status, status, limit)
+  async kycQueue(status: string, limit: number, ex: Executor = this.db): Promise<KycQueueRow[]> {
+    const rows = await all<{
+      id: number
+      user_id: number
+      email: string
+      account_id: string
+      status: string
+      target_tier: number
+      current_step: string | null
+      submitted_at: string | null
+      first_name: string | null
+      last_name: string | null
+      country: string | null
+      region: string | null
+      city: string | null
+      phone: string | null
+      government_id_type: string | null
+      government_id_last4: string | null
+      date_of_birth: string | null
+    }>(
+      ex,
+      `SELECT k.id, k.user_id, u.email, u.account_id, k.status, k.target_tier,
+              k.current_step, k.submitted_at,
+              p.first_name, p.last_name, p.country, p.region, p.city, p.phone,
+              p.government_id_type, p.government_id_last4, p.date_of_birth
+         FROM kyc_applications k
+         JOIN users u ON u.id = k.user_id
+         LEFT JOIN kyc_profiles p ON p.application_id = k.id
+        WHERE (? = 'all'
+               OR (? = 'pending' AND k.status IN ('submitted','in_review'))
+               OR k.status = ?)
+        ORDER BY k.id DESC LIMIT ?`,
+      [status, status, status, limit],
+    )
     return rows.map((row) => ({
       id: Number(row.id),
       userId: Number(row.user_id),
@@ -263,44 +251,55 @@ export class AdminRepository {
   }
 
   /** Every adjustment ever posted, for the review trail. */
-  adjustments(limit: number): Array<{
-    id: number
-    createdAt: string
-    metadata: string
-    entries: Array<{ email: string | null; asset: string; amount: bigint; type: string }>
-  }> {
-    const txs = this.db
-      .query<{ id: number; created_at: string; metadata: string }, [number]>(
-        `SELECT id, created_at, metadata FROM ledger_transactions
-          WHERE kind = 'adjustment' ORDER BY id DESC LIMIT ?`,
-      )
-      .all(limit)
-    return txs.map((tx) => ({
-      id: Number(tx.id),
-      createdAt: tx.created_at,
-      metadata: tx.metadata,
-      entries: moneyQuery<
-        { email: string | null; asset: string; amount: bigint; type: string },
-        [number]
-      >(
-        this.db,
-        `SELECT u.email, e.asset, e.amount, a.type
-           FROM ledger_entries e
-           JOIN accounts a ON a.id = e.account_id
-           LEFT JOIN users u ON u.id = a.user_id
-          WHERE e.transaction_id = ?`,
-      ).all(Number(tx.id)),
-    }))
+  async adjustments(
+    limit: number,
+    ex: Executor = this.db,
+  ): Promise<
+    Array<{
+      id: number
+      createdAt: string
+      metadata: string
+      entries: Array<{ email: string | null; asset: string; amount: bigint; type: string }>
+    }>
+  > {
+    const txs = await all<{ id: number; created_at: string; metadata: string }>(
+      ex,
+      `SELECT id, created_at, metadata FROM ledger_transactions
+        WHERE kind = 'adjustment' ORDER BY id DESC LIMIT ?`,
+      [limit],
+    )
+    return Promise.all(
+      txs.map(async (tx) => ({
+        id: Number(tx.id),
+        createdAt: tx.created_at,
+        metadata: tx.metadata,
+        entries: await moneyAll<{
+          email: string | null
+          asset: string
+          amount: bigint
+          type: string
+        }>(
+          ex,
+          `SELECT u.email, e.asset, e.amount, a.type
+             FROM ledger_entries e
+             JOIN accounts a ON a.id = e.account_id
+             LEFT JOIN users u ON u.id = a.user_id
+            WHERE e.transaction_id = ?`,
+          [Number(tx.id)],
+        ),
+      })),
+    )
   }
 
   /** What clients are owed in an asset: the platform's liability side. */
-  liability(asset: string): bigint {
-    const row = moneyQuery<{ owed: bigint }, [string]>(
-      this.db,
+  async liability(asset: string, ex: Executor = this.db): Promise<bigint> {
+    const row = await moneyGet<{ owed: bigint }>(
+      ex,
       `SELECT COALESCE(SUM(e.amount), 0) AS owed
          FROM ledger_entries e JOIN accounts a ON a.id = e.account_id
         WHERE a.asset = ? AND a.type IN ('user_available', 'user_hold')`,
-    ).get(asset)
+      [asset],
+    )
     return row ? row.owed : 0n
   }
 }

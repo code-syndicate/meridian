@@ -41,14 +41,14 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
   const router = express.Router()
   router.use("/wallet", requireAuth())
 
-  function tierOf(userId: number): number {
-    const app = deps.kyc.latestFor(userId)
+  async function tierOf(userId: number): Promise<number> {
+    const app = await deps.kyc.latestFor(userId)
     return app ? tierFor(app.status, app.targetTier) : 0
   }
 
-  function assetRows(userId: number) {
-    const balances = deps.ledger.balances(userId)
-    return deps.assets.all().map((asset) => ({
+  async function assetRows(userId: number) {
+    const balances = await deps.ledger.balances(userId)
+    return (await deps.assets.all()).map((asset) => ({
       symbol: asset.symbol,
       name: asset.name,
       displaySymbol: asset.displaySymbol,
@@ -61,21 +61,21 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
 
   // ---- deposit ----
 
-  router.get("/wallet/deposit", (req, res) => {
+  router.get("/wallet/deposit", async (req, res) => {
     res.render("app/deposit-index", {
       title: "Deposit | Meridian",
       description: "Choose an asset to deposit.",
       path: req.path,
-      tier: tierOf(req.user!.id),
-      rows: assetRows(req.user!.id),
+      tier: await tierOf(req.user!.id),
+      rows: await assetRows(req.user!.id),
     })
   })
 
   router.get("/wallet/deposit/:symbol", async (req, res, next) => {
-    const asset = deps.assets.find(String(req.params.symbol).toUpperCase())
+    const asset = await deps.assets.find(String(req.params.symbol).toUpperCase())
     if (!asset) return next()
     const user = req.user!
-    const tier = tierOf(user.id)
+    const tier = await tierOf(user.id)
 
     // Credits anything that has confirmed since the last pass, so the balance
     // on screen is the balance the chain agrees with.
@@ -94,35 +94,35 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
       path: req.path,
       asset, address, memo, qr,
       enabled: asset.depositEnabled,
-      allowance: deps.limits.status(user.id, tier),
+      allowance: await deps.limits.status(user.id, tier),
       tier,
-      deposits: deps.custody.depositsFor(user.id, 10).filter((d) => d.asset === asset.symbol),
+      deposits: (await deps.custody.depositsFor(user.id, 10)).filter((d) => d.asset === asset.symbol),
     })
   })
 
   // ---- withdraw ----
 
-  router.get("/wallet/withdraw", (req, res) => {
+  router.get("/wallet/withdraw", async (req, res) => {
     res.render("app/withdraw-index", {
       title: "Withdraw | Meridian",
       description: "Choose an asset to withdraw.",
       path: req.path,
-      tier: tierOf(req.user!.id),
-      rows: assetRows(req.user!.id),
+      tier: await tierOf(req.user!.id),
+      rows: await assetRows(req.user!.id),
     })
   })
 
-  function renderWithdraw(
+  async function renderWithdraw(
     req: express.Request,
     res: express.Response,
     status: number,
-    asset: ReturnType<AssetRepository["find"]>,
+    asset: Awaited<ReturnType<AssetRepository["find"]>>,
     error: string | null,
     values: { destination: string; amount: string; memo: string; totp: string },
-  ): void {
+  ): Promise<void> {
     const user = req.user!
-    const balance = deps.ledger.balance(user.id, asset!.symbol)
-    const tier = tierOf(user.id)
+    const balance = await deps.ledger.balance(user.id, asset!.symbol)
+    const tier = await tierOf(user.id)
     res.status(status).render("app/withdraw", {
       title: `Withdraw ${asset!.displaySymbol} | Meridian`,
       description: `Withdraw ${asset!.displaySymbol} on ${asset!.networkLabel}.`,
@@ -133,10 +133,10 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
       available: balanceParts(balance.available, asset!.displayDecimals),
       held: balanceParts(balance.held, asset!.displayDecimals),
       fee: balanceParts(WITHDRAWAL_FEE[asset!.symbol] ?? 0n, asset!.displayDecimals),
-      allowance: deps.limits.status(user.id, tier),
+      allowance: await deps.limits.status(user.id, tier),
       tier,
       totpEnabled: user.totpEnabledAt !== null,
-      withdrawals: deps.custody.withdrawalsFor(user.id, 10)
+      withdrawals: (await deps.custody.withdrawalsFor(user.id, 10))
         .filter((w) => w.asset === asset!.symbol)
         .map((w) => ({
           ...w,
@@ -146,15 +146,15 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
   }
 
   router.get("/wallet/withdraw/:symbol", async (req, res, next) => {
-    const asset = deps.assets.find(String(req.params.symbol).toUpperCase())
+    const asset = await deps.assets.find(String(req.params.symbol).toUpperCase())
     if (!asset) return next()
 
     await deps.service.settleWithdrawals(req.user!.id)
-    renderWithdraw(req, res, 200, asset, null, { destination: "", amount: "", memo: "", totp: "" })
+    await renderWithdraw(req, res, 200, asset, null, { destination: "", amount: "", memo: "", totp: "" })
   })
 
   router.post("/wallet/withdraw/:symbol", async (req, res, next) => {
-    const asset = deps.assets.find(String(req.params.symbol).toUpperCase())
+    const asset = await deps.assets.find(String(req.params.symbol).toUpperCase())
     if (!asset) return next()
     const user = req.user!
     const body = req.body as Record<string, string | undefined>
@@ -168,12 +168,12 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
     // Two-factor is optional. When it is on, every withdrawal needs a fresh
     // code: account-level enrolment alone does not stop a hijacked session.
     if (user.totpEnabledAt) {
-      const encrypted = deps.users.getTotpSecret(user.id)
+      const encrypted = await deps.users.getTotpSecret(user.id)
       const ok =
         encrypted !== null &&
         verifyTotp(decryptSecret(encrypted, deps.config.totpEncryptionKey), values.totp)
       if (!ok) {
-        return renderWithdraw(
+        return await renderWithdraw(
           req, res, 400, asset,
           values.totp
             ? "That authentication code is not right. Codes change every 30 seconds."
@@ -183,26 +183,26 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
       }
     }
     if (!asset.withdrawalEnabled) {
-      return renderWithdraw(req, res, 403, asset, "Withdrawals are not enabled yet.", values)
+      return await renderWithdraw(req, res, 403, asset, "Withdrawals are not enabled yet.", values)
     }
     if (values.destination.length < 8) {
-      return renderWithdraw(req, res, 400, asset, "Enter the destination address.", values)
+      return await renderWithdraw(req, res, 400, asset, "Enter the destination address.", values)
     }
 
     let amount: bigint
     try {
       amount = parseAmount(values.amount)
     } catch {
-      return renderWithdraw(req, res, 400, asset, "Enter a valid amount.", values)
+      return await renderWithdraw(req, res, 400, asset, "Enter a valid amount.", values)
     }
     if (amount <= 0n) {
-      return renderWithdraw(req, res, 400, asset, "Enter an amount greater than zero.", values)
+      return await renderWithdraw(req, res, 400, asset, "Enter an amount greater than zero.", values)
     }
 
     const fee = WITHDRAWAL_FEE[asset.symbol] ?? 0n
     // Checked here rather than inferred from an error message downstream.
     if (!isRepresentableAtNative(amount + fee, asset.nativeDecimals)) {
-      return renderWithdraw(
+      return await renderWithdraw(
         req, res, 400, asset,
         `That amount is finer than ${asset.networkLabel} can send. Use fewer decimal places.`,
         values,
@@ -212,7 +212,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
     try {
       await deps.service.requestWithdrawal({
         userId: user.id,
-        tier: tierOf(user.id),
+        tier: await tierOf(user.id),
         asset,
         destination: values.destination,
         memo: values.memo || null,
@@ -227,7 +227,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
           : error instanceof LedgerError && error.code === "insufficient_balance"
             ? "That is more than your available balance, once the network fee is included."
             : "We could not submit that withdrawal."
-      return renderWithdraw(req, res, 400, asset, message, values)
+      return await renderWithdraw(req, res, 400, asset, message, values)
     }
 
     res.flash("Withdrawal submitted. It will settle once the network confirms it.")
@@ -236,16 +236,16 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
 
   // ---- send to another Meridian account ----
 
-  function renderSend(
+  async function renderSend(
     req: express.Request,
     res: express.Response,
     status: number,
-    asset: ReturnType<AssetRepository["find"]>,
+    asset: Awaited<ReturnType<AssetRepository["find"]>>,
     error: string | null,
     values: { recipient: string; amount: string; note: string },
-  ): void {
+  ): Promise<void> {
     const user = req.user!
-    const balance = deps.ledger.balance(user.id, asset!.symbol)
+    const balance = await deps.ledger.balance(user.id, asset!.symbol)
     res.status(status).render("app/send", {
       title: `Send ${asset!.displaySymbol} | Meridian`,
       description: `Send ${asset!.displaySymbol} to another Meridian account.`,
@@ -253,33 +253,32 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
       asset: asset!,
       error, values,
       available: balanceParts(balance.available, asset!.displayDecimals),
-      allowance: deps.limits.status(user.id, tierOf(user.id)),
-      tier: tierOf(user.id),
-      transfers: deps.transfers
-        .historyFor(user.id, 20)
+      allowance: await deps.limits.status(user.id, await tierOf(user.id)),
+      tier: await tierOf(user.id),
+      transfers: (await deps.transfers.historyFor(user.id, 20))
         .filter((t) => t.asset === asset!.symbol)
         .map((t) => ({ ...t, amountParts: balanceParts(t.amount, asset!.displayDecimals) })),
     })
   }
 
-  router.get("/wallet/send", (req, res) => {
+  router.get("/wallet/send", async (req, res) => {
     res.render("app/send-index", {
       title: "Send | Meridian",
       description: "Send crypto to another Meridian account instantly.",
       path: req.path,
-      tier: tierOf(req.user!.id),
-      rows: assetRows(req.user!.id),
+      tier: await tierOf(req.user!.id),
+      rows: await assetRows(req.user!.id),
     })
   })
 
-  router.get("/wallet/send/:symbol", (req, res, next) => {
-    const asset = deps.assets.find(String(req.params.symbol).toUpperCase())
+  router.get("/wallet/send/:symbol", async (req, res, next) => {
+    const asset = await deps.assets.find(String(req.params.symbol).toUpperCase())
     if (!asset) return next()
-    renderSend(req, res, 200, asset, null, { recipient: "", amount: "", note: "" })
+    await renderSend(req, res, 200, asset, null, { recipient: "", amount: "", note: "" })
   })
 
-  router.post("/wallet/send/:symbol", (req, res, next) => {
-    const asset = deps.assets.find(String(req.params.symbol).toUpperCase())
+  router.post("/wallet/send/:symbol", async (req, res, next) => {
+    const asset = await deps.assets.find(String(req.params.symbol).toUpperCase())
     if (!asset) return next()
     const user = req.user!
     const body = req.body as Record<string, string | undefined>
@@ -291,7 +290,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
 
     const isEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(values.recipient)
     if (!isEmail && !looksLikeAccountId(values.recipient)) {
-      return renderSend(
+      return await renderSend(
         req, res, 400, asset,
         "Enter the recipient's account ID or email address.",
         values,
@@ -302,14 +301,14 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
     try {
       amount = parseAmount(values.amount)
     } catch {
-      return renderSend(req, res, 400, asset, "Enter a valid amount.", values)
+      return await renderSend(req, res, 400, asset, "Enter a valid amount.", values)
     }
 
     try {
-      const { masked } = deps.transfers.send({
+      const { masked } = await deps.transfers.send({
         senderId: user.id,
         recipientRef: values.recipient,
-        tier: tierOf(user.id),
+        tier: await tierOf(user.id),
         asset,
         amount,
         note: values.note || null,
@@ -320,10 +319,10 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
       return res.redirect(303, `/wallet/send/${asset.symbol.toLowerCase()}`)
     } catch (error) {
       if (error instanceof TransferError) {
-        return renderSend(req, res, 400, asset, error.message, values)
+        return await renderSend(req, res, 400, asset, error.message, values)
       }
       if (error instanceof LedgerError && error.code === "insufficient_balance") {
-        return renderSend(req, res, 400, asset, "That is more than your available balance.", values)
+        return await renderSend(req, res, 400, asset, "That is more than your available balance.", values)
       }
       throw error
     }
@@ -334,9 +333,9 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
   router.get("/wallet/transactions", async (req, res) => {
     const user = req.user!
     await deps.service.settleWithdrawals(user.id)
-    const bySymbol = new Map(deps.assets.all().map((a) => [a.symbol, a]))
+    const bySymbol = new Map((await deps.assets.all()).map((a) => [a.symbol, a]))
 
-    const entries = deps.ledger.history(user.id, { limit: 100 }).entries.map((entry) => {
+    const entries = (await deps.ledger.history(user.id, { limit: 100 })).entries.map((entry) => {
       const asset = bySymbol.get(entry.asset)!
       const outgoing = entry.amount < 0n
       const magnitude = outgoing ? -entry.amount : entry.amount

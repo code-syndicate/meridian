@@ -1,10 +1,10 @@
 import { test, expect, describe, beforeEach } from "bun:test"
-import type { Database } from "bun:sqlite"
+import type { Client } from "../../src/db"
 import { createApp, type App } from "../../src/server"
 import { loadConfig } from "../../src/config"
 import { CapturingEmailSender } from "../../src/services/email"
 import { PriceFeed, type PriceSource, type RawPrice } from "../../src/services/price-feed"
-import { openDatabase, migrate } from "../../src/db"
+import { migrate, openDatabase } from "../../src/db"
 import { UserRepository } from "../../src/db/repositories/users"
 import { LedgerRepository } from "../../src/db/repositories/ledger"
 import { AssetRepository } from "../../src/db/repositories/assets"
@@ -26,31 +26,31 @@ class Dead implements PriceSource {
   async fetch(): Promise<Map<string, RawPrice>> { throw new Error("down") }
 }
 
-let db: Database
+let db: Client
 let app: App
 let userId: number
 let jar: string
 
 async function build(source: PriceSource): Promise<void> {
-  db = openDatabase(":memory:")
-  migrate(db)
-  const feed = new PriceFeed(source, new AssetRepository(db).all())
+  db = await openDatabase(":memory:")
+  await migrate(db)
+  const feed = new PriceFeed(source, await new AssetRepository(db).all())
   await feed.refresh()
-  app = createApp(config, {
+  app = await createApp(config, {
     db, priceFeed: feed,
     email: new CapturingEmailSender(),
   })
   const users = new UserRepository(db)
-  userId = users.create("a@test.co", await hashPassword(PASSWORD))
-  users.markEmailVerified(userId)
+  userId = await users.create("a@test.co", await hashPassword(PASSWORD))
+  await users.markEmailVerified(userId)
   jar = cookiesFrom(await post(app, "/login", { email: "a@test.co", password: PASSWORD }))
 }
 
-function creditBtc(amount: bigint): void {
+async function creditBtc(amount: bigint): Promise<void> {
   const ledger = new LedgerRepository(db)
-  const external = ledger.ensureAccount(null, "BTC", "external_deposit")
-  const available = ledger.ensureAccount(userId, "BTC", "user_available")
-  ledger.post({
+  const external = await ledger.ensureAccount(null, "BTC", "external_deposit")
+  const available = await ledger.ensureAccount(userId, "BTC", "user_available")
+  await ledger.post({
     kind: "deposit", idempotencyKey: `seed-${amount}`,
     entries: [
       { accountId: external, asset: "BTC", amount: -amount },
@@ -90,21 +90,21 @@ describe("dashboard portfolio", () => {
   })
 
   test("values a seeded balance at the indicative price", async () => {
-    creditBtc(100000000n)
+    await creditBtc(100000000n)
     const page = await html()
     expect(page).toContain("67,412")
   })
 
   test("counts held balance in the total", async () => {
-    creditBtc(100000000n)
-    new LedgerRepository(db).hold(userId, "BTC", 50000000n, "w", "h-1")
+    await creditBtc(100000000n)
+    await new LedgerRepository(db).hold(userId, "BTC", 50000000n, "w", "h-1")
     const page = await html()
     // Half available, half held, total value unchanged.
     expect(page).toContain("67,412")
   })
 
   test("renders the fractional part in a muted span", async () => {
-    creditBtc(100000000n)
+    await creditBtc(100000000n)
     expect(await html()).toContain('class="num-frac"')
   })
 
@@ -116,7 +116,7 @@ describe("dashboard portfolio", () => {
 describe("dashboard with no prices", () => {
   test("says prices are unavailable rather than showing a total of zero", async () => {
     await build(new Dead())
-    creditBtc(100000000n)
+    await creditBtc(100000000n)
     const page = await html()
     expect(page.toLowerCase()).toContain("price data unavailable")
     expect(page.toLowerCase()).toContain("balances below are accurate")
@@ -124,7 +124,7 @@ describe("dashboard with no prices", () => {
 
   test("still shows the correct balances", async () => {
     await build(new Dead())
-    creditBtc(150000000n)
+    await creditBtc(150000000n)
     // Split across the muted-fraction span, so assert both parts.
     expect(await html()).toContain('<span class="num">1<span class="num-frac">.50000000</span>')
   })

@@ -39,24 +39,24 @@ export function sessionMiddleware(deps: {
   users: UserRepository
   secure: boolean
 }): RequestHandler {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const id = req.cookies?.[sessionCookieName(deps.secure)] as string | undefined
     if (!id) return next()
 
-    const session = deps.sessions.find(id)
+    const session = await deps.sessions.find(id)
     if (!session) {
       clearSessionCookie(res, deps.secure)
       return next()
     }
 
-    const user = deps.users.findById(session.userId)
+    const user = await deps.users.findById(session.userId)
     if (!user || user.status !== "active") {
-      deps.sessions.revoke(id)
+      await deps.sessions.revoke(id)
       clearSessionCookie(res, deps.secure)
       return next()
     }
 
-    deps.sessions.touch(id)
+    await deps.sessions.touch(id)
     req.user = user
     req.sessionId = id
     res.locals.user = user

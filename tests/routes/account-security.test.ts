@@ -1,9 +1,9 @@
 import { test, expect, describe, beforeEach } from "bun:test"
-import type { Database } from "bun:sqlite"
+import type { Client } from "../../src/db"
 import { createApp, type App } from "../../src/server"
 import { loadConfig } from "../../src/config"
 import { CapturingEmailSender } from "../../src/services/email"
-import { openDatabase, migrate } from "../../src/db"
+import { get, migrate, openDatabase, run } from "../../src/db"
 import { UserRepository } from "../../src/db/repositories/users"
 import { SessionRepository } from "../../src/db/repositories/sessions"
 import { AuditRepository } from "../../src/db/repositories/audit"
@@ -19,21 +19,21 @@ const config = loadConfig({
 
 const PASSWORD = "correct horse battery staple 7"
 
-let db: Database
+let db: Client
 let app: App
 let userId: number
 let jar: string
 
 beforeEach(async () => {
-  db = openDatabase(":memory:")
-  migrate(db)
-  app = createApp(config, {
+  db = await openDatabase(":memory:")
+  await migrate(db)
+  app = await createApp(config, {
     db,
     email: new CapturingEmailSender(),
   })
   const users = new UserRepository(db)
-  userId = users.create("a@test.co", await hashPassword(PASSWORD))
-  users.markEmailVerified(userId)
+  userId = await users.create("a@test.co", await hashPassword(PASSWORD))
+  await users.markEmailVerified(userId)
   jar = cookiesFrom(await post(app, "/login", { email: "a@test.co", password: PASSWORD }))
 })
 
@@ -43,7 +43,7 @@ describe("session list", () => {
   })
 
   test("never renders a session identifier", async () => {
-    const sessionId = new SessionRepository(db).listActive(userId)[0]!.id
+    const sessionId = (await new SessionRepository(db).listActive(userId))[0]!.id
     const html = await (
       await app.inject("/account/security", { headers: { cookie: jar } })
     ).text()
@@ -51,8 +51,8 @@ describe("session list", () => {
   })
 
   test("revokes every other session but keeps the current one", async () => {
-    new SessionRepository(db).create(userId, { ip: null, userAgent: null })
-    expect(new SessionRepository(db).listActive(userId)).toHaveLength(2)
+    await new SessionRepository(db).create(userId, { ip: null, userAgent: null })
+    expect(await new SessionRepository(db).listActive(userId)).toHaveLength(2)
     const res = await post(
       app,
       "/account/sessions/revoke-others",
@@ -61,7 +61,7 @@ describe("session list", () => {
       "/account/security",
     )
     expect(res.status).toBe(303)
-    expect(new SessionRepository(db).listActive(userId)).toHaveLength(1)
+    expect(await new SessionRepository(db).listActive(userId)).toHaveLength(1)
   })
 })
 
@@ -75,7 +75,7 @@ describe("password change", () => {
       "/account/security",
     )
     expect(res.status).toBe(303)
-    const stored = new UserRepository(db).findByEmail("a@test.co")!.passwordHash
+    const stored = (await new UserRepository(db).findByEmail("a@test.co"))!.passwordHash
     expect(await verifyPassword("an entirely different passphrase 4", stored)).toBe(true)
   })
 
@@ -88,7 +88,7 @@ describe("password change", () => {
       "/account/security",
     )
     expect(res.status).toBe(400)
-    const stored = new UserRepository(db).findByEmail("a@test.co")!.passwordHash
+    const stored = (await new UserRepository(db).findByEmail("a@test.co"))!.passwordHash
     expect(await verifyPassword(PASSWORD, stored)).toBe(true)
   })
 
@@ -104,7 +104,7 @@ describe("password change", () => {
   })
 
   test("revokes other sessions and rotates the current one", async () => {
-    new SessionRepository(db).create(userId, { ip: null, userAgent: null })
+    await new SessionRepository(db).create(userId, { ip: null, userAgent: null })
     await post(
       app,
       "/account/password",
@@ -113,7 +113,7 @@ describe("password change", () => {
       "/account/security",
     )
     // The old sessions are gone; only the freshly rotated one remains.
-    expect(new SessionRepository(db).listActive(userId)).toHaveLength(1)
+    expect(await new SessionRepository(db).listActive(userId)).toHaveLength(1)
   })
 
   test("writes an audit entry", async () => {
@@ -124,7 +124,7 @@ describe("password change", () => {
       jar,
       "/account/security",
     )
-    expect(new AuditRepository(db).forUser(userId, 20).map((e) => e.action)).toContain(
+    expect((await new AuditRepository(db).forUser(userId, 20)).map((e) => e.action)).toContain(
       "user.password_changed",
     )
   })
@@ -143,12 +143,12 @@ describe("two-factor enrolment", () => {
   test("rejects enrolment with a wrong code and does not enable", async () => {
     const res = await post(app, "/account/2fa", { token: "000000" }, jar)
     expect(res.status).toBe(400)
-    expect(new UserRepository(db).findById(userId)!.totpEnabledAt).toBeNull()
+    expect((await new UserRepository(db).findById(userId))!.totpEnabledAt).toBeNull()
   })
 
   test("issues no recovery codes on a failed enrolment", async () => {
     await post(app, "/account/2fa", { token: "000000" }, jar)
-    const row = db.query("SELECT COUNT(*) AS n FROM recovery_codes").get() as { n: number }
+    const row = await get(db, "SELECT COUNT(*) AS n FROM recovery_codes") as { n: number }
     expect(row.n).toBe(0)
   })
 })
@@ -163,10 +163,8 @@ describe("activity log", () => {
 
   test("does not show another user's events", async () => {
     const other = new UserRepository(db).create("b@test.co", await hashPassword(PASSWORD))
-    db.query(
-      `INSERT INTO audit_log (user_id, actor_type, action, ip, created_at)
-       VALUES (?, 'user', 'user.login', '198.51.100.9', '2026-01-01')`,
-    ).run(other)
+    await run(db, `INSERT INTO audit_log (user_id, actor_type, action, ip, created_at)
+       VALUES (?, 'user', 'user.login', '198.51.100.9', '2026-01-01')`, [await other])
     const html = await (
       await app.inject("/account/activity", { headers: { cookie: jar } })
     ).text()

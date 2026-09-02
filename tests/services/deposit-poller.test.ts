@@ -40,7 +40,7 @@ describe("deposit poller", () => {
     await inflight
   })
 
-  test("stop is safe before start", () => {
+  test("stop is safe before start", async () => {
     expect(() => new DepositPoller({} as never).stop()).not.toThrow()
   })
 })

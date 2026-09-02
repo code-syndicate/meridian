@@ -5,7 +5,7 @@ import type { NewsFeed } from "./services/news-feed"
 import type { DepositPoller } from "./services/deposit-poller"
 
 const config = loadConfig()
-const app = createApp(config)
+const app = await createApp(config)
 
 const priceFeed = app.locals.priceFeed as PriceFeed
 

@@ -1,10 +1,10 @@
 import { test, expect, describe, beforeEach } from "bun:test"
 import * as OTPAuth from "otpauth"
-import type { Database } from "bun:sqlite"
+import type { Client } from "../../src/db"
 import { createApp, type App } from "../../src/server"
 import { loadConfig } from "../../src/config"
 import { CapturingEmailSender } from "../../src/services/email"
-import { openDatabase, migrate } from "../../src/db"
+import { migrate, openDatabase } from "../../src/db"
 import { UserRepository } from "../../src/db/repositories/users"
 import { AuditRepository } from "../../src/db/repositories/audit"
 import { SessionRepository } from "../../src/db/repositories/sessions"
@@ -22,20 +22,20 @@ const config = loadConfig({
 
 const PASSWORD = "correct horse battery staple 7"
 
-let db: Database
+let db: Client
 let app: App
 let userId: number
 
 beforeEach(async () => {
-  db = openDatabase(":memory:")
-  migrate(db)
-  app = createApp(config, {
+  db = await openDatabase(":memory:")
+  await migrate(db)
+  app = await createApp(config, {
     db,
     email: new CapturingEmailSender(),
   })
   const users = new UserRepository(db)
-  userId = users.create("a@test.co", await hashPassword(PASSWORD))
-  users.markEmailVerified(userId)
+  userId = await users.create("a@test.co", await hashPassword(PASSWORD))
+  await users.markEmailVerified(userId)
 })
 
 describe("POST /login", () => {
@@ -67,14 +67,14 @@ describe("POST /login", () => {
 
   test("writes an audit entry on success", async () => {
     await post(app, "/login", { email: "a@test.co", password: PASSWORD })
-    expect(new AuditRepository(db).forUser(userId, 10).map((e) => e.action)).toContain(
+    expect((await new AuditRepository(db).forUser(userId, 10)).map((e) => e.action)).toContain(
       "user.login",
     )
   })
 
   test("writes an audit entry on failure", async () => {
     await post(app, "/login", { email: "a@test.co", password: "wrong passphrase xx" })
-    expect(new AuditRepository(db).forUser(userId, 10).map((e) => e.action)).toContain(
+    expect((await new AuditRepository(db).forUser(userId, 10)).map((e) => e.action)).toContain(
       "user.login_failed",
     )
   })
@@ -91,7 +91,7 @@ describe("POST /login", () => {
     for (let i = 0; i < 6; i++) {
       await post(app, "/login", { email: "a@test.co", password: "wrong passphrase xx" })
     }
-    const restarted = createApp(config, {
+    const restarted = await createApp(config, {
       db,
       email: new CapturingEmailSender(),
     })
@@ -116,11 +116,11 @@ describe("POST /login", () => {
 describe("login with totp enabled", () => {
   let secret: string
 
-  beforeEach(() => {
+  beforeEach(async () => {
     secret = generateTotpSecret()
     const users = new UserRepository(db)
-    users.setTotpSecret(userId, encryptSecret(secret, TOTP_KEY))
-    users.enableTotp(userId)
+    await users.setTotpSecret(userId, encryptSecret(secret, TOTP_KEY))
+    await users.enableTotp(userId)
   })
 
   function currentToken(): string {
@@ -138,7 +138,7 @@ describe("login with totp enabled", () => {
     const res = await post(app, "/login", { email: "a@test.co", password: PASSWORD })
     expect(res.status).toBe(303)
     expect(res.headers.get("location")).toBe("/login/verify")
-    expect(new SessionRepository(db).listActive(userId)).toHaveLength(0)
+    expect(await new SessionRepository(db).listActive(userId)).toHaveLength(0)
   })
 
   test("a correct code completes the sign in", async () => {
@@ -146,20 +146,20 @@ describe("login with totp enabled", () => {
     const res = await post(app, "/login/verify", { token: currentToken() }, cookiesFrom(first))
     expect(res.status).toBe(303)
     expect(res.headers.get("location")).toBe("/dashboard")
-    expect(new SessionRepository(db).listActive(userId)).toHaveLength(1)
+    expect(await new SessionRepository(db).listActive(userId)).toHaveLength(1)
   })
 
   test("a wrong code does not complete the sign in", async () => {
     const first = await post(app, "/login", { email: "a@test.co", password: PASSWORD })
     const res = await post(app, "/login/verify", { token: "000000" }, cookiesFrom(first))
     expect(res.status).toBe(400)
-    expect(new SessionRepository(db).listActive(userId)).toHaveLength(0)
+    expect(await new SessionRepository(db).listActive(userId)).toHaveLength(0)
   })
 
   test("a wrong code writes an audit entry", async () => {
     const first = await post(app, "/login", { email: "a@test.co", password: PASSWORD })
     await post(app, "/login/verify", { token: "000000" }, cookiesFrom(first))
-    expect(new AuditRepository(db).forUser(userId, 10).map((e) => e.action)).toContain(
+    expect((await new AuditRepository(db).forUser(userId, 10)).map((e) => e.action)).toContain(
       "user.totp_failed",
     )
   })
@@ -168,13 +168,13 @@ describe("login with totp enabled", () => {
     const res = await post(app, "/login/verify", { token: currentToken() })
     // Bouncing back to /login is the correct answer here, not an error page.
     expect(res.headers.get("location")).toBe("/login")
-    expect(new SessionRepository(db).listActive(userId)).toHaveLength(0)
+    expect(await new SessionRepository(db).listActive(userId)).toHaveLength(0)
   })
 
   test("a forged pending cookie does not pass the challenge", async () => {
     const forged = "meridian_pending_2fa=" + `${userId}.${Date.now() + 60000}.forgedmac`
     const res = await post(app, "/login/verify", { token: currentToken() }, forged)
-    expect(new SessionRepository(db).listActive(userId)).toHaveLength(0)
+    expect(await new SessionRepository(db).listActive(userId)).toHaveLength(0)
     expect(res.headers.get("location")).toBe("/login")
   })
 })
@@ -184,13 +184,13 @@ describe("POST /logout", () => {
     const login = await post(app, "/login", { email: "a@test.co", password: PASSWORD })
     const res = await post(app, "/logout", {}, cookiesFrom(login), "/account/security")
     expect(res.status).toBe(303)
-    expect(new SessionRepository(db).listActive(userId)).toHaveLength(0)
+    expect(await new SessionRepository(db).listActive(userId)).toHaveLength(0)
   })
 
   test("writes an audit entry", async () => {
     const login = await post(app, "/login", { email: "a@test.co", password: PASSWORD })
     await post(app, "/logout", {}, cookiesFrom(login), "/account/security")
-    expect(new AuditRepository(db).forUser(userId, 10).map((e) => e.action)).toContain(
+    expect((await new AuditRepository(db).forUser(userId, 10)).map((e) => e.action)).toContain(
       "user.logout",
     )
   })

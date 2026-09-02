@@ -2,7 +2,7 @@ import { test, expect, describe, beforeAll } from "bun:test"
 import { createApp } from "../../src/server"
 import { loadConfig } from "../../src/config"
 import { PriceFeed, type PriceSource, type RawPrice } from "../../src/services/price-feed"
-import { openDatabase, migrate } from "../../src/db"
+import { migrate, openDatabase } from "../../src/db"
 import { AssetRepository } from "../../src/db/repositories/assets"
 
 const config = loadConfig({
@@ -14,40 +14,40 @@ const config = loadConfig({
 
 class FakeSource implements PriceSource {
   async fetch(): Promise<Map<string, RawPrice>> {
-    return new Map([["bitcoin", { usd: 67412.08, change24h: 2.41, sparkline: [], marketCap: 0, volume24h: 0 }]])
+    return new Map([["bitcoin", { usd: 67412.08, change24h: 2.41, sparkline:[], marketCap: 0, volume24h: 0 }]])
   }
 }
 
 let html: string
 
 beforeAll(async () => {
-  const db = openDatabase(":memory:")
-  migrate(db)
-  const feed = new PriceFeed(new FakeSource(), new AssetRepository(db).all())
+  const db = await openDatabase(":memory:")
+  await migrate(db)
+  const feed = new PriceFeed(new FakeSource(), await new AssetRepository(db).all())
   await feed.refresh()
-  html = await (await createApp(config, { priceFeed: feed }).inject("/")).text()
+  html = await (await ((await createApp(config, { priceFeed: feed })).inject("/"))).text()
 })
 
 describe("home page", () => {
-  test("leads with what the product does, not a slogan", () => {
+  test("leads with what the product does, not a slogan", async () => {
     // Split so the noun phrase can take the gradient treatment.
     expect(html).toContain("Buy, sell, and store")
     expect(html).toContain('class="headline-accent">digital assets.')
   })
 
-  test("the primary action is signing up, not reading a policy page", () => {
+  test("the primary action is signing up, not reading a policy page", async () => {
     expect(html).toMatch(/<form[^>]*class="hero-signup"[^>]*action="\/register"/)
     expect(html).toContain('name="email"')
     expect(html).toContain("Get started")
   })
 
-  test("shows a product preview in the hero rather than describing one", () => {
+  test("shows a product preview in the hero rather than describing one", async () => {
     expect(html).toContain('class="preview')
     expect(html).toContain("Total value, USD")
     expect(html).toContain("preview-rows")
   })
 
-  test("carries no pre-launch scaffolding or internal commentary", () => {
+  test("carries no pre-launch scaffolding or internal commentary", async () => {
     const lowered = html.toLowerCase()
     for (const banned of [
       "illustrative",
@@ -60,31 +60,31 @@ describe("home page", () => {
     }
   })
 
-  test("leads with custody rather than features", () => {
+  test("leads with custody rather than features", async () => {
     expect(html.toLowerCase()).toContain("custody")
     expect(html.toLowerCase()).toContain("reserves")
   })
 
-  test("shows a market strip of at most six assets", () => {
+  test("shows a market strip of at most six assets", async () => {
     const rows = html.match(/data-strip-row/g) ?? []
     expect(rows.length).toBeGreaterThan(0)
     expect(rows.length).toBeLessThanOrEqual(6)
   })
 
-  test("offers exactly one primary action", () => {
+  test("offers exactly one primary action", async () => {
     expect((html.match(/btn-primary/g) ?? []).length).toBe(1)
   })
 
-  test("describes the compliance programme rather than a countdown", () => {
+  test("describes the compliance programme rather than a countdown", async () => {
     expect(html.toLowerCase()).toContain("sanctions")
   })
 
-  test("is not scoped to a single market", () => {
+  test("is not scoped to a single market", async () => {
     expect(html.toLowerCase()).not.toContain("nigeria")
     expect(html.toLowerCase()).not.toContain("securities and exchange commission")
   })
 
-  test("never claims Meridian itself is licensed or registered", () => {
+  test("never claims Meridian itself is licensed or registered", async () => {
     // "a licensed custody provider" is fine and true. A claim about us is not.
     for (const pattern of [
       /\b(we|meridian) (are|is) (licensed|registered|regulated|approved)\b/i,
@@ -96,7 +96,7 @@ describe("home page", () => {
     }
   })
 
-  test("makes no claim about returns or performance", () => {
+  test("makes no claim about returns or performance", async () => {
     const lowered = html.toLowerCase()
     for (const banned of [
       "guaranteed",
@@ -110,19 +110,19 @@ describe("home page", () => {
     }
   })
 
-  test("cites no invented metrics", () => {
+  test("cites no invented metrics", async () => {
     expect(html).not.toMatch(/\$\s?\d+(\.\d+)?\s?(B|M)\b/)
     expect(html.toLowerCase()).not.toContain("customers trust")
     expect(html.toLowerCase()).not.toContain("trusted by")
   })
 
-  test("has no testimonial or partner logo markup", () => {
+  test("has no testimonial or partner logo markup", async () => {
     const lowered = html.toLowerCase()
     expect(lowered).not.toContain("testimonial")
     expect(lowered).not.toContain("as featured in")
   })
 
-  test("links to the fee schedule", () => {
+  test("links to the fee schedule", async () => {
     expect(html).toContain('href="/fees"')
   })
 })

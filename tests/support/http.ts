@@ -43,7 +43,7 @@ export async function post(
   const jar = mergeCookies(cookie, page)
   const token = csrfFrom(await page.text())
 
-  return app.inject(path, {
+  return await app.inject(path, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded", cookie: jar },
     body: new URLSearchParams({ ...fields, _csrf: token }).toString(),

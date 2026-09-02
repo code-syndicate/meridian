@@ -1,10 +1,10 @@
 import { test, expect, describe, beforeEach } from "bun:test"
-import type { Database } from "bun:sqlite"
+import type { Client } from "../../src/db"
 import { createApp, type App } from "../../src/server"
 import { loadConfig } from "../../src/config"
 import { CapturingEmailSender } from "../../src/services/email"
 import { SandboxKycProvider } from "../../src/services/kyc-provider"
-import { openDatabase, migrate } from "../../src/db"
+import { all, migrate, openDatabase } from "../../src/db"
 import { UserRepository } from "../../src/db/repositories/users"
 import { KycRepository } from "../../src/db/repositories/kyc"
 import { AuditRepository } from "../../src/db/repositories/audit"
@@ -21,7 +21,7 @@ const config = loadConfig({
 const PASSWORD = "correct horse battery staple 7"
 const DOC = "A01234567"
 
-let db: Database
+let db: Client
 let app: App
 let provider: SandboxKycProvider
 let userId: number
@@ -44,17 +44,17 @@ const ADDRESS = {
 }
 
 beforeEach(async () => {
-  db = openDatabase(":memory:")
-  migrate(db)
+  db = await openDatabase(":memory:")
+  await migrate(db)
   provider = new SandboxKycProvider()
-  app = createApp(config, {
+  app = await createApp(config, {
     db,
     email: new CapturingEmailSender(),
     kycProvider: provider,
   })
   const users = new UserRepository(db)
-  userId = users.create("a@test.co", await hashPassword(PASSWORD))
-  users.markEmailVerified(userId)
+  userId = await users.create("a@test.co", await hashPassword(PASSWORD))
+  await users.markEmailVerified(userId)
   jar = cookiesFrom(await post(app, "/login", { email: "a@test.co", password: PASSWORD }))
 })
 
@@ -69,7 +69,7 @@ async function doAddress(): Promise<Response> {
 }
 async function doDocument(): Promise<void> {
   await app.inject("/onboarding/document", { headers: { cookie: jar } })
-  const session = new KycRepository(db).openFor(userId)!.documentSession!
+  const session = (await new KycRepository(db).openFor(userId))!.documentSession!
   provider.complete(session, "passed")
   await app.inject("/onboarding/document", { headers: { cookie: jar }, redirect: "manual" })
 }
@@ -84,12 +84,12 @@ describe("access", () => {
   test("starts an application and lands on the identity step", async () => {
     const res = await app.inject("/onboarding", { headers: { cookie: jar }, redirect: "manual" })
     expect(res.headers.get("location")).toBe("/onboarding/identity")
-    expect(new KycRepository(db).openFor(userId)).not.toBeNull()
+    expect(await new KycRepository(db).openFor(userId)).not.toBeNull()
   })
 
   test("writes an audit entry when the application starts", async () => {
     await app.inject("/onboarding", { headers: { cookie: jar }, redirect: "manual" })
-    expect(new AuditRepository(db).forUser(userId, 20).map((e) => e.action)).toContain(
+    expect((await new AuditRepository(db).forUser(userId, 20)).map((e) => e.action)).toContain(
       "kyc.started",
     )
   })
@@ -106,13 +106,13 @@ describe("step 1, identity", () => {
     const res = await doIdentity()
     expect(res.status).toBe(303)
     expect(res.headers.get("location")).toBe("/onboarding/government-id")
-    expect(new KycRepository(db).openFor(userId)!.currentStep).toBe("government_id")
+    expect((await new KycRepository(db).openFor(userId))!.currentStep).toBe("government_id")
   })
 
   test("stores the phone in international format", async () => {
     await doIdentity()
-    const app_ = new KycRepository(db).openFor(userId)!
-    expect(new KycRepository(db).profileFor(app_.id)!.phone).toBe("+2348031234567")
+    const app_ = (await new KycRepository(db).openFor(userId))!
+    expect((await new KycRepository(db).profileFor(app_.id))!.phone).toBe("+2348031234567")
   })
 
   test("rejects a name containing digits and stays on the step", async () => {
@@ -123,7 +123,7 @@ describe("step 1, identity", () => {
       jar,
     )
     expect(res.status).toBe(400)
-    expect(new KycRepository(db).openFor(userId)!.currentStep).toBe("identity")
+    expect((await new KycRepository(db).openFor(userId))!.currentStep).toBe("identity")
   })
 
   test("rejects someone under eighteen with a clear message", async () => {
@@ -185,7 +185,7 @@ describe("step 2, government id", () => {
     await doIdentity()
     await doGovernmentId()
     const kyc = new KycRepository(db)
-    const profile = kyc.profileFor(kyc.openFor(userId)!.id)!
+    const profile = (await kyc.profileFor((await kyc.openFor(userId))!.id))!
     expect(profile.governmentIdLast4).toBe("4567")
     expect(profile.governmentIdType).toBe("PASSPORT")
   })
@@ -193,14 +193,10 @@ describe("step 2, government id", () => {
   test("never writes the full identifier anywhere in the database", async () => {
     await doIdentity()
     await doGovernmentId()
-    const tables = db
-      .query<{ name: string }, []>(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
-      )
-      .all()
+    const tables = await all<{ name: string }>(db, "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
     expect(tables.length).toBeGreaterThan(5)
     for (const { name } of tables) {
-      const dump = JSON.stringify(db.query(`SELECT * FROM ${name}`).all())
+      const dump = JSON.stringify(await all(db, `SELECT * FROM ${name}`))
       expect(`${name}: ${dump.includes(DOC)}`).toBe(`${name}: false`)
     }
   })
@@ -210,13 +206,13 @@ describe("step 2, government id", () => {
     const res = await doGovernmentId("A01230000")
     expect(res.status).toBe(400)
     expect((await res.text()).toLowerCase()).toContain("do not match")
-    expect(new KycRepository(db).openFor(userId)!.currentStep).toBe("government_id")
+    expect((await new KycRepository(db).openFor(userId))!.currentStep).toBe("government_id")
   })
 
   test("a failed verification writes an audit entry", async () => {
     await doIdentity()
     await doGovernmentId("A01230000")
-    expect(new AuditRepository(db).forUser(userId, 30).map((e) => e.action)).toContain(
+    expect((await new AuditRepository(db).forUser(userId, 30)).map((e) => e.action)).toContain(
       "kyc.government_id_failed",
     )
   })
@@ -224,7 +220,7 @@ describe("step 2, government id", () => {
   test("records the provider name on the application", async () => {
     await doIdentity()
     await doGovernmentId()
-    expect(new KycRepository(db).openFor(userId)!.provider).toBe("sandbox")
+    expect((await new KycRepository(db).openFor(userId))!.provider).toBe("sandbox")
   })
 
   test("rejects a malformed identifier before calling the provider", async () => {
@@ -282,7 +278,7 @@ describe("step 4, document", () => {
       await app.inject("/onboarding/document", { headers: { cookie: jar } })
     ).text()
     expect(html).toContain("/onboarding/document/sandbox?session=")
-    expect(new KycRepository(db).openFor(userId)!.documentSession).not.toBeNull()
+    expect((await new KycRepository(db).openFor(userId))!.documentSession).not.toBeNull()
   })
 
   test("no image or file is ever posted to our host", async () => {
@@ -306,7 +302,7 @@ describe("step 4, document", () => {
       redirect: "manual",
     })
     expect(res.status).toBe(200)
-    expect(new KycRepository(db).openFor(userId)!.currentStep).toBe("document")
+    expect((await new KycRepository(db).openFor(userId))!.currentStep).toBe("document")
   })
 
   test("a passed result advances to disclosures", async () => {
@@ -314,7 +310,7 @@ describe("step 4, document", () => {
     await doGovernmentId()
     await doAddress()
     await doDocument()
-    expect(new KycRepository(db).openFor(userId)!.currentStep).toBe("disclosures")
+    expect((await new KycRepository(db).openFor(userId))!.currentStep).toBe("disclosures")
   })
 
   test("a failed result explains why and offers a retry", async () => {
@@ -322,13 +318,13 @@ describe("step 4, document", () => {
     await doGovernmentId()
     await doAddress()
     await app.inject("/onboarding/document", { headers: { cookie: jar } })
-    const session = new KycRepository(db).openFor(userId)!.documentSession!
+    const session = (await new KycRepository(db).openFor(userId))!.documentSession!
     provider.complete(session, "failed")
     const html = await (
       await app.inject("/onboarding/document", { headers: { cookie: jar } })
     ).text()
     expect(html.toLowerCase()).toContain("could not be verified")
-    expect(new KycRepository(db).openFor(userId)!.currentStep).toBe("document")
+    expect((await new KycRepository(db).openFor(userId))!.currentStep).toBe("document")
   })
 })
 
@@ -360,7 +356,7 @@ describe("step 5, disclosures", () => {
       jar,
     )
     expect(res.status).toBe(400)
-    expect(new KycRepository(db).openFor(userId)!.status).toBe("draft")
+    expect((await new KycRepository(db).openFor(userId))!.status).toBe("draft")
   })
 
   test("records one consent row per document with version and ip", async () => {
@@ -371,11 +367,7 @@ describe("step 5, disclosures", () => {
       { terms: "on", privacy: "on", risk: "on", aml: "on" },
       jar,
     )
-    const rows = db
-      .query<{ document: string; version: string; ip: string | null }, []>(
-        "SELECT document, version, ip FROM kyc_consents",
-      )
-      .all()
+    const rows = await all<{ document: string; version: string; ip: string | null }>(db, "SELECT document, version, ip FROM kyc_consents")
     expect(rows).toHaveLength(4)
     expect(rows.map((r) => r.document).sort()).toEqual(["aml", "privacy", "risk", "terms"])
     for (const row of rows) {
@@ -393,7 +385,7 @@ describe("step 5, disclosures", () => {
       jar,
     )
     expect(res.status).toBe(303)
-    const application = new KycRepository(db).openFor(userId)!
+    const application = (await new KycRepository(db).openFor(userId))!
     expect(application.status).toBe("in_review")
     expect(application.submittedAt).not.toBeNull()
   })
@@ -406,7 +398,7 @@ describe("step 5, disclosures", () => {
       { terms: "on", privacy: "on", risk: "on", aml: "on" },
       jar,
     )
-    expect(new AuditRepository(db).forUser(userId, 40).map((e) => e.action)).toContain(
+    expect((await new AuditRepository(db).forUser(userId, 40)).map((e) => e.action)).toContain(
       "kyc.submitted",
     )
   })

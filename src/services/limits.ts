@@ -35,9 +35,9 @@ export class LimitService {
     return (amount * quote.priceUsd) / INTERNAL_SCALE
   }
 
-  status(userId: number, tier: number, now: Date = new Date()) {
+  async status(userId: number, tier: number, now: Date = new Date()) {
     const limits = this.limits(tier)
-    const used = this.deps.usage.used(userId, "outbound", windowKey(limits, now))
+    const used = await this.deps.usage.used(userId, "outbound", windowKey(limits, now))
     const remaining = limits.capUsd === null ? null : limits.capUsd - used
     return {
       limits,
@@ -53,13 +53,15 @@ export class LimitService {
    * check-then-move, so two concurrent withdrawals cannot both pass a check
    * against the same headroom.
    */
-  reserveOutbound(input: {
+  async reserveOutbound(input: {
     userId: number
     tier: number
     symbol: string
     amount: bigint
     now?: Date
-  }): { ok: true; amountUsd: bigint; windowKey: string } | { ok: false; denial: LimitDenial } {
+  }): Promise<
+    { ok: true; amountUsd: bigint; windowKey: string } | { ok: false; denial: LimitDenial }
+  > {
     const now = input.now ?? new Date()
     const limits = this.limits(input.tier)
     const key = windowKey(limits, now)
@@ -76,7 +78,7 @@ export class LimitService {
       }
     }
 
-    const consumed = this.deps.usage.consume({
+    const consumed = await this.deps.usage.consume({
       userId: input.userId,
       kind: "outbound",
       windowKey: key,
@@ -85,7 +87,7 @@ export class LimitService {
     })
 
     if (!consumed) {
-      const status = this.status(input.userId, input.tier, now)
+      const status = await this.status(input.userId, input.tier, now)
       return {
         ok: false,
         denial: {
@@ -103,15 +105,20 @@ export class LimitService {
     return { ok: true, amountUsd, windowKey: key }
   }
 
-  releaseOutbound(userId: number, key: string, amountUsd: bigint): void {
-    this.deps.usage.release({ userId, kind: "outbound", windowKey: key, amountUsd })
+  async releaseOutbound(userId: number, key: string, amountUsd: bigint): Promise<void> {
+    await this.deps.usage.release({ userId, kind: "outbound", windowKey: key, amountUsd })
   }
 
   /** Deposits are recorded but never refused: the funds have already arrived. */
-  recordInbound(userId: number, symbol: string, amount: bigint, now: Date = new Date()): void {
+  async recordInbound(
+    userId: number,
+    symbol: string,
+    amount: bigint,
+    now: Date = new Date(),
+  ): Promise<void> {
     const value = this.valueUsd(symbol, amount)
     if (value === null) return
-    this.deps.usage.consume({
+    await this.deps.usage.consume({
       userId,
       kind: "inbound",
       windowKey: windowKey({ ...this.limits(0), window: "lifetime" }, now),

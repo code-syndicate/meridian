@@ -11,10 +11,13 @@ services:
         value: development
       - key: PORT
         value: "10000"
-      # Free instances have no persistent disk. This resets on every deploy
-      # and whenever the service sleeps, which is why the demo re-seeds.
+      # A remote libSQL (Turso) database, so data survives deploys and the
+      # sleep/wake cycle that wipes a free instance's filesystem. Set both in
+      # the dashboard: the URL looks like libsql://<name>-<org>.turso.io.
       - key: DATABASE_PATH
-        value: /tmp/meridian.db
+        sync: false
+      - key: DATABASE_AUTH_TOKEN
+        sync: false
       # Set these in the Render dashboard. Both need at least 32 characters.
       - key: SESSION_SECRET
         sync: false

@@ -1,4 +1,4 @@
-import { openDatabase, migrate } from "../src/db"
+import { migrate, openDatabase } from "../src/db"
 import { loadConfig } from "../src/config"
 import { UserRepository } from "../src/db/repositories/users"
 import { AssetRepository } from "../src/db/repositories/assets"
@@ -18,11 +18,11 @@ if (config.env === "production") {
   throw new Error("seed-demo will not run in production")
 }
 
-const db = openDatabase(config.databasePath)
-migrate(db)
+const db = await openDatabase(config.databasePath, config.databaseAuthToken)
+await migrate(db)
 
 const users = new UserRepository(db)
-if (users.findByEmail("admin@meridian.demo")) {
+if (await users.findByEmail("admin@meridian.demo")) {
   console.log(JSON.stringify({ msg: "demo_seed_skipped", reason: "already seeded" }))
   process.exit(0)
 }
@@ -34,19 +34,19 @@ const audit = new AuditRepository(db)
 const PASSWORD = process.env.DEMO_PASSWORD ?? "demo1234"
 
 async function makeUser(email: string, admin = false): Promise<number> {
-  const id = users.create(email, await hashPassword(PASSWORD))
-  users.markEmailVerified(id)
-  if (admin) users.setRole(id, "admin")
-  for (const asset of assets.all()) {
-    ledger.ensureAccount(id, asset.symbol, "user_available")
+  const id = await users.create(email, await hashPassword(PASSWORD))
+  await users.markEmailVerified(id)
+  if (admin) await users.setRole(id, "admin")
+  for (const asset of await assets.all()) {
+    await ledger.ensureAccount(id, asset.symbol, "user_available")
   }
   return id
 }
 
-function credit(userId: number, symbol: string, amount: bigint, key: string): void {
-  const external = ledger.ensureAccount(null, symbol, "external_deposit")
-  const available = ledger.ensureAccount(userId, symbol, "user_available")
-  ledger.post({
+async function credit(userId: number, symbol: string, amount: bigint, key: string): Promise<void> {
+  const external = await ledger.ensureAccount(null, symbol, "external_deposit")
+  const available = await ledger.ensureAccount(userId, symbol, "user_available")
+  await ledger.post({
     kind: "deposit",
     idempotencyKey: key,
     metadata: { demo: true },
@@ -63,16 +63,16 @@ const bobId = await makeUser("bob@meridian.demo")
 
 // Alice is verified and funded, so the portfolio and transfer screens have
 // something in them. Bob is unverified, which shows the tier limit in place.
-kyc.decide(kyc.start(aliceId, 2), "approved")
-credit(aliceId, "BTC", 250000000n, "demo:alice:btc")
-credit(aliceId, "ETH", 4000000000n, "demo:alice:eth")
-credit(aliceId, "USDT_TRC20", 850000000000n, "demo:alice:usdt")
-credit(bobId, "SOL", 1200000000n, "demo:bob:sol")
+await kyc.decide(await kyc.start(aliceId, 2), "approved")
+await credit(aliceId, "BTC", 250000000n, "demo:alice:btc")
+await credit(aliceId, "ETH", 4000000000n, "demo:alice:eth")
+await credit(aliceId, "USDT_TRC20", 850000000000n, "demo:alice:usdt")
+await credit(bobId, "SOL", 1200000000n, "demo:bob:sol")
 
 // One application waiting, so the verification queue is not empty.
-kyc.submit(kyc.start(bobId, 2))
+await kyc.submit(await kyc.start(bobId, 2))
 
-audit.record({
+await audit.record({
   actorType: "system",
   action: "demo.seeded",
   target: "demo",

@@ -1,6 +1,6 @@
 import express from "express"
 import { createHmac, timingSafeEqual } from "node:crypto"
-import type { Database } from "bun:sqlite"
+import type { Client } from "../db"
 import type { Config } from "../config"
 import type { UserRepository } from "../db/repositories/users"
 import type { SessionRepository } from "../db/repositories/sessions"
@@ -32,7 +32,7 @@ export interface AuthDeps {
   ledger: LedgerRepository
   email: EmailSender
   config: Config
-  db: Database
+  db: Client
 }
 
 const VERIFY_TTL_MS = 24 * 3600 * 1000
@@ -56,18 +56,18 @@ function readPending(value: string | undefined, secret: string): number | null {
   return Number(id)
 }
 
-function completeLogin(
+async function completeLogin(
   req: express.Request,
   res: express.Response,
   deps: AuthDeps,
   userId: number,
   meta: { twoFactor: boolean },
-): void {
-  const sessionId = deps.sessions.create(userId, {
+): Promise<void> {
+  const sessionId = await deps.sessions.create(userId, {
     ip: req.ip ?? null,
     userAgent: req.get("user-agent") ?? null,
   })
-  deps.audit.record({
+  await deps.audit.record({
     userId,
     actorType: "user",
     action: "user.login",
@@ -84,7 +84,7 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
   const router = express.Router()
   const secure = deps.config.env === "production"
 
-  router.get("/register", (req, res) => {
+  router.get("/register", async (req, res) => {
     res.render("auth/register", {
       title: "Open an account | Meridian",
       description: "Create a Meridian account.",
@@ -136,22 +136,22 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
 
       // The response below is identical whether or not the address is taken,
       // so registration cannot be used to enumerate accounts.
-      const existing = deps.users.findByEmail(email)
+      const existing = await deps.users.findByEmail(email)
       if (!existing) {
-        const userId = deps.users.create(email, await hashPassword(password))
+        const userId = await deps.users.create(email, await hashPassword(password))
 
         // Spec 8.3: provision ledger accounts now rather than lazily on first
         // deposit, so Slice 2's chain callbacks always have a destination and
         // there is no create-on-write race between concurrent confirmations.
-        for (const asset of deps.assets.all()) {
-          deps.ledger.ensureAccount(userId, asset.symbol, "user_available")
-          deps.ledger.ensureAccount(userId, asset.symbol, "user_hold")
+        for (const asset of await deps.assets.all()) {
+          await deps.ledger.ensureAccount(userId, asset.symbol, "user_available")
+          await deps.ledger.ensureAccount(userId, asset.symbol, "user_hold")
         }
 
         const token = randomToken(32)
-        deps.emailTokens.issue(userId, "verify_email", token, VERIFY_TTL_MS)
+        await deps.emailTokens.issue(userId, "verify_email", token, VERIFY_TTL_MS)
 
-        deps.audit.record({
+        await deps.audit.record({
           userId,
           actorType: "user",
           action: "user.registered",
@@ -177,7 +177,7 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
     },
   )
 
-  router.get("/check-email", (req, res) => {
+  router.get("/check-email", async (req, res) => {
     res.render("auth/check-email", {
       title: "Check your email | Meridian",
       description: "Confirm your email address.",
@@ -185,9 +185,9 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
     })
   })
 
-  router.get("/verify-email", (req, res) => {
+  router.get("/verify-email", async (req, res) => {
     const token = String(req.query.token ?? "")
-    const claim = deps.emailTokens.consume(token, "verify_email")
+    const claim = await deps.emailTokens.consume(token, "verify_email")
 
     if (!claim) {
       res.status(400).render("error", {
@@ -201,8 +201,8 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
       return
     }
 
-    deps.users.markEmailVerified(claim.userId)
-    deps.audit.record({
+    await deps.users.markEmailVerified(claim.userId)
+    await deps.audit.record({
       userId: claim.userId,
       actorType: "user",
       action: "user.email_verified",
@@ -210,7 +210,7 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
       userAgent: req.get("user-agent") ?? null,
     })
 
-    const sessionId = deps.sessions.create(claim.userId, {
+    const sessionId = await deps.sessions.create(claim.userId, {
       ip: req.ip ?? null,
       userAgent: req.get("user-agent") ?? null,
     })
@@ -218,7 +218,7 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
     res.redirect(303, "/dashboard")
   })
 
-  router.get("/login", (req, res) => {
+  router.get("/login", async (req, res) => {
     res.render("auth/login", {
       title: "Sign in | Meridian",
       description: "Sign in to Meridian.",
@@ -255,14 +255,14 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
         })
       }
 
-      const user = deps.users.findByEmail(email)
+      const user = await deps.users.findByEmail(email)
       // Hash a throwaway value when the account is unknown so the response
       // time does not reveal whether the address exists.
       const hash = user?.passwordHash ?? (await hashPassword("absent-account-placeholder"))
       const ok = await verifyPassword(password, hash)
 
       if (!user || !ok) {
-        deps.audit.record({
+        await deps.audit.record({
           userId: user?.id ?? null,
           actorType: "user",
           action: "user.login_failed",
@@ -273,7 +273,7 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
       }
 
       if (needsRehash(user.passwordHash)) {
-        deps.users.setPasswordHash(user.id, await hashPassword(password))
+        await deps.users.setPasswordHash(user.id, await hashPassword(password))
       }
 
       if (user.totpEnabledAt) {
@@ -288,11 +288,11 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
         return
       }
 
-      completeLogin(req, res, deps, user.id, { twoFactor: false })
+      await completeLogin(req, res, deps, user.id, { twoFactor: false })
     },
   )
 
-  router.get("/login/verify", (req, res) => {
+  router.get("/login/verify", async (req, res) => {
     if (!readPending(req.cookies?.[PENDING_COOKIE], deps.config.sessionSecret)) {
       res.redirect(303, "/login")
       return
@@ -305,21 +305,21 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
     })
   })
 
-  router.post("/login/verify", (req, res) => {
+  router.post("/login/verify", async (req, res) => {
     const userId = readPending(req.cookies?.[PENDING_COOKIE], deps.config.sessionSecret)
     if (!userId) {
       res.redirect(303, "/login")
       return
     }
 
-    const encrypted = deps.users.getTotpSecret(userId)
+    const encrypted = await deps.users.getTotpSecret(userId)
     const token = String((req.body as { token?: string }).token ?? "")
     const valid =
       encrypted !== null &&
       verifyTotp(decryptSecret(encrypted, deps.config.totpEncryptionKey), token)
 
     if (!valid) {
-      deps.audit.record({
+      await deps.audit.record({
         userId,
         actorType: "user",
         action: "user.totp_failed",
@@ -335,13 +335,13 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
       return
     }
 
-    completeLogin(req, res, deps, userId, { twoFactor: true })
+    await completeLogin(req, res, deps, userId, { twoFactor: true })
   })
 
-  router.post("/logout", (req, res) => {
+  router.post("/logout", async (req, res) => {
     if (req.sessionId) {
-      deps.sessions.revoke(req.sessionId)
-      deps.audit.record({
+      await deps.sessions.revoke(req.sessionId)
+      await deps.audit.record({
         userId: req.user?.id ?? null,
         actorType: "user",
         action: "user.logout",

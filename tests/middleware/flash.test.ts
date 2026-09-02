@@ -1,9 +1,9 @@
 import { test, expect, describe, beforeEach } from "bun:test"
-import type { Database } from "bun:sqlite"
+import type { Client } from "../../src/db"
 import { createApp, type App } from "../../src/server"
 import { loadConfig } from "../../src/config"
 import { CapturingEmailSender } from "../../src/services/email"
-import { openDatabase, migrate } from "../../src/db"
+import { migrate, openDatabase } from "../../src/db"
 import { UserRepository } from "../../src/db/repositories/users"
 import { hashPassword } from "../../src/domain/identity/password"
 import { post, cookiesFrom, mergeCookies } from "../support/http"
@@ -14,17 +14,17 @@ const config = loadConfig({
 })
 const PASSWORD = "correct horse battery staple 7"
 
-let db: Database
+let db: Client
 let app: App
 let jar: string
 
 beforeEach(async () => {
-  db = openDatabase(":memory:")
-  migrate(db)
-  app = createApp(config, { db, email: new CapturingEmailSender(), })
+  db = await openDatabase(":memory:")
+  await migrate(db)
+  app = await createApp(config, { db, email: new CapturingEmailSender(), })
   const users = new UserRepository(db)
-  const id = users.create("a@test.co", await hashPassword(PASSWORD))
-  users.markEmailVerified(id)
+  const id = await users.create("a@test.co", await hashPassword(PASSWORD))
+  await users.markEmailVerified(id)
   jar = cookiesFrom(await post(app, "/login", { email: "a@test.co", password: PASSWORD }))
 })
 

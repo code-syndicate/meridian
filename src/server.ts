@@ -9,9 +9,9 @@ import { join } from "node:path"
 import { readFileSync } from "node:fs"
 import { createHash } from "node:crypto"
 import type { AddressInfo } from "node:net"
-import type { Database } from "bun:sqlite"
 import type { Config } from "./config"
 import { openDatabase, migrate } from "./db"
+import type { Client } from "./db"
 import { AssetRepository } from "./db/repositories/assets"
 import { LedgerRepository } from "./db/repositories/ledger"
 import { UserRepository } from "./db/repositories/users"
@@ -49,7 +49,7 @@ export interface App extends express.Express {
 
 export interface AppDeps {
   priceFeed?: PriceFeed
-  db?: Database
+  db?: Client
   email?: EmailSender
   kycProvider?: KycProvider
   newsFeed?: NewsFeed
@@ -73,7 +73,7 @@ function assetVersion(root: string): string {
   return hash.digest("hex").slice(0, 10)
 }
 
-export function createApp(config: Config, deps: AppDeps = {}): App {
+export async function createApp(config: Config, deps: AppDeps = {}): Promise<App> {
   const app = express() as App
   app.disable("x-powered-by")
 
@@ -125,11 +125,11 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   // consolidates the two connections plan 2 opened.
   const db =
     deps.db ??
-    (() => {
-      const opened = openDatabase(config.databasePath)
-      migrate(opened)
+    (await (async () => {
+      const opened = await openDatabase(config.databasePath, config.databaseAuthToken)
+      await migrate(opened)
       return opened
-    })()
+    })())
 
   const assets = new AssetRepository(db)
   const ledger = new LedgerRepository(db)
@@ -142,7 +142,7 @@ export function createApp(config: Config, deps: AppDeps = {}): App {
   const kyc = new KycRepository(db)
   const custody = new CustodyRepository(db)
 
-  const priceFeed = deps.priceFeed ?? new PriceFeed(new CoinGeckoSource(), assets.all())
+  const priceFeed = deps.priceFeed ?? new PriceFeed(new CoinGeckoSource(), await assets.all())
   const email = deps.email ?? createEmailSender(config)
   const kycProvider = deps.kycProvider ?? new SandboxKycProvider()
   const newsFeed = deps.newsFeed ?? new NewsFeed(new RssNewsSource())

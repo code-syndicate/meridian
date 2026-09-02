@@ -1,5 +1,5 @@
 import express from "express"
-import type { Database } from "bun:sqlite"
+import type { Client } from "../db"
 import type { AssetRepository } from "../db/repositories/assets"
 import type { UserRepository } from "../db/repositories/users"
 import type { LedgerRepository } from "../db/repositories/ledger"
@@ -18,7 +18,7 @@ import { tierFor } from "../domain/kyc/tiers"
 import { formatAccountId } from "../domain/identity/account-id"
 
 export interface AdminDeps {
-  db: Database
+  db: Client
   assets: AssetRepository
   users: UserRepository
   ledger: LedgerRepository
@@ -36,63 +36,65 @@ export function createAdminRoutes(deps: AdminDeps): express.Router {
   const router = express.Router()
   router.use("/admin", requireAuth(), requireAdmin())
 
-  function page(name: string, title: string) {
+  async function page(name: string, title: string) {
     return { view: `admin/${name}`, title: `${title} | Admin` }
   }
 
   // ---- overview ----
 
-  router.get("/admin", (req, res) => {
-    const counts = deps.admin.counts()
-    const reserves = deps.assets.all().map((asset) => {
-      const liability = deps.admin.liability(asset.symbol)
-      return {
-        symbol: asset.displaySymbol,
-        network: asset.networkLabel,
-        liability: balanceParts(liability, asset.displayDecimals),
-      }
-    })
+  router.get("/admin", async (req, res) => {
+    const counts = await deps.admin.counts()
+    const reserves = await Promise.all(
+      (await deps.assets.all()).map(async (asset) => {
+        const liability = await deps.admin.liability(asset.symbol)
+        return {
+          symbol: asset.displaySymbol,
+          network: asset.networkLabel,
+          liability: balanceParts(liability, asset.displayDecimals),
+        }
+      }),
+    )
     res.render("admin/overview", {
-      ...page("overview", "Overview"),
+      ...await page("overview", "Overview"),
       path: req.path,
       counts,
       reserves,
-      queue: deps.admin.withdrawalQueue("requested", 5),
-      kyc: deps.admin.kycQueue("pending", 5),
+      queue: await deps.admin.withdrawalQueue("requested", 5),
+      kyc: await deps.admin.kycQueue("pending", 5),
     })
   })
 
   // ---- users ----
 
-  router.get("/admin/users", (req, res) => {
+  router.get("/admin/users", async (req, res) => {
     const search = String(req.query.q ?? "")
     res.render("admin/users", {
-      ...page("users", "Users"),
+      ...await page("users", "Users"),
       path: req.path,
       search,
-      rows: deps.admin.users(search, LIST_LIMIT),
+      rows: await deps.admin.users(search, LIST_LIMIT),
     })
   })
 
-  router.get("/admin/users/:id", (req, res, next) => {
-    const user = deps.users.findById(Number(req.params.id))
+  router.get("/admin/users/:id", async (req, res, next) => {
+    const user = await deps.users.findById(Number(req.params.id))
     if (!user) return next()
-    const application = deps.kyc.latestFor(user.id)
+    const application = await deps.kyc.latestFor(user.id)
     const tier = application ? tierFor(application.status, application.targetTier) : 0
     const portfolio = buildPortfolio({
-      assets: deps.assets.all(),
-      balances: deps.ledger.balances(user.id),
+      assets: await deps.assets.all(),
+      balances: await deps.ledger.balances(user.id),
       quotes: [],
     })
     res.render("admin/user", {
-      ...page("user", user.email),
+      ...await page("user", user.email),
       path: `/admin/users/${user.id}`,
       subject: {
         ...user,
         accountIdFormatted: formatAccountId(user.accountId),
       },
       tier,
-      allowance: deps.limits.status(user.id, tier),
+      allowance: await deps.limits.status(user.id, tier),
       holdings: portfolio.rows
         .filter((row) => row.available + row.held > 0n)
         .map((row) => ({
@@ -101,14 +103,14 @@ export function createAdminRoutes(deps: AdminDeps): express.Router {
           available: balanceParts(row.available, row.displayDecimals),
           held: balanceParts(row.held, row.displayDecimals),
         })),
-      assets: deps.assets.all(),
-      withdrawals: deps.admin.withdrawalQueue("all", 20).filter((w) => w.userId === user.id),
-      activity: deps.audit.forUser(user.id, 25),
+      assets: await deps.assets.all(),
+      withdrawals: (await deps.admin.withdrawalQueue("all", 20)).filter((w) => w.userId === user.id),
+      activity: await deps.audit.forUser(user.id, 25),
     })
   })
 
-  router.post("/admin/users/:id/status", (req, res, next) => {
-    const user = deps.users.findById(Number(req.params.id))
+  router.post("/admin/users/:id/status", async (req, res, next) => {
+    const user = await deps.users.findById(Number(req.params.id))
     if (!user) return next()
     const body = req.body as Record<string, string | undefined>
     const status = String(body.status ?? "")
@@ -121,8 +123,8 @@ export function createAdminRoutes(deps: AdminDeps): express.Router {
       res.flash("You cannot suspend your own account.")
       return res.redirect(303, `/admin/users/${user.id}`)
     }
-    deps.users.setStatus(user.id, status)
-    deps.audit.record({
+    await deps.users.setStatus(user.id, status)
+    await deps.audit.record({
       userId: user.id,
       actorType: "admin",
       action: "admin.status_changed",
@@ -136,8 +138,8 @@ export function createAdminRoutes(deps: AdminDeps): express.Router {
 
   // ---- manual credits and debits ----
 
-  router.post("/admin/users/:id/adjust", (req, res, next) => {
-    const user = deps.users.findById(Number(req.params.id))
+  router.post("/admin/users/:id/adjust", async (req, res, next) => {
+    const user = await deps.users.findById(Number(req.params.id))
     if (!user) return next()
     const body = req.body as Record<string, string | undefined>
     const direction = String(body.direction ?? "")
@@ -145,7 +147,7 @@ export function createAdminRoutes(deps: AdminDeps): express.Router {
     const reason = String(body.reason ?? "").trim()
     const back = `/admin/users/${user.id}`
 
-    const asset = deps.assets.find(symbol)
+    const asset = await deps.assets.find(symbol)
     if (!asset) {
       res.flash("Unknown asset.")
       return res.redirect(303, back)
@@ -173,12 +175,12 @@ export function createAdminRoutes(deps: AdminDeps): express.Router {
       return res.redirect(303, back)
     }
 
-    const treasury = deps.ledger.ensureAccount(null, asset.symbol, "platform_treasury")
-    const available = deps.ledger.ensureAccount(user.id, asset.symbol, "user_available")
+    const treasury = await deps.ledger.ensureAccount(null, asset.symbol, "platform_treasury")
+    const available = await deps.ledger.ensureAccount(user.id, asset.symbol, "user_available")
     const signed = direction === "credit" ? amount : -amount
 
     try {
-      deps.ledger.post({
+      await deps.ledger.post({
         kind: "adjustment",
         idempotencyKey: `adj:${user.id}:${asset.symbol}:${Date.now()}`,
         metadata: { direction, reason, adminId: req.user!.id, subjectId: user.id },
@@ -192,7 +194,7 @@ export function createAdminRoutes(deps: AdminDeps): express.Router {
       return res.redirect(303, back)
     }
 
-    deps.audit.record({
+    await deps.audit.record({
       userId: user.id,
       actorType: "admin",
       action: `admin.${direction}`,
@@ -211,11 +213,11 @@ export function createAdminRoutes(deps: AdminDeps): express.Router {
     res.redirect(303, back)
   })
 
-  router.get("/admin/adjustments", (req, res) => {
+  router.get("/admin/adjustments", async (req, res) => {
     res.render("admin/adjustments", {
-      ...page("adjustments", "Adjustments"),
+      ...await page("adjustments", "Adjustments"),
       path: req.path,
-      rows: deps.admin.adjustments(LIST_LIMIT).map((tx) => {
+      rows: (await deps.admin.adjustments(LIST_LIMIT)).map((tx) => {
         const meta = JSON.parse(tx.metadata) as Record<string, unknown>
         const userEntry = tx.entries.find((e) => e.type === "user_available")
         return {
@@ -236,14 +238,14 @@ export function createAdminRoutes(deps: AdminDeps): express.Router {
 
   // ---- withdrawals ----
 
-  router.get("/admin/withdrawals", (req, res) => {
+  router.get("/admin/withdrawals", async (req, res) => {
     const status = String(req.query.status ?? "requested")
-    const decimals = new Map(deps.assets.all().map((a) => [a.symbol, a.displayDecimals]))
+    const decimals = new Map((await deps.assets.all()).map((a) => [a.symbol, a.displayDecimals]))
     res.render("admin/withdrawals", {
-      ...page("withdrawals", "Withdrawals"),
+      ...await page("withdrawals", "Withdrawals"),
       path: req.path,
       status,
-      rows: deps.admin.withdrawalQueue(status, LIST_LIMIT).map((row) => ({
+      rows: (await deps.admin.withdrawalQueue(status, LIST_LIMIT)).map((row) => ({
         ...row,
         amountText: formatBalance(row.amount, decimals.get(row.asset) ?? 8),
         feeText: formatBalance(row.fee, decimals.get(row.asset) ?? 8),
@@ -262,26 +264,26 @@ export function createAdminRoutes(deps: AdminDeps): express.Router {
     res.redirect(303, "/admin/withdrawals")
   })
 
-  router.post("/admin/withdrawals/:id/reject", (req, res) => {
+  router.post("/admin/withdrawals/:id/reject", async (req, res) => {
     const body = req.body as Record<string, string | undefined>
     const reason = String(body.reason ?? "").trim()
     if (reason.length < 8) {
       res.flash("Give a reason of at least 8 characters. The customer is told why.")
       return res.redirect(303, "/admin/withdrawals")
     }
-    const result = deps.service.rejectWithdrawal(Number(req.params.id), req.user!.id, reason)
+    const result = await deps.service.rejectWithdrawal(Number(req.params.id), req.user!.id, reason)
     res.flash(result.ok ? "Withdrawal rejected and the balance released." : result.reason!)
     res.redirect(303, "/admin/withdrawals")
   })
 
   // ---- deposits ----
 
-  router.get("/admin/deposits", (req, res) => {
-    const decimals = new Map(deps.assets.all().map((a) => [a.symbol, a.displayDecimals]))
+  router.get("/admin/deposits", async (req, res) => {
+    const decimals = new Map((await deps.assets.all()).map((a) => [a.symbol, a.displayDecimals]))
     res.render("admin/deposits", {
-      ...page("deposits", "Deposits"),
+      ...await page("deposits", "Deposits"),
       path: req.path,
-      rows: deps.admin.deposits(LIST_LIMIT).map((row) => ({
+      rows: (await deps.admin.deposits(LIST_LIMIT)).map((row) => ({
         ...row,
         amountText: formatBalance(row.amount, decimals.get(row.asset) ?? 8),
       })),
@@ -296,17 +298,17 @@ export function createAdminRoutes(deps: AdminDeps): express.Router {
 
   // ---- KYC ----
 
-  router.get("/admin/kyc", (req, res) => {
+  router.get("/admin/kyc", async (req, res) => {
     const status = String(req.query.status ?? "pending")
     res.render("admin/kyc", {
-      ...page("kyc", "Verification"),
+      ...await page("kyc", "Verification"),
       path: req.path,
       status,
-      rows: deps.admin.kycQueue(status, LIST_LIMIT),
+      rows: await deps.admin.kycQueue(status, LIST_LIMIT),
     })
   })
 
-  router.post("/admin/kyc/:id/decide", (req, res) => {
+  router.post("/admin/kyc/:id/decide", async (req, res) => {
     const body = req.body as Record<string, string | undefined>
     const decision = String(body.decision ?? "")
     const reason = String(body.reason ?? "").trim()
@@ -319,8 +321,8 @@ export function createAdminRoutes(deps: AdminDeps): express.Router {
       return res.redirect(303, "/admin/kyc")
     }
     const id = Number(req.params.id)
-    deps.kyc.decide(id, decision, decision === "rejected" ? reason : undefined)
-    deps.audit.record({
+    await deps.kyc.decide(id, decision, decision === "rejected" ? reason : undefined)
+    await deps.audit.record({
       actorType: "admin",
       action: `kyc.${decision}`,
       target: String(id),

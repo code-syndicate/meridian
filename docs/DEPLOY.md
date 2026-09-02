@@ -1,19 +1,35 @@
-# Deploying the demo
+# Deploying
 
-The app is a long-running Express process that writes to a SQLite file. It
-needs a real server, not a serverless function: three background timers (price
-feed, news feed, deposit poller) and an SSE endpoint only work in a process
-that outlives a request.
+The app is a long-running Express process: three background timers (price feed,
+news feed, deposit poller) and an SSE endpoint only work in a process that
+outlives a request, so it needs a real server rather than a serverless function.
+
+Storage is libSQL through `@libsql/client`. `DATABASE_PATH` takes either a local
+file path or a remote URL, so the same code runs against a file in development
+and against Turso in a deployment.
+
+## The database
+
+Free hosting has no persistent disk, so a deployed instance keeps its data in a
+remote Turso database instead of on the filesystem.
+
+    turso db create meridian
+    turso db show meridian --url          # DATABASE_PATH
+    turso db tokens create meridian       # DATABASE_AUTH_TOKEN
+
+Migrations run at process start, so a fresh database needs no separate step.
 
 ## Render, free plan
 
     render.yaml is committed. Point Render at this repo and it picks it up.
 
-Set these three in the dashboard (they are `sync: false`, so they are not in
-the repo):
+Set these in the dashboard (they are `sync: false`, so they are not in the
+repo):
 
 | Variable | Value |
 |---|---|
+| `DATABASE_PATH` | `libsql://<name>-<org>.turso.io` |
+| `DATABASE_AUTH_TOKEN` | token from `turso db tokens create` |
 | `SESSION_SECRET` | 32+ random characters |
 | `TOTP_ENCRYPTION_KEY` | 32+ random characters |
 | `CUSTODY_MNEMONIC` | output of `bun run new-mnemonic` |
@@ -25,18 +41,19 @@ Generate the secrets with:
 
 ### What the free plan costs you
 
-**No persistent disk.** The database resets on every deploy and every time the
-service wakes from sleep. `scripts/seed-demo.ts` runs at boot and rebuilds a
-working demo, so the site is never empty, but anything a stakeholder does
-between restarts is lost. Say so before the demo rather than during it.
-
 **Sleeps after inactivity.** The first request after a sleep takes roughly 30
 to 60 seconds while the container starts. Open the site a minute before anyone
 else does.
 
-To keep data, add a Render disk mounted at `/var/data` and set
-`DATABASE_PATH=/var/data/meridian.db`. Disks are a paid feature; nothing else
-about the deployment changes.
+**Every query is a network round trip.** Against a remote database a write
+takes tens of milliseconds where a local file took microseconds. It is fine for
+a demo and for ordinary use; it is not fine for bulk work in a loop. Put the
+Turso database in the same region as the Render service.
+
+The filesystem is still ephemeral, but nothing depends on it any more: the data
+lives in Turso and survives deploys and sleeps. `scripts/seed-demo.ts` runs at
+boot and returns immediately when the database already has an admin account, so
+restarts do not touch existing data.
 
 ### Why NODE_ENV is not production
 
@@ -63,8 +80,11 @@ All three use `DEMO_PASSWORD` (default `demo1234`):
       -e DATABASE_PATH=/tmp/meridian.db \
       meridian
 
+A local path needs no `DATABASE_AUTH_TOKEN`. To run the image against Turso,
+pass `DATABASE_PATH=libsql://...` and `DATABASE_AUTH_TOKEN=...` instead.
+
 ## Other hosts
 
-Anything that runs a container with a persistent disk works unchanged: Fly.io,
-Railway, a VPS. Vercel does not: it runs Node rather than Bun, has no
-persistent filesystem, and kills the background pollers.
+Anything that runs a container works unchanged now that storage is remote:
+Fly.io, Railway, a VPS. Vercel still does not: it runs Node rather than Bun and
+kills the background pollers.

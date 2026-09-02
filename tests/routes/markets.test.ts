@@ -2,7 +2,7 @@ import { test, expect, describe } from "bun:test"
 import { createApp } from "../../src/server"
 import { loadConfig } from "../../src/config"
 import { PriceFeed, type PriceSource, type RawPrice } from "../../src/services/price-feed"
-import { openDatabase, migrate } from "../../src/db"
+import { migrate, openDatabase } from "../../src/db"
 import { AssetRepository } from "../../src/db/repositories/assets"
 
 const config = loadConfig({
@@ -14,16 +14,16 @@ const config = loadConfig({
 
 class FakeSource implements PriceSource {
   async fetch(): Promise<Map<string, RawPrice>> {
-    return new Map([["bitcoin", { usd: 67412.08, change24h: 2.41, sparkline: [], marketCap: 0, volume24h: 0 }]])
+    return new Map([["bitcoin", { usd: 67412.08, change24h: 2.41, sparkline:[], marketCap: 0, volume24h: 0 }]])
   }
 }
 
 async function build() {
-  const db = openDatabase(":memory:")
-  migrate(db)
-  const feed = new PriceFeed(new FakeSource(), new AssetRepository(db).all())
+  const db = await openDatabase(":memory:")
+  await migrate(db)
+  const feed = new PriceFeed(new FakeSource(), await new AssetRepository(db).all())
   await feed.refresh()
-  return createApp(config, { priceFeed: feed })
+  return await createApp(config, { priceFeed: feed })
 }
 
 describe("GET /markets", () => {

@@ -98,12 +98,12 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
   router.use("/account", requireAuth())
   router.use("/dashboard", requireAuth())
 
-  function renderSecurity(
+  async function renderSecurity(
     req: express.Request,
     res: express.Response,
     status: number,
     error: string | null,
-  ): void {
+  ): Promise<void> {
     const user = req.user!
     res.status(status).render("account/security", {
       title: "Security | Meridian",
@@ -111,24 +111,24 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
       path: "/account/security",
       error,
       totpEnabled: user.totpEnabledAt !== null,
-      sessions: deps.sessions
-        .listActive(user.id)
-        .map((s) => describeSession(s, s.id === req.sessionId)),
+      sessions: (await deps.sessions.listActive(user.id)).map((s) =>
+        describeSession(s, s.id === req.sessionId),
+      ),
     })
   }
 
-  router.get("/dashboard", (req, res) => {
+  router.get("/dashboard", async (req, res) => {
     const user = req.user!
-    const application = deps.kyc.latestFor(user.id)
+    const application = await deps.kyc.latestFor(user.id)
     const kycTier = application ? tierFor(application.status, application.targetTier) : 0
     const portfolio = buildPortfolio({
-      assets: deps.assets.all(),
-      balances: deps.ledger.balances(user.id),
-      quotes: deps.feed.snapshot(),
+      assets: await deps.assets.all(),
+      balances: await deps.ledger.balances(user.id),
+      quotes: await deps.feed.snapshot(),
     })
 
-    const assets = deps.assets.all()
-    const allowance = deps.limits.status(user.id, kycTier)
+    const assets = await deps.assets.all()
+    const allowance = await deps.limits.status(user.id, kycTier)
     let availableUsd = 0n
     let heldUsd = 0n
     for (const row of portfolio.rows) {
@@ -182,10 +182,10 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
     })
   })
 
-  router.get("/account", (req, res) => {
+  router.get("/account", async (req, res) => {
     const user = req.user!
-    const application = deps.kyc.latestFor(user.id)
-    const profile = application ? deps.kyc.profileFor(application.id) : null
+    const application = await deps.kyc.latestFor(user.id)
+    const profile = application ? await deps.kyc.profileFor(application.id) : null
     res.render("account/profile", {
       title: "Account | Meridian",
       description: "Your account details.",
@@ -198,7 +198,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
       memberSince: new Date(user.createdAt).toLocaleDateString("en-US", {
         year: "numeric", month: "long", day: "numeric",
       }),
-      allowance: deps.limits.status(user.id, application ? tierFor(application.status, application.targetTier) : 0),
+      allowance: await deps.limits.status(user.id, application ? tierFor(application.status, application.targetTier) : 0),
       // Names come from the verified application, never from free user input.
       fullName: profile?.firstName
         ? [profile.firstName, profile.middleName, profile.lastName].filter(Boolean).join(" ")
@@ -208,11 +208,11 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
     })
   })
 
-  router.get("/account/verification", (req, res) => {
+  router.get("/account/verification", async (req, res) => {
     const user = req.user!
-    const application = deps.kyc.latestFor(user.id)
+    const application = await deps.kyc.latestFor(user.id)
     const tier = application ? tierFor(application.status, application.targetTier) : 0
-    const profile = application ? deps.kyc.profileFor(application.id) : null
+    const profile = application ? await deps.kyc.profileFor(application.id) : null
     res.render("account/verification", {
       title: "Verification | Meridian",
       description: "Your identity verification status.",
@@ -221,30 +221,30 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
       currentStep: application?.currentStep ?? null,
       rejectionReason: application?.rejectionReason ?? null,
       tier,
-      allowance: deps.limits.status(user.id, tier),
+      allowance: await deps.limits.status(user.id, tier),
       last4: profile?.governmentIdLast4 ?? null,
       canResubmit: application
-        ? canResubmit(application.status, deps.kyc.attemptsFor(user.id))
+        ? canResubmit(application.status, await deps.kyc.attemptsFor(user.id))
         : false,
     })
   })
 
-  router.get("/account/security", (req, res) => renderSecurity(req, res, 200, null))
+  router.get("/account/security", async (req, res) => await renderSecurity(req, res, 200, null))
 
   router.post("/account/password", async (req, res) => {
     const user = req.user!
     const body = req.body as { current?: string; next?: string }
-    const stored = deps.users.findByEmail(user.email)!
+    const stored = (await deps.users.findByEmail(user.email))!
 
     if (!(await verifyPassword(String(body.current ?? ""), stored.passwordHash))) {
-      return renderSecurity(req, res, 400, "That is not your current password.")
+      return await renderSecurity(req, res, 400, "That is not your current password.")
     }
 
     const next = String(body.next ?? "")
     try {
       validatePasswordPolicy(next)
     } catch (error) {
-      return renderSecurity(
+      return await renderSecurity(
         req,
         res,
         400,
@@ -254,9 +254,9 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
       )
     }
 
-    deps.users.setPasswordHash(user.id, await hashPassword(next))
-    deps.sessions.revokeAllFor(user.id)
-    deps.audit.record({
+    await deps.users.setPasswordHash(user.id, await hashPassword(next))
+    await deps.sessions.revokeAllFor(user.id)
+    await deps.audit.record({
       userId: user.id,
       actorType: "user",
       action: "user.password_changed",
@@ -266,7 +266,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
 
     // A password change is a privilege change, so the session identifier
     // rotates rather than surviving.
-    const fresh = deps.sessions.create(user.id, {
+    const fresh = await deps.sessions.create(user.id, {
       ip: req.ip ?? null,
       userAgent: req.get("user-agent") ?? null,
     })
@@ -325,17 +325,17 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
       return
     }
 
-    deps.users.setTotpSecret(user.id, encryptSecret(secret, deps.config.totpEncryptionKey))
-    deps.users.enableTotp(user.id)
+    await deps.users.setTotpSecret(user.id, encryptSecret(secret, deps.config.totpEncryptionKey))
+    await deps.users.enableTotp(user.id)
     res.clearCookie(ENROL_COOKIE, { path: "/" })
 
     const codes = generateRecoveryCodes()
     const now = new Date().toISOString()
     for (const code of codes) {
-      deps.recoveryCodes.store(user.id, await hashRecoveryCode(code), now)
+      await deps.recoveryCodes.store(user.id, await hashRecoveryCode(code), now)
     }
 
-    deps.audit.record({
+    await deps.audit.record({
       userId: user.id,
       actorType: "user",
       action: "user.totp_enabled",
@@ -352,12 +352,12 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
     })
   })
 
-  router.post("/account/2fa/disable", (req, res) => {
+  router.post("/account/2fa/disable", async (req, res) => {
     const user = req.user!
-    deps.users.disableTotp(user.id)
-    deps.recoveryCodes.deleteAllFor(user.id)
+    await deps.users.disableTotp(user.id)
+    await deps.recoveryCodes.deleteAllFor(user.id)
     res.flash("Two-factor authentication is off.")
-    deps.audit.record({
+    await deps.audit.record({
       userId: user.id,
       actorType: "user",
       action: "user.totp_disabled",
@@ -367,13 +367,13 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
     res.redirect(303, "/account/security")
   })
 
-  router.post("/account/sessions/revoke-others", (req, res) => {
+  router.post("/account/sessions/revoke-others", async (req, res) => {
     const user = req.user!
     const current = req.sessionId
-    for (const session of deps.sessions.listActive(user.id)) {
-      if (session.id !== current) deps.sessions.revoke(session.id)
+    for (const session of await deps.sessions.listActive(user.id)) {
+      if (session.id !== current) await deps.sessions.revoke(session.id)
     }
-    deps.audit.record({
+    await deps.audit.record({
       userId: user.id,
       actorType: "user",
       action: "user.sessions_revoked",
@@ -384,13 +384,13 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
     res.redirect(303, "/account/security")
   })
 
-  router.get("/account/activity", (req, res) => {
+  router.get("/account/activity", async (req, res) => {
     const user = req.user!
     res.render("account/activity", {
       title: "Activity | Meridian",
       description: "Recent activity on your account.",
       path: req.path,
-      entries: deps.audit.forUser(user.id, 100).map((entry) => ({
+      entries: (await deps.audit.forUser(user.id, 100)).map((entry) => ({
         label: ACTION_LABELS[entry.action] ?? entry.action,
         ip: entry.ip ?? "unknown",
         at: entry.createdAt,

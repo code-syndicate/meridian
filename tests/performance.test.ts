@@ -14,7 +14,7 @@ const config = loadConfig({
 const KB = 1024
 
 describe("asset budget", () => {
-  test("total javascript stays under 120KB", () => {
+  test("total javascript stays under 120KB", async () => {
     const total =
       statSync("public/js/alpine.js").size + statSync("public/js/alpine-components.js").size
     expect(total).toBeLessThan(120 * KB)
@@ -22,16 +22,16 @@ describe("asset budget", () => {
 
   // Raw size is not what ships. The stylesheet is served gzipped and cached
   // immutably behind a content hash, so the transfer cost is what matters.
-  test("stylesheet stays under 64KB raw", () => {
+  test("stylesheet stays under 64KB raw", async () => {
     expect(statSync("public/css/app.css").size).toBeLessThan(64 * KB)
   })
 
-  test("stylesheet stays under 12KB gzipped, which is what is transferred", () => {
+  test("stylesheet stays under 12KB gzipped, which is what is transferred", async () => {
     const gzipped = gzipSync(readFileSync("public/css/app.css"), { level: 9 })
     expect(gzipped.byteLength).toBeLessThan(12 * KB)
   })
 
-  test("each font face stays under 200KB", () => {
+  test("each font face stays under 200KB", async () => {
     for (const font of [
       "public/fonts/inter-variable.woff2",
       "public/fonts/jetbrains-mono-400.woff2",
@@ -47,14 +47,14 @@ describe("page weight", () => {
 
   for (const route of ROUTES) {
     test(`${route} HTML stays under 60KB`, async () => {
-      const html = await (await createApp(config).inject(route)).text()
+      const html = await (await ((await createApp(config)).inject(route))).text()
       expect(Buffer.byteLength(html, "utf8")).toBeLessThan(60 * KB)
     })
   }
 
   test("no page loads more than three scripts", async () => {
     for (const route of ROUTES) {
-      const html = await (await createApp(config).inject(route)).text()
+      const html = await (await ((await createApp(config)).inject(route))).text()
       expect(`${route}: ${(html.match(/<script/g) ?? []).length}`).toMatch(/: [0-3]$/)
     }
   })

@@ -34,11 +34,11 @@ export class CustodyService {
 
   /** Issues a deposit address once per user and asset, then reuses it. */
   async addressFor(userId: number, asset: Asset): Promise<{ address: string; memo: string | null }> {
-    const existing = this.deps.custody.findAddress(userId, asset.symbol)
+    const existing = await this.deps.custody.findAddress(userId, asset.symbol)
     if (existing) return { address: existing.address, memo: existing.memo }
 
     const issued = await this.deps.provider.issueAddress({ userId, asset: asset.symbol })
-    this.deps.custody.saveAddress({
+    await this.deps.custody.saveAddress({
       userId,
       asset: asset.symbol,
       address: issued.address,
@@ -46,13 +46,13 @@ export class CustodyService {
       provider: this.deps.provider.name,
       providerRef: issued.providerRef,
     })
-    this.deps.audit.record({
+    await this.deps.audit.record({
       userId,
       actorType: "system",
       action: "custody.address_issued",
       target: asset.symbol,
     })
-    const saved = this.deps.custody.findAddress(userId, asset.symbol)!
+    const saved = (await this.deps.custody.findAddress(userId, asset.symbol))!
     return { address: saved.address, memo: saved.memo }
   }
 
@@ -61,14 +61,14 @@ export class CustodyService {
    * output: the unique constraint on (asset, txHash, outputIndex) plus the
    * ledger's idempotency key make replay a no-op.
    */
-  creditDeposit(observed: ChainDeposit): CreditResult {
-    const asset = this.deps.assets.find(observed.asset)
+  async creditDeposit(observed: ChainDeposit): Promise<CreditResult> {
+    const asset = await this.deps.assets.find(observed.asset)
     if (!asset) return { status: "ignored" }
 
-    const userId = this.deps.custody.ownerOfAddress(asset.symbol, observed.address)
+    const userId = await this.deps.custody.ownerOfAddress(asset.symbol, observed.address)
     if (userId === null) return { status: "ignored" }
 
-    const existing = this.deps.custody.findDeposit(
+    const existing = await this.deps.custody.findDeposit(
       asset.symbol,
       observed.txHash,
       observed.outputIndex,
@@ -77,7 +77,7 @@ export class CustodyService {
 
     const depositId =
       existing?.id ??
-      this.deps.custody.recordDeposit({
+      (await this.deps.custody.recordDeposit({
         userId,
         asset: asset.symbol,
         address: observed.address,
@@ -86,29 +86,29 @@ export class CustodyService {
         nativeAmount: observed.nativeAmount,
         confirmations: observed.confirmations,
         status: "detected",
-      })
+      }))
 
     if (observed.confirmations < asset.confirmationsRequired) {
-      this.deps.custody.updateDepositProgress(depositId, observed.confirmations, "confirming")
+      await this.deps.custody.updateDepositProgress(depositId, observed.confirmations, "confirming")
       return { status: "confirming" }
     }
 
     // Truncate to internal precision. The remainder is banked against the
     // user, never discarded, and credited once it exceeds one base unit.
     const native = BigInt(observed.nativeAmount)
-    const carried = this.deps.custody.dustFor(userId, asset.symbol)
+    const carried = await this.deps.custody.dustFor(userId, asset.symbol)
     const { base, dust } = fromNative(native + carried, asset.nativeDecimals)
 
     if (base <= 0n) {
-      this.deps.custody.addDust(userId, asset.symbol, native)
-      this.deps.custody.updateDepositProgress(depositId, observed.confirmations, "confirming")
+      await this.deps.custody.addDust(userId, asset.symbol, native)
+      await this.deps.custody.updateDepositProgress(depositId, observed.confirmations, "confirming")
       return { status: "confirming", dustNative: native + carried }
     }
 
-    const external = this.deps.ledger.ensureAccount(null, asset.symbol, "external_deposit")
-    const available = this.deps.ledger.ensureAccount(userId, asset.symbol, "user_available")
+    const external = await this.deps.ledger.ensureAccount(null, asset.symbol, "external_deposit")
+    const available = await this.deps.ledger.ensureAccount(userId, asset.symbol, "user_available")
 
-    const { transactionId } = this.deps.ledger.post({
+    const { transactionId } = await this.deps.ledger.post({
       kind: "deposit",
       idempotencyKey: `deposit:${asset.symbol}:${observed.txHash}:${observed.outputIndex}`,
       externalRef: observed.txHash,
@@ -119,18 +119,18 @@ export class CustodyService {
       ],
     })
 
-    this.deps.custody.setDust(userId, asset.symbol, dust)
+    await this.deps.custody.setDust(userId, asset.symbol, dust)
     // Deposits are recorded for monitoring but never refused: the funds have
     // already arrived on chain and there is nothing to reject.
-    this.deps.limits.recordInbound(userId, asset.symbol, base)
-    this.deps.custody.markDepositCredited({
+    await this.deps.limits.recordInbound(userId, asset.symbol, base)
+    await this.deps.custody.markDepositCredited({
       id: depositId,
       creditedAmount: base,
       dustAmount: dust.toString(),
       ledgerTxId: transactionId,
       confirmations: observed.confirmations,
     })
-    this.deps.audit.record({
+    await this.deps.audit.record({
       userId,
       actorType: "system",
       action: "custody.deposit_credited",
@@ -153,7 +153,7 @@ export class CustodyService {
       return { credited, confirming }
     }
     for (const deposit of observed) {
-      const result = this.creditDeposit(deposit)
+      const result = await this.creditDeposit(deposit)
       if (result.status === "credited") credited++
       if (result.status === "confirming") confirming++
     }
@@ -184,7 +184,7 @@ export class CustodyService {
 
     // Reserved against the tier allowance before any hold is placed, and
     // given back on every path where the money does not leave.
-    const reservation = this.deps.limits.reserveOutbound({
+    const reservation = await this.deps.limits.reserveOutbound({
       userId: input.userId,
       tier: input.tier,
       symbol: input.asset.symbol,
@@ -196,7 +196,7 @@ export class CustodyService {
 
     let holdId: number
     try {
-      ;({ holdId } = this.deps.ledger.hold(
+      ;({ holdId } = await this.deps.ledger.hold(
         input.userId,
       input.asset.symbol,
       total,
@@ -204,11 +204,11 @@ export class CustodyService {
         `wd-hold:${input.idempotencyKey}`,
       ))
     } catch (error) {
-      this.deps.limits.releaseOutbound(input.userId, reservation.windowKey, reservation.amountUsd)
+      await this.deps.limits.releaseOutbound(input.userId, reservation.windowKey, reservation.amountUsd)
       throw error
     }
 
-    const withdrawalId = this.deps.custody.createWithdrawal({
+    const withdrawalId = await this.deps.custody.createWithdrawal({
       userId: input.userId,
       asset: input.asset.symbol,
       destination: input.destination,
@@ -221,7 +221,7 @@ export class CustodyService {
       limitUsd: reservation.amountUsd,
     })
 
-    this.deps.audit.record({
+    await this.deps.audit.record({
       userId: input.userId,
       actorType: "user",
       action: "custody.withdrawal_requested",
@@ -241,15 +241,15 @@ export class CustodyService {
     adminId: number,
     note: string | null,
   ): Promise<{ ok: boolean; reason?: string }> {
-    const withdrawal = this.deps.custody.findWithdrawal(withdrawalId)
+    const withdrawal = await this.deps.custody.findWithdrawal(withdrawalId)
     if (!withdrawal) return { ok: false, reason: "No such withdrawal." }
     if (withdrawal.status !== "requested") {
       return { ok: false, reason: `That withdrawal is already ${withdrawal.status}.` }
     }
-    const asset = this.deps.assets.find(withdrawal.asset)
+    const asset = await this.deps.assets.find(withdrawal.asset)
     if (!asset) return { ok: false, reason: "Unknown asset." }
 
-    this.deps.custody.updateWithdrawal(withdrawalId, {
+    await this.deps.custody.updateWithdrawal(withdrawalId, {
       status: "signing",
       reviewedBy: adminId,
       reviewedAt: new Date().toISOString(),
@@ -264,7 +264,7 @@ export class CustodyService {
         nativeAmount: toNative(withdrawal.amount, asset.nativeDecimals).toString(),
         idempotencyKey: `approve:${withdrawalId}`,
       })
-      this.deps.custody.updateWithdrawal(withdrawalId, {
+      await this.deps.custody.updateWithdrawal(withdrawalId, {
         status: "broadcast",
         provider: this.deps.provider.name,
         providerRef: submission.providerRef,
@@ -273,12 +273,12 @@ export class CustodyService {
     } catch (error) {
       // Submission failed, so the money never left. Release the hold and the
       // limit headroom rather than stranding either.
-      this.failWithdrawal(withdrawalId, String(error))
-      this.releaseReservation(withdrawal)
+      await this.failWithdrawal(withdrawalId, String(error))
+      await this.releaseReservation(withdrawal)
       return { ok: false, reason: "The provider rejected the submission." }
     }
 
-    this.deps.audit.record({
+    await this.deps.audit.record({
       userId: withdrawal.userId,
       actorType: "admin",
       action: "custody.withdrawal_approved",
@@ -289,29 +289,29 @@ export class CustodyService {
   }
 
   /** Refuses a withdrawal: the hold and the limit headroom both come back. */
-  rejectWithdrawal(
+  async rejectWithdrawal(
     withdrawalId: number,
     adminId: number,
     reason: string,
-  ): { ok: boolean; reason?: string } {
-    const withdrawal = this.deps.custody.findWithdrawal(withdrawalId)
+  ): Promise<{ ok: boolean; reason?: string }> {
+    const withdrawal = await this.deps.custody.findWithdrawal(withdrawalId)
     if (!withdrawal) return { ok: false, reason: "No such withdrawal." }
     if (withdrawal.status !== "requested") {
       return { ok: false, reason: `That withdrawal is already ${withdrawal.status}.` }
     }
 
     if (withdrawal.holdId !== null) {
-      this.deps.ledger.release(withdrawal.holdId, `wd-reject:${withdrawalId}`)
+      await this.deps.ledger.release(withdrawal.holdId, `wd-reject:${withdrawalId}`)
     }
-    this.releaseReservation(withdrawal)
-    this.deps.custody.updateWithdrawal(withdrawalId, {
+    await this.releaseReservation(withdrawal)
+    await this.deps.custody.updateWithdrawal(withdrawalId, {
       status: "cancelled",
       failureReason: reason,
       reviewedBy: adminId,
       reviewedAt: new Date().toISOString(),
       reviewNote: reason,
     })
-    this.deps.audit.record({
+    await this.deps.audit.record({
       userId: withdrawal.userId,
       actorType: "admin",
       action: "custody.withdrawal_rejected",
@@ -321,29 +321,29 @@ export class CustodyService {
     return { ok: true }
   }
 
-  private releaseReservation(withdrawal: { userId: number; limitWindow: string | null; limitUsd: bigint | null }): void {
+  private async releaseReservation(withdrawal: { userId: number; limitWindow: string | null; limitUsd: bigint | null }): Promise<void> {
     if (withdrawal.limitWindow === null || withdrawal.limitUsd === null) return
-    this.deps.limits.releaseOutbound(withdrawal.userId, withdrawal.limitWindow, withdrawal.limitUsd)
+    await this.deps.limits.releaseOutbound(withdrawal.userId, withdrawal.limitWindow, withdrawal.limitUsd)
   }
 
   /** Consumes the hold: the value leaves for the external account. */
-  confirmWithdrawal(withdrawalId: number, txHash: string | null): void {
-    const record = this.deps.custody.findWithdrawal(withdrawalId)
+  async confirmWithdrawal(withdrawalId: number, txHash: string | null): Promise<void> {
+    const record = await this.deps.custody.findWithdrawal(withdrawalId)
     if (!record || record.holdId === null) return
     if (record.status === "confirmed" || record.status === "failed") return
 
-    const external = this.deps.ledger.ensureAccount(
+    const external = await this.deps.ledger.ensureAccount(
       null,
       record.asset,
       "external_withdrawal",
     )
-    this.deps.ledger.consume(record.holdId, external, `wd-consume:${record.id}`)
-    this.deps.custody.updateWithdrawal(withdrawalId, {
+    await this.deps.ledger.consume(record.holdId, external, `wd-consume:${record.id}`)
+    await this.deps.custody.updateWithdrawal(withdrawalId, {
       status: "confirmed",
       txHash,
       settled: true,
     })
-    this.deps.audit.record({
+    await this.deps.audit.record({
       userId: record.userId,
       actorType: "system",
       action: "custody.withdrawal_confirmed",
@@ -353,18 +353,18 @@ export class CustodyService {
   }
 
   /** Releases the hold: the balance returns to the user. */
-  failWithdrawal(withdrawalId: number, reason: string): void {
-    const record = this.deps.custody.findWithdrawal(withdrawalId)
+  async failWithdrawal(withdrawalId: number, reason: string): Promise<void> {
+    const record = await this.deps.custody.findWithdrawal(withdrawalId)
     if (!record || record.holdId === null) return
     if (record.status === "confirmed" || record.status === "failed") return
 
-    this.deps.ledger.release(record.holdId, `wd-release:${record.id}`)
-    this.deps.custody.updateWithdrawal(withdrawalId, {
+    await this.deps.ledger.release(record.holdId, `wd-release:${record.id}`)
+    await this.deps.custody.updateWithdrawal(withdrawalId, {
       status: "failed",
       failureReason: reason,
       settled: true,
     })
-    this.deps.audit.record({
+    await this.deps.audit.record({
       userId: record.userId,
       actorType: "system",
       action: "custody.withdrawal_failed",
@@ -375,12 +375,12 @@ export class CustodyService {
 
   /** Polls in-flight withdrawals and settles them. */
   async settleWithdrawals(userId: number): Promise<void> {
-    for (const record of this.deps.custody.withdrawalsFor(userId, 50)) {
+    for (const record of await this.deps.custody.withdrawalsFor(userId, 50)) {
       if (record.status !== "broadcast" || !record.providerRef) continue
       const status = await this.deps.provider.getWithdrawal(record.providerRef)
-      if (status.status === "confirmed") this.confirmWithdrawal(record.id, status.txHash)
+      if (status.status === "confirmed") await this.confirmWithdrawal(record.id, status.txHash)
       if (status.status === "failed") {
-        this.failWithdrawal(record.id, status.reason ?? "The transaction failed.")
+        await this.failWithdrawal(record.id, status.reason ?? "The transaction failed.")
       }
     }
   }

@@ -1,4 +1,5 @@
-import type { Database } from "bun:sqlite"
+import type { Client, Executor, Tx } from "../index"
+import { all, get, run, withTransaction } from "../index"
 import type {
   ConsentDocument,
   GovernmentIdType,
@@ -127,149 +128,171 @@ function toProfile(row: ProfileRow): KycProfile {
 }
 
 export class KycRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: Client) {}
 
-  start(userId: number, targetTier: 1 | 2): number {
+  async start(userId: number, targetTier: 1 | 2, ex: Tx = this.db): Promise<number> {
     const now = new Date().toISOString()
-    return this.db.transaction(() => {
-      this.db
-        .query(
-          `INSERT INTO kyc_applications
-             (user_id, status, current_step, target_tier, created_at, updated_at)
-           VALUES (?, 'draft', 'identity', ?, ?, ?)`,
-        )
-        .run(userId, targetTier, now, now)
-      const id = Number(
-        this.db.query<{ id: number }, []>("SELECT last_insert_rowid() AS id").get()!.id,
+    return withTransaction(ex, async (tx) => {
+      const inserted = await run(
+        tx,
+        `INSERT INTO kyc_applications
+           (user_id, status, current_step, target_tier, created_at, updated_at)
+         VALUES (?, 'draft', 'identity', ?, ?, ?)`,
+        [userId, targetTier, now, now],
       )
+      const id = Number(inserted.lastInsertRowid)
       // A profile always exists for an application, so every later read is
       // a plain update rather than an upsert.
-      this.db
-        .query(
-          "INSERT INTO kyc_profiles (application_id, created_at, updated_at) VALUES (?, ?, ?)",
-        )
-        .run(id, now, now)
+      await run(
+        tx,
+        "INSERT INTO kyc_profiles (application_id, created_at, updated_at) VALUES (?, ?, ?)",
+        [id, now, now],
+      )
       return id
-    })()
+    })
   }
 
-  openFor(userId: number): KycApplication | null {
-    const row = this.db
-      .query<ApplicationRow, [number]>(
-        `SELECT ${APPLICATION_COLUMNS} FROM kyc_applications
-         WHERE user_id = ? AND status IN ${OPEN_STATUSES}`,
-      )
-      .get(userId)
-    return row ? toApplication(row) : null
-  }
-
-  latestFor(userId: number): KycApplication | null {
-    const row = this.db
-      .query<ApplicationRow, [number]>(
-        `SELECT ${APPLICATION_COLUMNS} FROM kyc_applications
-         WHERE user_id = ? ORDER BY id DESC LIMIT 1`,
-      )
-      .get(userId)
-    return row ? toApplication(row) : null
-  }
-
-  attemptsFor(userId: number): number {
-    return Number(
-      this.db
-        .query<{ n: number }, [number]>(
-          "SELECT COUNT(*) AS n FROM kyc_applications WHERE user_id = ?",
-        )
-        .get(userId)!.n,
+  async openFor(userId: number, ex: Executor = this.db): Promise<KycApplication | null> {
+    const row = await get<ApplicationRow>(
+      ex,
+      `SELECT ${APPLICATION_COLUMNS} FROM kyc_applications
+       WHERE user_id = ? AND status IN ${OPEN_STATUSES}`,
+      [userId],
     )
+    return row ? toApplication(row) : null
   }
 
-  profileFor(applicationId: number): KycProfile | null {
-    const row = this.db
-      .query<ProfileRow, [number]>(
-        `SELECT first_name, middle_name, last_name, date_of_birth, phone, phone_verified_at,
-                government_id_type, government_id_last4, provider_reference,
-                country, region, city, street_address, postal_code
-         FROM kyc_profiles WHERE application_id = ?`,
-      )
-      .get(applicationId)
+  async latestFor(userId: number, ex: Executor = this.db): Promise<KycApplication | null> {
+    const row = await get<ApplicationRow>(
+      ex,
+      `SELECT ${APPLICATION_COLUMNS} FROM kyc_applications
+       WHERE user_id = ? ORDER BY id DESC LIMIT 1`,
+      [userId],
+    )
+    return row ? toApplication(row) : null
+  }
+
+  async attemptsFor(userId: number, ex: Executor = this.db): Promise<number> {
+    const row = await get<{ n: number }>(
+      ex,
+      "SELECT COUNT(*) AS n FROM kyc_applications WHERE user_id = ?",
+      [userId],
+    )
+    return Number(row!.n)
+  }
+
+  async profileFor(applicationId: number, ex: Executor = this.db): Promise<KycProfile | null> {
+    const row = await get<ProfileRow>(
+      ex,
+      `SELECT first_name, middle_name, last_name, date_of_birth, phone, phone_verified_at,
+              government_id_type, government_id_last4, provider_reference,
+              country, region, city, street_address, postal_code
+       FROM kyc_profiles WHERE application_id = ?`,
+      [applicationId],
+    )
     return row ? toProfile(row) : null
   }
 
-  updateProfile(applicationId: number, patch: Partial<KycProfile>): void {
+  async updateProfile(
+    applicationId: number,
+    patch: Partial<KycProfile>,
+    ex: Executor = this.db,
+  ): Promise<void> {
     const entries = Object.entries(patch).filter(([key]) => key in PROFILE_COLUMNS)
     if (entries.length === 0) return
     const assignments = entries
       .map(([key]) => `${PROFILE_COLUMNS[key as keyof KycProfile]} = ?`)
       .join(", ")
-    this.db
-      .query(`UPDATE kyc_profiles SET ${assignments}, updated_at = ? WHERE application_id = ?`)
-      .run(
+    await run(
+      ex,
+      `UPDATE kyc_profiles SET ${assignments}, updated_at = ? WHERE application_id = ?`,
+      [
         ...entries.map(([, value]) => (value as string | null) ?? null),
         new Date().toISOString(),
         applicationId,
-      )
+      ],
+    )
   }
 
-  advance(applicationId: number, step: KycStep): void {
-    this.db
-      .query("UPDATE kyc_applications SET current_step = ?, updated_at = ? WHERE id = ?")
-      .run(step, new Date().toISOString(), applicationId)
+  async advance(applicationId: number, step: KycStep, ex: Executor = this.db): Promise<void> {
+    await run(ex, "UPDATE kyc_applications SET current_step = ?, updated_at = ? WHERE id = ?", [
+      step,
+      new Date().toISOString(),
+      applicationId,
+    ])
   }
 
-  setProvider(applicationId: number, provider: string, reference: string): void {
-    this.db
-      .query(
-        "UPDATE kyc_applications SET provider = ?, provider_ref = ?, updated_at = ? WHERE id = ?",
-      )
-      .run(provider, reference, new Date().toISOString(), applicationId)
+  async setProvider(
+    applicationId: number,
+    provider: string,
+    reference: string,
+    ex: Executor = this.db,
+  ): Promise<void> {
+    await run(
+      ex,
+      "UPDATE kyc_applications SET provider = ?, provider_ref = ?, updated_at = ? WHERE id = ?",
+      [provider, reference, new Date().toISOString(), applicationId],
+    )
   }
 
-  setDocumentSession(applicationId: number, sessionId: string): void {
-    this.db
-      .query("UPDATE kyc_applications SET document_session = ?, updated_at = ? WHERE id = ?")
-      .run(sessionId, new Date().toISOString(), applicationId)
+  async setDocumentSession(
+    applicationId: number,
+    sessionId: string,
+    ex: Executor = this.db,
+  ): Promise<void> {
+    await run(
+      ex,
+      "UPDATE kyc_applications SET document_session = ?, updated_at = ? WHERE id = ?",
+      [sessionId, new Date().toISOString(), applicationId],
+    )
   }
 
-  recordConsent(
+  async recordConsent(
     applicationId: number,
     document: ConsentDocument,
     version: string,
     ip: string | null,
-  ): void {
-    this.db
-      .query(
-        `INSERT INTO kyc_consents (application_id, document, version, ip, created_at)
-         VALUES (?, ?, ?, ?, ?)`,
-      )
-      .run(applicationId, document, version, ip, new Date().toISOString())
+    ex: Executor = this.db,
+  ): Promise<void> {
+    await run(
+      ex,
+      `INSERT INTO kyc_consents (application_id, document, version, ip, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [applicationId, document, version, ip, new Date().toISOString()],
+    )
   }
 
-  consentsFor(applicationId: number): ConsentDocument[] {
-    return this.db
-      .query<{ document: ConsentDocument }, [number]>(
-        "SELECT DISTINCT document FROM kyc_consents WHERE application_id = ?",
-      )
-      .all(applicationId)
-      .map((row) => row.document)
+  async consentsFor(applicationId: number, ex: Executor = this.db): Promise<ConsentDocument[]> {
+    const rows = await all<{ document: ConsentDocument }>(
+      ex,
+      "SELECT DISTINCT document FROM kyc_consents WHERE application_id = ?",
+      [applicationId],
+    )
+    return rows.map((row) => row.document)
   }
 
-  submit(applicationId: number): void {
+  async submit(applicationId: number, ex: Executor = this.db): Promise<void> {
     const now = new Date().toISOString()
-    this.db
-      .query(
-        `UPDATE kyc_applications SET status = 'in_review', current_step = 'done',
-           submitted_at = ?, updated_at = ? WHERE id = ?`,
-      )
-      .run(now, now, applicationId)
+    await run(
+      ex,
+      `UPDATE kyc_applications SET status = 'in_review', current_step = 'done',
+         submitted_at = ?, updated_at = ? WHERE id = ?`,
+      [now, now, applicationId],
+    )
   }
 
-  decide(applicationId: number, status: KycStatus, reason?: string): void {
+  async decide(
+    applicationId: number,
+    status: KycStatus,
+    reason?: string,
+    ex: Executor = this.db,
+  ): Promise<void> {
     const now = new Date().toISOString()
-    this.db
-      .query(
-        `UPDATE kyc_applications SET status = ?, rejection_reason = ?, decided_at = ?,
-           updated_at = ? WHERE id = ?`,
-      )
-      .run(status, reason ?? null, now, now, applicationId)
+    await run(
+      ex,
+      `UPDATE kyc_applications SET status = ?, rejection_reason = ?, decided_at = ?,
+         updated_at = ? WHERE id = ?`,
+      [status, reason ?? null, now, now, applicationId],
+    )
   }
 }

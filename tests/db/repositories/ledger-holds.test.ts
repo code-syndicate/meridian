@@ -1,16 +1,17 @@
+import { get } from "../../../src/db"
 import { test, expect, describe, beforeEach } from "bun:test"
-import type { Database } from "bun:sqlite"
+import type { Client } from "../../../src/db"
 import { LedgerRepository } from "../../../src/db/repositories/ledger"
 import { LedgerError } from "../../../src/domain/ledger/types"
 import { freshDb, createUser } from "../../support/fixtures"
 
-let db: Database
+let db: Client
 let ledger: LedgerRepository
 let userId: number
 
-function codeOf(fn: () => void): string {
+async function codeOf(fn: () => Promise<unknown>): Promise<string> {
   try {
-    fn()
+    await fn()
   } catch (error) {
     if (error instanceof LedgerError) return error.code
     throw error
@@ -18,13 +19,13 @@ function codeOf(fn: () => void): string {
   throw new Error("expected the call to throw, it did not")
 }
 
-beforeEach(() => {
-  db = freshDb()
+beforeEach(async () => {
+  db = await freshDb()
   ledger = new LedgerRepository(db)
-  userId = createUser(db)
-  const external = ledger.ensureAccount(null, "BTC", "external_deposit")
-  const available = ledger.ensureAccount(userId, "BTC", "user_available")
-  ledger.post({
+  userId = await createUser(db)
+  const external = await ledger.ensureAccount(null, "BTC", "external_deposit")
+  const available = await ledger.ensureAccount(userId, "BTC", "user_available")
+  await ledger.post({
     kind: "deposit",
     idempotencyKey: "seed",
     entries: [
@@ -35,21 +36,17 @@ beforeEach(() => {
 })
 
 describe("hold", () => {
-  test("moves value from available to held", () => {
-    ledger.hold(userId, "BTC", 30000000n, "withdrawal-1", "hold-1")
-    expect(ledger.balance(userId, "BTC")).toEqual({
+  test("moves value from available to held", async () => {
+    await ledger.hold(userId, "BTC", 30000000n, "withdrawal-1", "hold-1")
+    expect(await ledger.balance(userId, "BTC")).toEqual({
       available: 70000000n,
       held: 30000000n,
     })
   })
 
-  test("records an active hold row", () => {
-    const { holdId } = ledger.hold(userId, "BTC", 30000000n, "withdrawal-1", "hold-1")
-    const row = db
-      .query<{ status: string; amount: number; reference: string }, [number]>(
-        "SELECT status, amount, reference FROM holds WHERE id = ?",
-      )
-      .get(holdId)!
+  test("records an active hold row", async () => {
+    const { holdId } = await ledger.hold(userId, "BTC", 30000000n, "withdrawal-1", "hold-1")
+    const row = (await get<{ status: string; amount: number; reference: string }>(db, "SELECT status, amount, reference FROM holds WHERE id = ?", [holdId]))!
     expect(row).toMatchObject({
       status: "active",
       amount: 30000000,
@@ -57,102 +54,92 @@ describe("hold", () => {
     })
   })
 
-  test("rejects a hold exceeding the available balance", () => {
+  test("rejects a hold exceeding the available balance", async () => {
     expect(
-      codeOf(() => ledger.hold(userId, "BTC", 200000000n, "too-much", "hold-1")),
+      await codeOf(async () => await ledger.hold(userId, "BTC", 200000000n, "too-much", "hold-1")),
     ).toBe("insufficient_balance")
   })
 
-  test("permits holding the entire available balance", () => {
-    ledger.hold(userId, "BTC", 100000000n, "all", "hold-1")
-    expect(ledger.balance(userId, "BTC")).toEqual({ available: 0n, held: 100000000n })
+  test("permits holding the entire available balance", async () => {
+    await ledger.hold(userId, "BTC", 100000000n, "all", "hold-1")
+    expect(await ledger.balance(userId, "BTC")).toEqual({ available: 0n, held: 100000000n })
   })
 
-  test("sums multiple active holds into the held balance", () => {
-    ledger.hold(userId, "BTC", 10000000n, "a", "hold-a")
-    ledger.hold(userId, "BTC", 20000000n, "b", "hold-b")
-    expect(ledger.balance(userId, "BTC").held).toBe(30000000n)
+  test("sums multiple active holds into the held balance", async () => {
+    await ledger.hold(userId, "BTC", 10000000n, "a", "hold-a")
+    await ledger.hold(userId, "BTC", 20000000n, "b", "hold-b")
+    expect((await ledger.balance(userId, "BTC")).held).toBe(30000000n)
   })
 
-  test("leaves no hold row behind when the hold is rejected", () => {
-    codeOf(() => ledger.hold(userId, "BTC", 200000000n, "too-much", "hold-1"))
-    const count = db.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM holds").get()!.n
+  test("leaves no hold row behind when the hold is rejected", async () => {
+    await codeOf(async () => await ledger.hold(userId, "BTC", 200000000n, "too-much", "hold-1"))
+    const count = (await get<{ n: number }>(db, "SELECT COUNT(*) AS n FROM holds"))!.n
     expect(count).toBe(0)
   })
 })
 
 describe("release", () => {
-  test("returns held value to available", () => {
-    const { holdId } = ledger.hold(userId, "BTC", 30000000n, "w-1", "hold-1")
-    ledger.release(holdId, "release-1")
-    expect(ledger.balance(userId, "BTC")).toEqual({ available: 100000000n, held: 0n })
+  test("returns held value to available", async () => {
+    const { holdId } = await ledger.hold(userId, "BTC", 30000000n, "w-1", "hold-1")
+    await ledger.release(holdId, "release-1")
+    expect(await ledger.balance(userId, "BTC")).toEqual({ available: 100000000n, held: 0n })
   })
 
-  test("marks the hold released and records the closing transaction", () => {
-    const { holdId } = ledger.hold(userId, "BTC", 30000000n, "w-1", "hold-1")
-    ledger.release(holdId, "release-1")
-    const row = db
-      .query<{ status: string; close_transaction_id: number | null }, [number]>(
-        "SELECT status, close_transaction_id FROM holds WHERE id = ?",
-      )
-      .get(holdId)!
+  test("marks the hold released and records the closing transaction", async () => {
+    const { holdId } = await ledger.hold(userId, "BTC", 30000000n, "w-1", "hold-1")
+    await ledger.release(holdId, "release-1")
+    const row = (await get<{ status: string; close_transaction_id: number | null }>(db, "SELECT status, close_transaction_id FROM holds WHERE id = ?", [holdId]))!
     expect(row.status).toBe("released")
     expect(row.close_transaction_id).not.toBeNull()
   })
 
-  test("rejects releasing a hold twice", () => {
-    const { holdId } = ledger.hold(userId, "BTC", 30000000n, "w-1", "hold-1")
-    ledger.release(holdId, "release-1")
-    expect(codeOf(() => ledger.release(holdId, "release-2"))).toBe("hold_not_active")
+  test("rejects releasing a hold twice", async () => {
+    const { holdId } = await ledger.hold(userId, "BTC", 30000000n, "w-1", "hold-1")
+    await ledger.release(holdId, "release-1")
+    expect(await codeOf(async () => await ledger.release(holdId, "release-2"))).toBe("hold_not_active")
   })
 
-  test("rejects releasing an unknown hold", () => {
-    expect(codeOf(() => ledger.release(9999, "release-1"))).toBe("hold_not_active")
+  test("rejects releasing an unknown hold", async () => {
+    expect(await codeOf(async () => await ledger.release(9999, "release-1"))).toBe("hold_not_active")
   })
 })
 
 describe("consume", () => {
-  test("moves held value to the destination and leaves available untouched", () => {
-    const external = ledger.ensureAccount(null, "BTC", "external_withdrawal")
-    const { holdId } = ledger.hold(userId, "BTC", 30000000n, "w-1", "hold-1")
-    ledger.consume(holdId, external, "consume-1")
-    expect(ledger.balance(userId, "BTC")).toEqual({ available: 70000000n, held: 0n })
+  test("moves held value to the destination and leaves available untouched", async () => {
+    const external = await ledger.ensureAccount(null, "BTC", "external_withdrawal")
+    const { holdId } = await ledger.hold(userId, "BTC", 30000000n, "w-1", "hold-1")
+    await ledger.consume(holdId, external, "consume-1")
+    expect(await ledger.balance(userId, "BTC")).toEqual({ available: 70000000n, held: 0n })
   })
 
-  test("marks the hold consumed", () => {
-    const external = ledger.ensureAccount(null, "BTC", "external_withdrawal")
-    const { holdId } = ledger.hold(userId, "BTC", 30000000n, "w-1", "hold-1")
-    ledger.consume(holdId, external, "consume-1")
-    const row = db
-      .query<{ status: string }, [number]>("SELECT status FROM holds WHERE id = ?")
-      .get(holdId)!
+  test("marks the hold consumed", async () => {
+    const external = await ledger.ensureAccount(null, "BTC", "external_withdrawal")
+    const { holdId } = await ledger.hold(userId, "BTC", 30000000n, "w-1", "hold-1")
+    await ledger.consume(holdId, external, "consume-1")
+    const row = (await get<{ status: string }>(db, "SELECT status FROM holds WHERE id = ?", [holdId]))!
     expect(row.status).toBe("consumed")
   })
 
-  test("rejects consuming an already-released hold", () => {
-    const external = ledger.ensureAccount(null, "BTC", "external_withdrawal")
-    const { holdId } = ledger.hold(userId, "BTC", 30000000n, "w-1", "hold-1")
-    ledger.release(holdId, "release-1")
-    expect(codeOf(() => ledger.consume(holdId, external, "consume-1"))).toBe(
+  test("rejects consuming an already-released hold", async () => {
+    const external = await ledger.ensureAccount(null, "BTC", "external_withdrawal")
+    const { holdId } = await ledger.hold(userId, "BTC", 30000000n, "w-1", "hold-1")
+    await ledger.release(holdId, "release-1")
+    expect(await codeOf(async () => await ledger.consume(holdId, external, "consume-1"))).toBe(
       "hold_not_active",
     )
   })
 })
 
 describe("hold invariant", () => {
-  test("the sum of active holds equals the user_hold account balance", () => {
-    ledger.hold(userId, "BTC", 10000000n, "a", "hold-a")
-    const { holdId } = ledger.hold(userId, "BTC", 20000000n, "b", "hold-b")
-    ledger.hold(userId, "BTC", 5000000n, "c", "hold-c")
-    ledger.release(holdId, "release-b")
+  test("the sum of active holds equals the user_hold account balance", async () => {
+    await ledger.hold(userId, "BTC", 10000000n, "a", "hold-a")
+    const { holdId } = await ledger.hold(userId, "BTC", 20000000n, "b", "hold-b")
+    await ledger.hold(userId, "BTC", 5000000n, "c", "hold-c")
+    await ledger.release(holdId, "release-b")
 
-    const activeSum = db
-      .query<{ total: number }, [number]>(
-        `SELECT COALESCE(SUM(amount), 0) AS total FROM holds
-         WHERE user_id = ? AND asset = 'BTC' AND status = 'active'`,
-      )
-      .get(userId)!.total
+    const activeSum = (await get<{ total: number }>(db, `SELECT COALESCE(SUM(amount), 0) AS total FROM holds
+         WHERE user_id = ? AND asset = 'BTC' AND status = 'active'`, [userId]))!.total
 
-    expect(BigInt(activeSum)).toBe(ledger.balance(userId, "BTC").held)
+    expect(BigInt(activeSum)).toBe((await ledger.balance(userId, "BTC")).held)
   })
 })

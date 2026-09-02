@@ -4,10 +4,12 @@ import { openDatabase, migrate } from "../../src/db"
 import { AssetRepository } from "../../src/db/repositories/assets"
 import type { Quote } from "../../src/domain/prices"
 
+const assetDb = await openDatabase(":memory:")
+await migrate(assetDb)
+const ASSETS = await new AssetRepository(assetDb).all()
+
 function assets() {
-  const db = openDatabase(":memory:")
-  migrate(db)
-  return new AssetRepository(db).all()
+  return ASSETS
 }
 
 function quote(symbol: string, priceUsd: bigint): Quote {

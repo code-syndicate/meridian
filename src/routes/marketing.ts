@@ -22,17 +22,16 @@ export interface MarketingDeps {
 export function createMarketingRoutes(deps: MarketingDeps): express.Router {
   const router = express.Router()
 
-  function newsRows(limit: number) {
-    return deps.news.snapshot().slice(0, limit).map((item) => ({
+  async function newsRows(limit: number) {
+    return (await deps.news.snapshot()).slice(0, limit).map((item) => ({
       ...item,
       ago: relativeTime(item.publishedAt),
     }))
   }
 
-  router.get("/", (req, res) => {
-    const quotes = new Map(deps.feed.snapshot().map((q) => [q.symbol, q]))
-    const strip = deps.assets
-      .all()
+  router.get("/", async (req, res) => {
+    const quotes = new Map((await deps.feed.snapshot()).map((q) => [q.symbol, q]))
+    const strip = (await deps.assets.all())
       .filter((asset) => quotes.has(asset.symbol))
       .slice(0, 6)
       .map((asset) => {
@@ -70,7 +69,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
     const losers = [...ranked].sort((a, b) => a.raw - b.raw).slice(0, 4)
 
     // The hero carries one asset at size. Bitcoin is the one people look for.
-    const leadQuote = quotes.get("BTC") ?? deps.feed.snapshot()[0]
+    const leadQuote = quotes.get("BTC") ?? await deps.feed.snapshot()[0]
     const lead = leadQuote
       ? {
           name: leadQuote.name,
@@ -89,8 +88,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
       ETH: 244000000000n,
       SOL: 10400000000n,
     }
-    const previewRows = deps.assets
-      .all()
+    const previewRows = (await deps.assets.all())
       .filter((a) => NOTIONAL[a.symbol] !== undefined)
       .map((asset) => {
         const units = NOTIONAL[asset.symbol]!
@@ -104,16 +102,16 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
         }
       })
 
-    const previewLead = quotes.get("BTC") ?? deps.feed.snapshot()[0]
+    const previewLead = quotes.get("BTC") ?? await deps.feed.snapshot()[0]
     const previewSpark = previewLead ? buildSparkline(previewLead.sparkline, 300, 84) : null
 
     // Signed in, the card shows what the viewer actually holds. Showing a
     // notional portfolio to someone with a real one is the wrong card.
     const own = req.user
       ? buildPortfolio({
-          assets: deps.assets.all(),
-          balances: deps.ledger.balances(req.user.id),
-          quotes: deps.feed.snapshot(),
+          assets: await deps.assets.all(),
+          balances: await deps.ledger.balances(req.user.id),
+          quotes: await deps.feed.snapshot(),
         })
       : null
 
@@ -159,13 +157,13 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
       strip,
       lead,
       preview,
-      news: newsRows(6),
+      news: await newsRows(6),
       gainers,
       losers,
     })
   })
 
-  router.get("/get-started", (req, res) => {
+  router.get("/get-started", async (req, res) => {
     res.render("marketing/guide", {
       title: "Get started | Meridian",
       description: "From opening an account to verified, in five steps.",
@@ -174,19 +172,19 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
     })
   })
 
-  router.get("/resources", (req, res) => {
+  router.get("/resources", async (req, res) => {
     res.render("marketing/resources", {
       title: "Resources | Meridian",
       description: "Guides, policies, and market news.",
       path: req.path,
       resources: RESOURCES,
-      news: newsRows(10),
+      news: await newsRows(10),
     })
   })
 
-  router.get("/markets", (req, res) => {
-    const quotes = new Map(deps.feed.snapshot().map((q) => [q.symbol, q]))
-    const rows = deps.assets.all().map((asset) => {
+  router.get("/markets", async (req, res) => {
+    const quotes = new Map((await deps.feed.snapshot()).map((q) => [q.symbol, q]))
+    const rows = (await deps.assets.all()).map((asset) => {
       const quote = quotes.get(asset.symbol)
       return {
         name: asset.name,
@@ -210,11 +208,11 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
     })
   })
 
-  router.get("/markets/:symbol", (req, res, next) => {
-    const asset = deps.assets.find(String(req.params.symbol).toUpperCase())
+  router.get("/markets/:symbol", async (req, res, next) => {
+    const asset = await deps.assets.find(String(req.params.symbol).toUpperCase())
     if (!asset) return next()
 
-    const quote = deps.feed.snapshot().find((q) => q.symbol === asset.symbol)
+    const quote = (await deps.feed.snapshot()).find((q) => q.symbol === asset.symbol)
     res.render("marketing/asset", {
       title: `${asset.name} (${asset.displaySymbol}) | Meridian`,
       description: `${asset.name} on ${asset.networkLabel}. Network, confirmations, and indicative price.`,
@@ -226,7 +224,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
   })
 
   for (const page of CONTENT_PAGES) {
-    router.get(`/${page.slug}`, (req, res) => {
+    router.get(`/${page.slug}`, async (req, res) => {
       res.render("marketing/content", {
         title: page.title,
         description: page.description,
@@ -237,7 +235,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
   }
 
   for (const page of LEGAL_PAGES) {
-    router.get(`/legal/${page.slug}`, (req, res) => {
+    router.get(`/legal/${page.slug}`, async (req, res) => {
       res.render("marketing/content", {
         title: page.title,
         description: page.description,
@@ -247,7 +245,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
     })
   }
 
-  router.get("/help", (req, res) => {
+  router.get("/help", async (req, res) => {
     const categories = [...new Set(HELP_ARTICLES.map((a) => a.category))]
     res.render("marketing/help-index", {
       title: "Help centre | Meridian",
@@ -260,7 +258,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
     })
   })
 
-  router.get("/help/:slug", (req, res, next) => {
+  router.get("/help/:slug", async (req, res, next) => {
     const article = HELP_ARTICLES.find((a) => a.slug === req.params.slug)
     if (!article) return next()
     res.render("marketing/help-article", {

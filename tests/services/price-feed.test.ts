@@ -1,6 +1,6 @@
 import { test, expect, describe, beforeEach } from "bun:test"
 import { PriceFeed, type PriceSource, type RawPrice } from "../../src/services/price-feed"
-import { openDatabase, migrate } from "../../src/db"
+import { migrate, openDatabase } from "../../src/db"
 import { AssetRepository } from "../../src/db/repositories/assets"
 
 class FakeSource implements PriceSource {
@@ -22,22 +22,24 @@ class FakeSource implements PriceSource {
   }
 }
 
+const assetDb = await openDatabase(":memory:")
+await migrate(assetDb)
+const ASSETS = await new AssetRepository(assetDb).all()
+
 function assets() {
-  const db = openDatabase(":memory:")
-  migrate(db)
-  return new AssetRepository(db).all()
+  return ASSETS
 }
 
 let source: FakeSource
 let feed: PriceFeed
 
-beforeEach(() => {
+beforeEach(async () => {
   source = new FakeSource()
   feed = new PriceFeed(source, assets())
 })
 
 describe("snapshot", () => {
-  test("is empty before the first refresh", () => {
+  test("is empty before the first refresh", async () => {
     expect(feed.snapshot()).toEqual([])
   })
 

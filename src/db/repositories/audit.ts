@@ -1,4 +1,5 @@
-import type { Database } from "bun:sqlite"
+import type { Client, Executor } from "../index"
+import { all, run } from "../index"
 
 export type AuditActor = "user" | "admin" | "system"
 
@@ -27,23 +28,25 @@ interface AuditRow {
 }
 
 export class AuditRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: Client) {}
 
-  record(entry: {
-    userId?: number | null
-    actorType: AuditActor
-    action: string
-    target?: string | null
-    ip?: string | null
-    userAgent?: string | null
-    metadata?: Record<string, unknown>
-  }): number {
-    this.db
-      .query(
-        `INSERT INTO audit_log (user_id, actor_type, action, target, ip, user_agent, metadata, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
+  async record(
+    entry: {
+      userId?: number | null
+      actorType: AuditActor
+      action: string
+      target?: string | null
+      ip?: string | null
+      userAgent?: string | null
+      metadata?: Record<string, unknown>
+    },
+    ex: Executor = this.db,
+  ): Promise<number> {
+    const result = await run(
+      ex,
+      `INSERT INTO audit_log (user_id, actor_type, action, target, ip, user_agent, metadata, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
         entry.userId ?? null,
         entry.actorType,
         entry.action,
@@ -52,29 +55,28 @@ export class AuditRepository {
         entry.userAgent ?? null,
         JSON.stringify(entry.metadata ?? {}),
         new Date().toISOString(),
-      )
-    return Number(
-      this.db.query<{ id: number }, []>("SELECT last_insert_rowid() AS id").get()!.id,
+      ],
     )
+    return Number(result.lastInsertRowid)
   }
 
-  forUser(userId: number, limit: number): AuditEntry[] {
-    return this.db
-      .query<AuditRow, [number, number]>(
-        `SELECT id, user_id, actor_type, action, target, ip, user_agent, metadata, created_at
-         FROM audit_log WHERE user_id = ? ORDER BY id DESC LIMIT ?`,
-      )
-      .all(userId, limit)
-      .map((row) => ({
-        id: row.id,
-        userId: row.user_id,
-        actorType: row.actor_type,
-        action: row.action,
-        target: row.target,
-        ip: row.ip,
-        userAgent: row.user_agent,
-        metadata: JSON.parse(row.metadata) as Record<string, unknown>,
-        createdAt: row.created_at,
-      }))
+  async forUser(userId: number, limit: number, ex: Executor = this.db): Promise<AuditEntry[]> {
+    const rows = await all<AuditRow>(
+      ex,
+      `SELECT id, user_id, actor_type, action, target, ip, user_agent, metadata, created_at
+       FROM audit_log WHERE user_id = ? ORDER BY id DESC LIMIT ?`,
+      [userId, limit],
+    )
+    return rows.map((row) => ({
+      id: row.id,
+      userId: row.user_id,
+      actorType: row.actor_type,
+      action: row.action,
+      target: row.target,
+      ip: row.ip,
+      userAgent: row.user_agent,
+      metadata: JSON.parse(row.metadata) as Record<string, unknown>,
+      createdAt: row.created_at,
+    }))
   }
 }
