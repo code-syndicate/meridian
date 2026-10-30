@@ -1197,3 +1197,15 @@ fieldset.field legend { font-size: var(--t-sm); color: var(--text-muted); margin
   font: inherit; font-size: var(--t-xs); cursor: pointer;
 }
 .copyinline-btn:hover { color: var(--text); border-color: var(--accent); }
+
+/* Admin wallets: the key form stays folded until asked for */
+.key-reveal > summary { cursor: pointer; color: var(--accent); font-size: var(--t-sm); }
+.key-reveal form {
+  display: flex; flex-direction: column; gap: calc(var(--u) * 2);
+  margin-top: calc(var(--u) * 3); min-width: 220px;
+}
+.key-warning {
+  margin: 0 0 calc(var(--u) * 5); padding: calc(var(--u) * 3) calc(var(--u) * 4);
+  border: 1px solid var(--accent-line); border-radius: 8px;
+  background: var(--accent-soft); color: var(--text);
+}

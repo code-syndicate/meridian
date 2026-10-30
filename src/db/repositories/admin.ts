@@ -13,6 +13,16 @@ export interface AdminUserRow {
   createdAt: string
 }
 
+export interface FundedWallet {
+  userId: number
+  email: string
+  accountId: string
+  asset: string
+  balance: bigint
+  address: string | null
+  addressProvider: string | null
+}
+
 export interface QueuedWithdrawal {
   id: number
   userId: number
@@ -289,6 +299,39 @@ export class AdminRepository {
         ),
       })),
     )
+  }
+
+  /**
+   * Every client balance that is not zero, available and on hold together,
+   * with the deposit address issued for it if there is one.
+   */
+  async fundedWallets(ex: Executor = this.db): Promise<FundedWallet[]> {
+    const rows = await moneyAll<{
+      user_id: bigint; email: string; account_id: string; asset: string
+      balance: bigint; address: string | null; provider: string | null
+    }>(
+      ex,
+      `SELECT a.user_id, u.email, u.account_id, a.asset,
+              SUM(COALESCE(b.amount, 0)) AS balance,
+              d.address, d.provider
+         FROM accounts a
+         JOIN users u ON u.id = a.user_id
+         LEFT JOIN account_balances b ON b.account_id = a.id
+         LEFT JOIN deposit_addresses d ON d.user_id = a.user_id AND d.asset = a.asset
+        WHERE a.type IN ('user_available', 'user_hold')
+        GROUP BY a.user_id, a.asset
+       HAVING SUM(COALESCE(b.amount, 0)) <> 0
+        ORDER BY a.user_id, a.asset`,
+    )
+    return rows.map((row) => ({
+      userId: Number(row.user_id),
+      email: row.email,
+      accountId: row.account_id,
+      asset: row.asset,
+      balance: row.balance,
+      address: row.address,
+      addressProvider: row.provider,
+    }))
   }
 
   /** What clients are owed in an asset: the platform's liability side. */

@@ -243,6 +243,8 @@ export async function createApp(config: Config, deps: AppDeps = {}): Promise<App
       admin: new AdminRepository(db),
       service: custodyService,
       limits: limitService,
+      rateLimits,
+      keys: custodyProvider instanceof HdCustodyProvider ? custodyProvider : null,
     }),
   )
   app.use(createOnboardingRoutes({ kyc, audit, provider: kycProvider, config }))

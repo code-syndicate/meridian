@@ -1,0 +1,64 @@
+extends ../layouts/base.pug
+include nav.pug
+include ../components/copy.pug
+
+block content
+  .shell
+    .app
+      .app-head
+        div
+          h1.app-title Wallets
+          p.app-sub Client addresses holding a balance, by ledger
+        +adminNav("wallets")
+
+      .app-block
+        if keysHeld
+          p.field-hint Balances are what the ledger owes each client, not a reading from the chain. A private key controls everything at its address. Showing one asks for your password and is written to the audit log.
+        else
+          p.field-hint Balances are what the ledger owes each client, not a reading from the chain. Custody is not running on a phrase this server holds, so there are no keys to show.
+
+      .app-block
+        .panel-table
+          .panel-table-head
+            h2 #{wallets.length} #{wallets.length === 1 ? "wallet" : "wallets"}
+          if wallets.length === 0
+            p.field-hint No client holds a balance.
+          else
+            .table-scroll
+              table.table
+                thead
+                  tr
+                    th Account
+                    th Chain
+                    th Address
+                    th.n Holdings
+                    th Private key
+                tbody
+                  each wallet in wallets
+                    tr
+                      td
+                        a(href="/admin/users/" + wallet.userId)= wallet.email
+                        .field-hint.num= wallet.accountId
+                      td: span.network-tag= wallet.chain
+                      td
+                        if wallet.address
+                          +copyInline(wallet.address)
+                        else
+                          | Not issued
+                      td.n
+                        each holding in wallet.holdings
+                          div.num #{holding.balance.whole}#{holding.balance.fraction ? "." + holding.balance.fraction : ""} #{holding.symbol}
+                      td
+                        if wallet.keyAvailable
+                          details.key-reveal
+                            summary Show key
+                            form(method="post" action="/admin/wallets/key")
+                              input(type="hidden" name="_csrf" value=csrfToken)
+                              input(type="hidden" name="userId" value=wallet.userId)
+                              input(type="hidden" name="chain" value=wallet.chain)
+                              .field
+                                label(for="pw-" + wallet.userId + "-" + wallet.chain) Your password
+                                input(id="pw-" + wallet.userId + "-" + wallet.chain type="password" name="password" required autocomplete="current-password")
+                              button.btn(type="submit") Show private key
+                        else
+                          span.field-hint Not held here

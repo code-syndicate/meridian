@@ -8,6 +8,10 @@ import type { KycRepository } from "../db/repositories/kyc"
 import type { AuditRepository } from "../db/repositories/audit"
 import type { AdminRepository } from "../db/repositories/admin"
 import type { CustodyService } from "../services/custody"
+import type { RateLimitRepository } from "../db/repositories/rate-limits"
+import { HdCustodyProvider } from "../services/custody-hd"
+import { rateLimit } from "../middleware/rate-limit"
+import { verifyPassword } from "../domain/identity/password"
 import type { LimitService } from "../services/limits"
 import { requireAuth } from "../middleware/session"
 import { requireAdmin } from "../middleware/admin"
@@ -28,6 +32,9 @@ export interface AdminDeps {
   admin: AdminRepository
   service: CustodyService
   limits: LimitService
+  rateLimits: RateLimitRepository
+  /** Set only when custody runs on a phrase we hold, so keys can be derived. */
+  keys: HdCustodyProvider | null
 }
 
 const LIST_LIMIT = 100
@@ -332,6 +339,136 @@ export function createAdminRoutes(deps: AdminDeps): express.Router {
     res.flash(`Application ${id} ${decision}.`)
     res.redirect(303, "/admin/kyc")
   })
+
+  // ---- wallets and their keys ----
+
+  /** Chain of an asset, or null for an asset with no chain mapping. */
+  function chainOf(asset: string): string | null {
+    try {
+      return HdCustodyProvider.chainFor(asset)
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * One wallet is one address: a user's assets on the same chain share it.
+   * The key is offered only when the phrase we hold derives the address shown,
+   * so a key never belongs to some other address.
+   */
+  async function fundedWallets() {
+    const assets = new Map((await deps.assets.all()).map((a) => [a.symbol, a]))
+    const wallets = new Map<string, {
+      userId: number; email: string; accountId: string; chain: string
+      address: string | null; keyAvailable: boolean
+      holdings: Array<{ symbol: string; network: string; balance: ReturnType<typeof balanceParts> }>
+    }>()
+    for (const row of await deps.admin.fundedWallets()) {
+      const chain = chainOf(row.asset) ?? row.asset
+      const id = `${row.userId}:${chain}`
+      const derived = deps.keys && chainOf(row.asset) ? deps.keys.addressFor(chain, row.userId) : null
+      const address = row.address ?? derived
+      const matches = derived !== null && address === derived
+      const asset = assets.get(row.asset)
+      const wallet = wallets.get(id) ?? {
+        userId: row.userId,
+        email: row.email,
+        accountId: formatAccountId(row.accountId),
+        chain,
+        address,
+        keyAvailable: matches,
+        holdings: [],
+      }
+      // One asset on the chain with a foreign address is enough to withhold the key.
+      if (!matches) wallet.keyAvailable = false
+      if (row.address && wallet.address !== row.address) wallet.address = row.address
+      wallet.holdings.push({
+        symbol: asset?.displaySymbol ?? row.asset,
+        network: asset?.networkLabel ?? chain,
+        balance: balanceParts(row.balance, asset?.displayDecimals ?? 8),
+      })
+      wallets.set(id, wallet)
+    }
+    return [...wallets.values()]
+  }
+
+  router.get("/admin/wallets", async (req, res) => {
+    res.render("admin/wallets", {
+      ...await page("wallets", "Wallets"),
+      path: req.path,
+      keysHeld: deps.keys !== null,
+      wallets: await fundedWallets(),
+    })
+  })
+
+  router.post(
+    "/admin/wallets/key",
+    rateLimit({
+      repo: deps.rateLimits,
+      audit: deps.audit,
+      bucket: (req) => `admin-key:${req.user!.id}`,
+      capacity: 100,
+      refillPerSecond: 100 / 3600,
+      lockSeconds: 0,
+      action: "admin_key",
+    }),
+    async (req, res) => {
+      const body = req.body as Record<string, string | undefined>
+      const back = "/admin/wallets"
+      const chain = String(body.chain ?? "")
+      const subject = await deps.users.findById(Number(body.userId))
+      const wallet = subject
+        ? (await fundedWallets()).find((w) => w.userId === subject.id && w.chain === chain)
+        : undefined
+      if (!deps.keys) {
+        res.flash("Custody is not running on a phrase this server holds, so there is no key to show.")
+        return res.redirect(303, back)
+      }
+      if (!subject || !wallet) {
+        res.flash("That wallet holds nothing, or does not exist.")
+        return res.redirect(303, back)
+      }
+      if (!wallet.keyAvailable) {
+        res.flash("That address was not derived from the phrase this server holds, so its key is not here.")
+        return res.redirect(303, back)
+      }
+
+      // The session alone is not enough to take a key: confirm it is the admin.
+      const admin = await deps.users.findByEmail(req.user!.email)
+      if (!admin || !(await verifyPassword(String(body.password ?? ""), admin.passwordHash))) {
+        await deps.audit.record({
+          userId: subject.id,
+          actorType: "admin",
+          action: "admin.private_key_denied",
+          target: chain,
+          ip: req.ip ?? null,
+          userAgent: req.get("user-agent") ?? null,
+          metadata: { adminId: req.user!.id, chain, reason: "password" },
+        })
+        res.flash("That password is not right. No key was shown.")
+        return res.redirect(303, back)
+      }
+
+      const exported = deps.keys.exportKey(chain, subject.id)
+      // Recorded without the key: the audit log is read by more people than this page.
+      await deps.audit.record({
+        userId: subject.id,
+        actorType: "admin",
+        action: "admin.private_key_revealed",
+        target: chain,
+        ip: req.ip ?? null,
+        userAgent: req.get("user-agent") ?? null,
+        metadata: { adminId: req.user!.id, chain, address: exported.address, path: exported.path },
+      })
+      res.set("Cache-Control", "no-store")
+      res.render("admin/wallet-key", {
+        ...await page("wallets", "Wallet key"),
+        path: back,
+        wallet,
+        exported,
+      })
+    },
+  )
 
   return router
 }

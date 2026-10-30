@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { deriveAddress, derivationPath, seedFromMnemonic } from "../domain/custody/derive"
+import { deriveAddress, derivationPath, derivePrivateKey, seedFromMnemonic } from "../domain/custody/derive"
 import type {
   ChainDeposit,
   CustodyProvider,
@@ -57,6 +57,24 @@ export class HdCustodyProvider implements CustodyProvider {
       address,
       memo: null,
       providerRef: derivationPath(chain, input.userId),
+    }
+  }
+
+  /** The address this phrase gives a user on a chain, without issuing it. */
+  addressFor(chain: string, userId: number): string {
+    return deriveAddress(this.seed, chain, userId)
+  }
+
+  /**
+   * The spending key behind a user's address on a chain, for the admin
+   * back office. Deliberately not on CustodyProvider: a real custodian never
+   * hands out keys, so only this demonstration provider can answer.
+   */
+  exportKey(chain: string, userId: number): { address: string; path: string; privateKey: string } {
+    return {
+      address: deriveAddress(this.seed, chain, userId),
+      path: derivationPath(chain, userId),
+      privateKey: derivePrivateKey(this.seed, chain, userId),
     }
   }
 

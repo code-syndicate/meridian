@@ -1,6 +1,9 @@
 import { test, expect, describe } from "bun:test"
+import { base58 } from "@scure/base"
+import { sha256 } from "@noble/hashes/sha2.js"
+import { ed25519 } from "@noble/curves/ed25519.js"
 import {
-  deriveAddress, derivationPath, seedFromMnemonic, isValidMnemonic, newMnemonic,
+  deriveAddress, derivationPath, derivePrivateKey, seedFromMnemonic, isValidMnemonic, newMnemonic,
 } from "../../src/domain/custody/derive"
 
 // The canonical BIP39 test phrase. Every address below is the value a standard
@@ -78,5 +81,53 @@ describe("mnemonics", () => {
     const generated = newMnemonic()
     expect(generated.split(" ")).toHaveLength(24)
     expect(isValidMnemonic(generated)).toBe(true)
+  })
+})
+
+describe("private keys", () => {
+  // Published vectors for the same phrase: BIP84's first receive key, and the
+  // key every Ethereum wallet shows for m/44'/60'/0'/0/0.
+  test("bitcoin is the BIP84 vector, as compressed mainnet WIF", () => {
+    expect(derivePrivateKey(seed, "bitcoin", 0)).toBe("KyZpNDKnfs94vbrwhJneDi77V6jF64PWPF8x5cdJb8ifgg2DUc9d")
+  })
+
+  test("ethereum is the standard vector, as 0x hex", () => {
+    expect(derivePrivateKey(seed, "ethereum", 0))
+      .toBe("0x1ab42cc412b618bdea3a599e3c9bae199ebf030895b039e9db1e30dafb12b727")
+  })
+
+  test("bsc shares the ethereum key, as it shares the address", () => {
+    expect(derivePrivateKey(seed, "bsc", 3)).toBe(derivePrivateKey(seed, "ethereum", 3))
+  })
+
+  test("a bitcoin WIF carries a valid checksum and the compressed flag", () => {
+    const raw = base58.decode(derivePrivateKey(seed, "bitcoin", 2))
+    expect(raw).toHaveLength(38)
+    expect(raw[0]).toBe(0x80)
+    expect(raw[33]).toBe(0x01)
+    expect([...sha256(sha256(raw.slice(0, 34))).slice(0, 4)]).toEqual([...raw.slice(34)])
+  })
+
+  test("a tron key is 64 hex characters with no prefix, as TronLink imports it", () => {
+    expect(derivePrivateKey(seed, "tron", 0)).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  test("a solana key is the 64-byte secret Phantom imports, ending in the address", () => {
+    for (const index of [0, 1, 7]) {
+      const secret = base58.decode(derivePrivateKey(seed, "solana", index))
+      expect(secret).toHaveLength(64)
+      expect(base58.encode(ed25519.getPublicKey(secret.slice(0, 32)))).toBe(deriveAddress(seed, "solana", index))
+      expect(base58.encode(secret.slice(32))).toBe(deriveAddress(seed, "solana", index))
+    }
+  })
+
+  test("differs per index", () => {
+    for (const chain of ["bitcoin", "ethereum", "tron", "solana"]) {
+      expect(derivePrivateKey(seed, chain, 1)).not.toBe(derivePrivateKey(seed, chain, 2))
+    }
+  })
+
+  test("an unknown chain throws", () => {
+    expect(() => derivePrivateKey(seed, "dogecoin", 0)).toThrow()
   })
 })

@@ -30,4 +30,5 @@ export const ADMIN_PAGES: SectionPage[] = [
   { key: "deposits", href: "/admin/deposits", label: "Deposits" },
   { key: "kyc", href: "/admin/kyc", label: "Verification" },
   { key: "adjustments", href: "/admin/adjustments", label: "Adjustments" },
+  { key: "wallets", href: "/admin/wallets", label: "Wallets" },
 ]

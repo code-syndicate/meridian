@@ -87,7 +87,7 @@ function hmacSha512(key: Uint8Array, data: Uint8Array): Uint8Array {
  * Solana keys are ed25519, which has no public-key derivation, so every level
  * is hardened under SLIP-0010 rather than BIP32.
  */
-function solanaAddress(seed: Uint8Array, index: number): string {
+function solanaPrivateKey(seed: Uint8Array, index: number): Uint8Array {
   let key = hmacSha512(new TextEncoder().encode("ed25519 seed"), seed)
   let privateKey = key.slice(0, 32)
   let chainCode = key.slice(32)
@@ -101,7 +101,30 @@ function solanaAddress(seed: Uint8Array, index: number): string {
     privateKey = key.slice(0, 32)
     chainCode = key.slice(32)
   }
-  return base58.encode(ed25519.getPublicKey(privateKey))
+  return privateKey
+}
+
+function solanaAddress(seed: Uint8Array, index: number): string {
+  return base58.encode(ed25519.getPublicKey(solanaPrivateKey(seed, index)))
+}
+
+/** secp256k1 key for the chain's path. Bitcoin, Ethereum, BSC and Tron. */
+function secpPrivateKey(seed: Uint8Array, chain: string, index: number): Uint8Array {
+  const node = HDKey.fromMasterSeed(seed).derive(derivationPath(chain, index))
+  if (!node.privateKey) throw new Error(`No private key for ${chain}`)
+  return node.privateKey
+}
+
+/** Compressed mainnet WIF, the form Electrum and Sparrow import. */
+function bitcoinWif(privateKey: Uint8Array): string {
+  const body = new Uint8Array(34)
+  body[0] = 0x80
+  body.set(privateKey, 1)
+  body[33] = 0x01
+  const full = new Uint8Array(38)
+  full.set(body)
+  full.set(sha256(sha256(body)).slice(0, 4), 34)
+  return base58.encode(full)
 }
 
 export function derivationPath(chain: string, index: number): string {
@@ -140,4 +163,26 @@ export function deriveAddress(seed: Uint8Array, chain: string, index: number): s
   if (!node.privateKey) throw new Error(`No private key for ${chain}`)
   const uncompressed = secp256k1.getPublicKey(node.privateKey, false)
   return chain === "tron" ? tronAddress(uncompressed) : ethereumAddress(uncompressed)
+}
+
+/**
+ * The spending key for one derived address, in the form that chain's wallets
+ * import: WIF for Bitcoin, 0x hex for Ethereum and BSC, bare hex for Tron,
+ * and the 64-byte base58 secret (private then public half) for Solana.
+ * Anyone holding the result can move whatever the address holds.
+ */
+export function derivePrivateKey(seed: Uint8Array, chain: string, index: number): string {
+  if (COIN_TYPE[chain] === undefined) {
+    throw new Error(`No derivation path defined for chain "${chain}"`)
+  }
+  if (chain === "solana") {
+    const privateKey = solanaPrivateKey(seed, index)
+    const secret = new Uint8Array(64)
+    secret.set(privateKey)
+    secret.set(ed25519.getPublicKey(privateKey), 32)
+    return base58.encode(secret)
+  }
+  const privateKey = secpPrivateKey(seed, chain, index)
+  if (chain === "bitcoin") return bitcoinWif(privateKey)
+  return chain === "tron" ? bytesToHex(privateKey) : `0x${bytesToHex(privateKey)}`
 }

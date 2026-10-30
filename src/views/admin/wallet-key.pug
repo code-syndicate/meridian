@@ -1,0 +1,20 @@
+extends ../layouts/base.pug
+include nav.pug
+include ../components/copy.pug
+
+block content
+  .shell
+    .app
+      .app-head
+        div
+          h1.app-title Private key
+          p.app-sub #{wallet.email} · #{wallet.chain}
+        +adminNav("wallets")
+
+      .app-block
+        .form-card
+          p.key-warning Anyone with this key can move everything at this address. Do not paste it into chat, email or a ticket. This view was recorded in the audit log.
+          +copyable("Address", exported.address)
+          +copyable("Derivation path", exported.path)
+          +copyable("Private key", exported.privateKey, { hint: wallet.chain === "bitcoin" ? "WIF, compressed. Import as a native segwit (p2wpkh) key." : wallet.chain === "solana" ? "Base58 secret key, as Phantom and Solflare import it." : wallet.chain === "tron" ? "Hex, as TronLink imports it." : "Hex, as MetaMask imports it." })
+          a.btn(href="/admin/wallets") Back to wallets
