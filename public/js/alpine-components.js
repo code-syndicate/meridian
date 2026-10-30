@@ -175,3 +175,18 @@ document.addEventListener("alpine:init", () => {
   }))
 
 })
+
+// The menu and section dropdowns are plain <details>, so they work before and
+// without Alpine. This only closes them on an outside tap or Escape.
+document.addEventListener("click", (event) => {
+  for (const open of document.querySelectorAll("details.menu[open], details.tabs-menu[open]")) {
+    if (!open.contains(event.target)) open.removeAttribute("open")
+  }
+})
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return
+  for (const open of document.querySelectorAll("details.menu[open], details.tabs-menu[open]")) {
+    open.removeAttribute("open")
+    open.querySelector("summary")?.focus()
+  }
+})

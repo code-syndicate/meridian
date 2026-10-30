@@ -1,0 +1,17 @@
+include icons.pug
+
+//- Section tabs. Wide screens get the tab strip; narrow ones get a dropdown
+//- that names the current section, so nothing hides off the edge.
+mixin tabs(label, items, current)
+  - var active = items.find(function (item) { return item.key === current })
+  details.tabs-menu
+    summary
+      span.tabs-menu-label= label
+      span.tabs-menu-current= active ? active.label : "Choose a page"
+      +icon("chevron", 14)
+    nav.tabs-menu-list(aria-label=label)
+      each item in items
+        a(href=item.href aria-current=(item.key === current ? "page" : false))= item.label
+  nav.app-tabs(aria-label=label)
+    each item in items
+      a(href=item.href aria-current=(item.key === current ? "page" : false))= item.label

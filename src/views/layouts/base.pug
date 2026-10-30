@@ -3,6 +3,20 @@ include ../components/palette.pug
 include ../components/flash.pug
 include ../components/icons.pug
 include ../components/news.pug
+include ../components/apptabs.pug
+
+mixin siteLinks()
+  a(href="/markets" aria-current=(path.startsWith("/markets") ? "page" : false)) Markets
+  a(href="/get-started" aria-current=(path === "/get-started" ? "page" : false)) Get started
+  a(href="/resources" aria-current=(path === "/resources" ? "page" : false)) Resources
+  a(href="/fees" aria-current=(path === "/fees" ? "page" : false)) Fees
+  a(href="/security" aria-current=(path === "/security" ? "page" : false)) Security
+  a(href="/regulatory" aria-current=(path === "/regulatory" ? "page" : false)) Regulatory
+
+mixin signOut()
+  form.signout(method="post" action="/logout")
+    input(type="hidden" name="_csrf" value=csrfToken)
+    button(type="submit") Sign out
 
 doctype html
 html(lang="en")
@@ -24,18 +38,36 @@ html(lang="en")
           +icon("mark", 16)
           | MERIDIAN
         nav.nav(aria-label="Primary")
-          a(href="/markets" aria-current=(path.startsWith("/markets") ? "page" : false)) Markets
-          a(href="/get-started" aria-current=(path === "/get-started" ? "page" : false)) Get started
-          a(href="/resources" aria-current=(path === "/resources" ? "page" : false)) Resources
-          a(href="/fees" aria-current=(path === "/fees" ? "page" : false)) Fees
-          a(href="/security" aria-current=(path === "/security" ? "page" : false)) Security
-          a(href="/regulatory" aria-current=(path === "/regulatory" ? "page" : false)) Regulatory
+          +siteLinks()
           if user
             if user.role === "admin"
               a.admin-link(href="/admin") Admin
             a(href="/dashboard") Dashboard
+            +signOut()
           else
             a.btn(href="/login") Sign in
+        //- Narrow screens: one menu instead of a bar that scrolls sideways.
+        details.menu
+          summary
+            +icon("menu", 16)
+            | Menu
+          .menu-panel
+            if user
+              nav(aria-label="Your account")
+                h2.menu-heading Your account
+                each item in accountPages
+                  a(href=item.href aria-current=(path === item.href ? "page" : false))= item.label
+                if user.role === "admin"
+                  a.admin-link(href="/admin") Admin
+            nav(aria-label="Primary")
+              h2.menu-heading Meridian
+              +siteLinks()
+            .menu-foot
+              if user
+                +signOut()
+              else
+                a.btn(href="/login") Sign in
+                a.btn(href="/register") Open an account
       +ticker()
       +newsStrip(newsTicker)
     +palette(destinations)

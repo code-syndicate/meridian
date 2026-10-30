@@ -2,7 +2,7 @@ import express from "express"
 import { LimitService } from "./services/limits"
 import { DepositPoller } from "./services/deposit-poller"
 import { UsageRepository } from "./db/repositories/usage"
-import { PRELAUNCH_NOTICE } from "./content/site"
+import { ACCOUNT_PAGES, ADMIN_PAGES, PRELAUNCH_NOTICE } from "./content/site"
 import helmet from "helmet"
 import cookieParser from "cookie-parser"
 import { join } from "node:path"
@@ -106,6 +106,8 @@ export async function createApp(config: Config, deps: AppDeps = {}): Promise<App
   const publicRoot = join(import.meta.dir, "..", "public")
   const version = assetVersion(publicRoot)
   app.locals.assetVersion = version
+  app.locals.accountPages = ACCOUNT_PAGES
+  app.locals.adminPages = ADMIN_PAGES
 
   app.use(
     "/static",

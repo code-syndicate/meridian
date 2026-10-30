@@ -498,6 +498,83 @@ fieldset.field legend { font-size: var(--t-sm); color: var(--text-muted); margin
 
 /* ==================== Responsive ladder ==================== */
 
+/* Sign out sits in the bar as a link-weight button */
+.signout { margin: 0; display: flex; }
+.signout button {
+  background: none; border: 0; padding: calc(var(--u) * 2) 0; cursor: pointer;
+  font: inherit; font-size: var(--t-sm); color: var(--text-muted);
+}
+.signout button:hover { color: var(--text); }
+
+/* Dropdowns: native <details>, so they open without script. A small listener
+   in alpine-components.js closes them on an outside tap or Escape. */
+.menu, .tabs-menu { display: none; }
+.menu > summary, .tabs-menu > summary { list-style: none; cursor: pointer; }
+.menu > summary::-webkit-details-marker,
+.tabs-menu > summary::-webkit-details-marker { display: none; }
+
+.menu { margin-left: auto; }
+.menu > summary {
+  display: inline-flex; align-items: center; gap: calc(var(--u) * 2);
+  height: 36px; padding: 0 calc(var(--u) * 3);
+  border: 1px solid var(--hairline-strong); border-radius: 8px;
+  font-size: var(--t-sm); color: var(--text);
+}
+.menu[open] > summary { background: var(--surface-3); }
+.rail-inner { position: relative; }
+.menu-panel {
+  position: absolute; z-index: 50; top: 100%; left: 0; right: 0;
+  max-height: calc(100dvh - 60px); overflow-y: auto;
+  padding: calc(var(--u) * 2) calc(var(--u) * 4) calc(var(--u) * 5);
+  background: var(--surface); border-bottom: 1px solid var(--hairline-strong);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45);
+}
+.menu-panel nav { display: flex; flex-direction: column; padding: calc(var(--u) * 2) 0; }
+.menu-panel nav + nav { border-top: 1px solid var(--hairline); }
+.menu-heading {
+  margin: calc(var(--u) * 2) 0 calc(var(--u) * 1);
+  font-size: var(--t-xs); letter-spacing: .08em; text-transform: uppercase;
+  font-weight: 500; color: var(--text-dim);
+}
+.menu-panel nav a { display: block; padding: calc(var(--u) * 2.5) 0; color: var(--text-muted); }
+.menu-panel nav a:hover, .menu-panel nav a[aria-current="page"] { color: var(--text); }
+.menu-panel nav a.admin-link { color: var(--accent); }
+/* Pinned to the bottom of the open menu, so sign out never sits below the fold. */
+.menu-foot {
+  position: sticky; bottom: calc(var(--u) * -5);
+  display: flex; flex-direction: column; gap: calc(var(--u) * 2);
+  margin: 0 calc(var(--u) * -4) calc(var(--u) * -5);
+  padding: calc(var(--u) * 3) calc(var(--u) * 4) calc(var(--u) * 4);
+  background: var(--surface); border-top: 1px solid var(--hairline-strong);
+}
+.menu-foot .btn { width: 100%; justify-content: center; }
+.menu-foot .signout button {
+  width: 100%; height: 44px; border: 1px solid var(--hairline-strong); border-radius: 8px;
+  color: var(--text); font-size: var(--t-sm);
+}
+
+.tabs-menu { position: relative; width: 100%; }
+.tabs-menu > summary {
+  display: flex; align-items: center; gap: calc(var(--u) * 2);
+  height: 44px; padding: 0 calc(var(--u) * 4);
+  background: var(--surface); border: 1px solid var(--hairline); border-radius: 8px;
+}
+.tabs-menu-label {
+  font-size: var(--t-xs); letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim);
+}
+.tabs-menu-current { flex: 1; color: var(--text); font-size: var(--t-sm); }
+.menu > summary svg, .tabs-menu > summary svg { transition: transform .15s ease; }
+.tabs-menu[open] > summary svg { transform: rotate(180deg); }
+.tabs-menu-list {
+  position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; right: 0;
+  display: flex; flex-direction: column; padding: 4px;
+  background: var(--surface-2); border: 1px solid var(--hairline-strong); border-radius: 8px;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45);
+}
+.tabs-menu-list a { padding: calc(var(--u) * 3) calc(var(--u) * 3); border-radius: 6px; color: var(--text-muted); font-size: var(--t-sm); }
+.tabs-menu-list a:hover { background: var(--surface-3); color: var(--text); }
+.tabs-menu-list a[aria-current="page"] { background: var(--surface-3); color: var(--text); }
+
 /* Laptop */
 @media (max-width: 1200px) {
   :root { --t-3xl: 3.5rem; --t-2xl: 2.35rem; }
@@ -525,17 +602,9 @@ fieldset.field legend { font-size: var(--t-sm); color: var(--text-muted); margin
 @media (max-width: 720px) {
   :root { --t-3xl: 2.4rem; --t-2xl: 1.75rem; --t-xl: 1.4rem; --t-md: 1rem; }
   .rail-inner { height: 52px; gap: calc(var(--u) * 4); }
-  /* The nav scrolls horizontally rather than collapsing behind a menu, so
-     every destination stays one tap away with no JavaScript. */
-  .nav {
-    gap: calc(var(--u) * 4);
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-    mask-image: linear-gradient(90deg, transparent 0, #000 12px);
-  }
-  .nav::-webkit-scrollbar { display: none; }
-  .nav a { white-space: nowrap; }
+  /* The bar would overflow here, so it gives way to the menu. */
+  .nav { display: none; }
+  .menu { display: block; }
   .grid-3 { grid-template-columns: 1fr; }
   .stats { grid-template-columns: 1fr; }
   .section { padding: calc(var(--u) * 14) 0; }
@@ -821,7 +890,8 @@ fieldset.field legend { font-size: var(--t-sm); color: var(--text-muted); margin
   .pf-actions { width: 100%; }
   .pf-actions .btn { flex: 1; }
   .app-head { align-items: flex-start; }
-  .app-tabs { width: 100%; overflow-x: auto; }
+  .app-tabs { display: none; }
+  .tabs-menu { display: block; }
 }
 @media (max-width: 480px) { .tiles { grid-template-columns: 1fr; } }
 
