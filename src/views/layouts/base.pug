@@ -30,13 +30,14 @@ html(lang="en")
     link(rel="stylesheet" href="/static/css/app.css?v=" + assetVersion)
     script(src="/static/js/alpine-components.js?v=" + assetVersion defer)
     script(src="/static/js/alpine.js?v=" + assetVersion defer)
+    script(src="/static/js/smartsupp.js?v=" + assetVersion)
   body
     a.skip(href="#main") Skip to content
     header.rail
       .shell.rail-inner
-        a.wordmark(href="/" aria-label="Meridian home")
+        a.wordmark(href="/" aria-label="Meridian Exchanger home")
           +icon("mark", 16)
-          | MERIDIAN
+          | MERIDIAN EXCHANGER
         nav.nav(aria-label="Primary")
           +siteLinks()
           if user
@@ -60,7 +61,7 @@ html(lang="en")
                 if user.role === "admin"
                   a.admin-link(href="/admin") Admin
             nav(aria-label="Primary")
-              h2.menu-heading Meridian
+              h2.menu-heading Meridian Exchanger
               +siteLinks()
             .menu-foot
               if user
@@ -82,7 +83,7 @@ html(lang="en")
           .footer-brand
             .wordmark
               +icon("mark", 16)
-              | MERIDIAN
+              | MERIDIAN EXCHANGER
             p Buy, sell, and store digital assets. Ten assets across five networks.
           div
             h2.footer-heading Product

@@ -15,7 +15,7 @@ export interface ContentPage {
 export const CONTENT_PAGES: ContentPage[] = [
   {
     slug: "fees",
-    title: "Fees | Meridian",
+    title: "Fees | Meridian Exchanger",
     description: "Deposit, withdrawal, and trading fees in full.",
     eyebrow: "Fees",
     heading: "Fee schedule",
@@ -45,7 +45,7 @@ export const CONTENT_PAGES: ContentPage[] = [
   },
   {
     slug: "security",
-    title: "Security | Meridian",
+    title: "Security | Meridian Exchanger",
     description: "How Meridian holds client assets and manages keys.",
     eyebrow: "Security",
     heading: "Security and custody",
@@ -82,7 +82,7 @@ export const CONTENT_PAGES: ContentPage[] = [
   },
   {
     slug: "regulatory",
-    title: "Regulatory status | Meridian",
+    title: "Regulatory status | Meridian Exchanger",
     description: "Meridian's licensing position, stated at its actual stage.",
     eyebrow: "Regulatory",
     heading: "Regulatory status and compliance",
@@ -111,10 +111,10 @@ export const CONTENT_PAGES: ContentPage[] = [
   },
   {
     slug: "about",
-    title: "About | Meridian",
+    title: "About | Meridian Exchanger",
     description: "What Meridian is and how to reach us.",
     eyebrow: "About",
-    heading: "About Meridian",
+    heading: "About Meridian Exchanger",
     sections: [
       {
         heading: "What we are building",
@@ -126,14 +126,14 @@ export const CONTENT_PAGES: ContentPage[] = [
       {
         heading: "Contact",
         body: [
-          "Support: support@meridian.com. We reply within one business day.",
+          "Support: support@meridianexchanger.com. We reply within one business day.",
         ],
       },
     ],
   },
   {
     slug: "status",
-    title: "System status | Meridian",
+    title: "System status | Meridian Exchanger",
     description: "Current operational status of Meridian services.",
     eyebrow: "Status",
     heading: "System status",
@@ -152,7 +152,7 @@ export const CONTENT_PAGES: ContentPage[] = [
 export const LEGAL_PAGES: ContentPage[] = [
   {
     slug: "risk",
-    title: "Risk disclosure | Meridian",
+    title: "Risk disclosure | Meridian Exchanger",
     description: "The risks of holding and trading digital assets.",
     eyebrow: "Legal",
     heading: "Risk disclosure",
@@ -189,7 +189,7 @@ export const LEGAL_PAGES: ContentPage[] = [
   },
   {
     slug: "terms",
-    title: "Terms of Service | Meridian",
+    title: "Terms of Service | Meridian Exchanger",
     description: "The terms governing use of the Meridian website.",
     eyebrow: "Legal",
     heading: "Terms of Service",
@@ -218,7 +218,7 @@ export const LEGAL_PAGES: ContentPage[] = [
   },
   {
     slug: "privacy",
-    title: "Privacy Policy | Meridian",
+    title: "Privacy Policy | Meridian Exchanger",
     description: "How Meridian handles personal data.",
     eyebrow: "Legal",
     heading: "Privacy Policy",
@@ -247,7 +247,7 @@ export const LEGAL_PAGES: ContentPage[] = [
   },
   {
     slug: "aml",
-    title: "AML Policy | Meridian",
+    title: "AML Policy | Meridian Exchanger",
     description: "Meridian's anti-money-laundering approach.",
     eyebrow: "Legal",
     heading: "Anti-money-laundering policy",
@@ -276,7 +276,7 @@ export const LEGAL_PAGES: ContentPage[] = [
   },
   {
     slug: "cookies",
-    title: "Cookie Policy | Meridian",
+    title: "Cookie Policy | Meridian Exchanger",
     description: "How Meridian uses cookies.",
     eyebrow: "Legal",
     heading: "Cookie Policy",

@@ -33,7 +33,7 @@ export function rateLimit(options: RateLimitOptions): RequestHandler {
     })
 
     res.status(429).render("error", {
-      title: "Too many attempts | Meridian",
+      title: "Too many attempts | Meridian Exchanger",
       description: "Too many attempts.",
       path: req.path,
       heading: "Too many attempts.",

@@ -122,7 +122,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     const state = await gate(req, res, "identity")
     if (!state) return
     res.render("onboarding/identity", {
-      title: "Verify your identity | Meridian",
+      title: "Verify your identity | Meridian Exchanger",
       description: "Step one of identity verification.",
       path: req.path,
       ...stepLocals("identity"),
@@ -186,7 +186,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
 
     if (Object.keys(errors).length > 0) {
       return res.status(400).render("onboarding/identity", {
-        title: "Verify your identity | Meridian",
+        title: "Verify your identity | Meridian Exchanger",
         description: "Step one of identity verification.",
         path: "/onboarding/identity",
         ...stepLocals("identity"),
@@ -212,7 +212,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     const state = await gate(req, res, "government_id")
     if (!state) return
     res.render("onboarding/government-id", {
-      title: "Government ID | Meridian",
+      title: "Government ID | Meridian Exchanger",
       description: "Step two of identity verification.",
       path: req.path,
       ...stepLocals("government_id"),
@@ -234,7 +234,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
 
     const render = (errors: Record<string, string>, status: number): void => {
       res.status(status).render("onboarding/government-id", {
-        title: "Government ID | Meridian",
+        title: "Government ID | Meridian Exchanger",
         description: "Step two of identity verification.",
         path: "/onboarding/government-id",
         ...stepLocals("government_id"),
@@ -300,7 +300,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     const state = await gate(req, res, "address")
     if (!state) return
     res.render("onboarding/address", {
-      title: "Your address | Meridian",
+      title: "Your address | Meridian Exchanger",
       description: "Step three of identity verification.",
       path: req.path,
       ...stepLocals("address"),
@@ -347,7 +347,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
 
     if (Object.keys(errors).length > 0) {
       return res.status(400).render("onboarding/address", {
-        title: "Your address | Meridian",
+        title: "Your address | Meridian Exchanger",
         description: "Step three of identity verification.",
         path: "/onboarding/address",
         ...stepLocals("address"),
@@ -411,7 +411,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
       await deps.kyc.setDocumentSession(state.id, session.sessionId)
       sessionId = session.sessionId
       res.render("onboarding/document", {
-        title: "Photo ID and selfie | Meridian",
+        title: "Photo ID and selfie | Meridian Exchanger",
         description: "Step four of identity verification.",
         path: "/onboarding/document",
         ...stepLocals("document"),
@@ -422,7 +422,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     }
 
     res.render("onboarding/document", {
-      title: "Photo ID and selfie | Meridian",
+      title: "Photo ID and selfie | Meridian Exchanger",
       description: "Step four of identity verification.",
       path: "/onboarding/document",
       ...stepLocals("document"),
@@ -436,7 +436,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     const state = await gate(req, res, "disclosures")
     if (!state) return
     res.render("onboarding/disclosures", {
-      title: "Disclosures | Meridian",
+      title: "Disclosures | Meridian Exchanger",
       description: "Step five of identity verification.",
       path: req.path,
       ...stepLocals("disclosures"),
@@ -454,7 +454,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
     const missing = CONSENT_DOCUMENTS.filter((doc) => body[doc] !== "on")
     if (missing.length > 0) {
       return res.status(400).render("onboarding/disclosures", {
-        title: "Disclosures | Meridian",
+        title: "Disclosures | Meridian Exchanger",
         description: "Step five of identity verification.",
         path: "/onboarding/disclosures",
         ...stepLocals("disclosures"),
@@ -480,7 +480,7 @@ export function createOnboardingRoutes(deps: OnboardingDeps): express.Router {
 
   router.get("/onboarding/submitted", async (req, res) => {
     res.render("onboarding/submitted", {
-      title: "Verification submitted | Meridian",
+      title: "Verification submitted | Meridian Exchanger",
       description: "Your verification is with our reviewers.",
       path: req.path,
     })

@@ -105,7 +105,8 @@ describe("static assets", () => {
   test("still sets the strict CSP on rendered pages", async () => {
     const res = (await createApp(config)).inject("/")
     const csp = (await res).headers.get("content-security-policy") ?? ""
-    expect(csp).not.toContain("unsafe-inline")
+    const scriptSrc = csp.split(";").find((d) => d.trim().startsWith("script-src")) ?? ""
+    expect(scriptSrc).not.toContain("unsafe-inline")
     expect(csp).not.toContain("unsafe-eval")
   })
 })

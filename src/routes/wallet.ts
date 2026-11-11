@@ -63,7 +63,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
 
   router.get("/wallet/deposit", async (req, res) => {
     res.render("app/deposit-index", {
-      title: "Deposit | Meridian",
+      title: "Deposit | Meridian Exchanger",
       description: "Choose an asset to deposit.",
       path: req.path,
       tier: await tierOf(req.user!.id),
@@ -89,7 +89,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
     })
 
     res.render("app/deposit", {
-      title: `Deposit ${asset.displaySymbol} | Meridian`,
+      title: `Deposit ${asset.displaySymbol} | Meridian Exchanger`,
       description: `Deposit ${asset.displaySymbol} on ${asset.networkLabel}.`,
       path: req.path,
       asset, address, memo, qr,
@@ -104,7 +104,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
 
   router.get("/wallet/withdraw", async (req, res) => {
     res.render("app/withdraw-index", {
-      title: "Withdraw | Meridian",
+      title: "Withdraw | Meridian Exchanger",
       description: "Choose an asset to withdraw.",
       path: req.path,
       tier: await tierOf(req.user!.id),
@@ -124,7 +124,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
     const balance = await deps.ledger.balance(user.id, asset!.symbol)
     const tier = await tierOf(user.id)
     res.status(status).render("app/withdraw", {
-      title: `Withdraw ${asset!.displaySymbol} | Meridian`,
+      title: `Withdraw ${asset!.displaySymbol} | Meridian Exchanger`,
       description: `Withdraw ${asset!.displaySymbol} on ${asset!.networkLabel}.`,
       path: `/wallet/withdraw/${asset!.symbol.toLowerCase()}`,
       asset: asset!,
@@ -247,7 +247,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
     const user = req.user!
     const balance = await deps.ledger.balance(user.id, asset!.symbol)
     res.status(status).render("app/send", {
-      title: `Send ${asset!.displaySymbol} | Meridian`,
+      title: `Send ${asset!.displaySymbol} | Meridian Exchanger`,
       description: `Send ${asset!.displaySymbol} to another Meridian account.`,
       path: `/wallet/send/${asset!.symbol.toLowerCase()}`,
       asset: asset!,
@@ -263,7 +263,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
 
   router.get("/wallet/send", async (req, res) => {
     res.render("app/send-index", {
-      title: "Send | Meridian",
+      title: "Send | Meridian Exchanger",
       description: "Send crypto to another Meridian account instantly.",
       path: req.path,
       tier: await tierOf(req.user!.id),
@@ -358,7 +358,7 @@ export function createWalletRoutes(deps: WalletDeps): express.Router {
     })
 
     res.render("app/transactions", {
-      title: "Transactions | Meridian",
+      title: "Transactions | Meridian Exchanger",
       description: "Every movement on your account.",
       path: req.path,
       entries,

@@ -131,7 +131,7 @@ export function loadConfig(
     smtpPort,
     smtpUser,
     smtpPassword,
-    emailFrom: source.EMAIL_FROM ?? "Meridian <no-reply@meridian.example>",
+    emailFrom: source.EMAIL_FROM ?? "Meridian Exchanger <no-reply@meridianexchanger.com>",
     kycProvider,
     custodyProvider,
     custodyMnemonic,

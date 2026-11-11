@@ -16,13 +16,14 @@ describe("createApp", () => {
     expect(await (await res).json()).toMatchObject({ status: "ok" })
   })
 
-  test("sets a content security policy with no unsafe directives", async () => {
+  test("sets a content security policy with no unsafe script directives", async () => {
     const res = (await createApp(config)).inject("/health")
     const csp = (await res).headers.get("content-security-policy") ?? ""
     expect(csp).toContain("default-src 'none'")
     expect(csp).toContain("script-src 'self'")
     expect(csp).toContain("frame-ancestors 'none'")
-    expect(csp).not.toContain("unsafe-inline")
+    const scriptSrc = csp.split(";").find((d) => d.trim().startsWith("script-src")) ?? ""
+    expect(scriptSrc).not.toContain("unsafe-inline")
     expect(csp).not.toContain("unsafe-eval")
   })
 

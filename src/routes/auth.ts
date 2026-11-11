@@ -86,7 +86,7 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
 
   router.get("/register", async (req, res) => {
     res.render("auth/register", {
-      title: "Open an account | Meridian",
+      title: "Open an account | Meridian Exchanger",
       description: "Create a Meridian account.",
       path: req.path,
       error: null,
@@ -112,7 +112,7 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
 
       const fail = (message: string): void => {
         res.status(400).render("auth/register", {
-          title: "Open an account | Meridian",
+          title: "Open an account | Meridian Exchanger",
           description: "Create a Meridian account.",
           path: req.path,
           error: message,
@@ -179,7 +179,7 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
 
   router.get("/check-email", async (req, res) => {
     res.render("auth/check-email", {
-      title: "Check your email | Meridian",
+      title: "Check your email | Meridian Exchanger",
       description: "Confirm your email address.",
       path: req.path,
     })
@@ -191,7 +191,7 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
 
     if (!claim) {
       res.status(400).render("error", {
-        title: "Link not valid | Meridian",
+        title: "Link not valid | Meridian Exchanger",
         description: "This verification link is not valid.",
         path: req.path,
         heading: "That link is not valid.",
@@ -220,7 +220,7 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
 
   router.get("/login", async (req, res) => {
     res.render("auth/login", {
-      title: "Sign in | Meridian",
+      title: "Sign in | Meridian Exchanger",
       description: "Sign in to Meridian.",
       path: req.path,
       error: null,
@@ -247,7 +247,7 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
 
       const reject = (): void => {
         res.status(400).render("auth/login", {
-          title: "Sign in | Meridian",
+          title: "Sign in | Meridian Exchanger",
           description: "Sign in to Meridian.",
           path: "/login",
           error: "Those details do not match an account.",
@@ -298,7 +298,7 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
       return
     }
     res.render("auth/totp-challenge", {
-      title: "Two-factor code | Meridian",
+      title: "Two-factor code | Meridian Exchanger",
       description: "Enter your authentication code.",
       path: req.path,
       error: null,
@@ -327,7 +327,7 @@ export function createAuthRoutes(deps: AuthDeps): express.Router {
         userAgent: req.get("user-agent") ?? null,
       })
       res.status(400).render("auth/totp-challenge", {
-        title: "Two-factor code | Meridian",
+        title: "Two-factor code | Meridian Exchanger",
         description: "Enter your authentication code.",
         path: "/login/verify",
         error: "That code is not right. Codes change every 30 seconds.",

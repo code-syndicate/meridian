@@ -106,7 +106,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
   ): Promise<void> {
     const user = req.user!
     res.status(status).render("account/security", {
-      title: "Security | Meridian",
+      title: "Security | Meridian Exchanger",
       description: "Manage your password, two-factor authentication, and sessions.",
       path: "/account/security",
       error,
@@ -150,7 +150,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
     }
 
     res.render("app/dashboard", {
-      title: "Portfolio | Meridian",
+      title: "Portfolio | Meridian Exchanger",
       description: "Your Meridian account.",
       path: req.path,
       tier: kycTier,
@@ -187,7 +187,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
     const application = await deps.kyc.latestFor(user.id)
     const profile = application ? await deps.kyc.profileFor(application.id) : null
     res.render("account/profile", {
-      title: "Account | Meridian",
+      title: "Account | Meridian Exchanger",
       description: "Your account details.",
       path: req.path,
       email: user.email,
@@ -214,7 +214,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
     const tier = application ? tierFor(application.status, application.targetTier) : 0
     const profile = application ? await deps.kyc.profileFor(application.id) : null
     res.render("account/verification", {
-      title: "Verification | Meridian",
+      title: "Verification | Meridian Exchanger",
       description: "Your identity verification status.",
       path: req.path,
       status: application?.status ?? null,
@@ -295,7 +295,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
     })
     const uri = totpUri(secret, user.email)
     res.render("account/totp-setup", {
-      title: "Two-factor authentication | Meridian",
+      title: "Two-factor authentication | Meridian Exchanger",
       description: "Turn on two-factor authentication.",
       path: req.path,
       error: null,
@@ -314,7 +314,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
       const replacement = secret ?? generateTotpSecret()
       const replacementUri = totpUri(replacement, user.email)
       res.status(400).render("account/totp-setup", {
-        title: "Two-factor authentication | Meridian",
+        title: "Two-factor authentication | Meridian Exchanger",
         description: "Turn on two-factor authentication.",
         path: "/account/2fa",
         error: "That code is not right. Codes change every 30 seconds.",
@@ -345,7 +345,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
 
     // Shown once. We store only hashes, so we cannot show them again.
     res.render("account/recovery-codes", {
-      title: "Recovery codes | Meridian",
+      title: "Recovery codes | Meridian Exchanger",
       description: "Save your recovery codes.",
       path: "/account/2fa",
       codes,
@@ -387,7 +387,7 @@ export function createAccountRoutes(deps: AccountDeps): express.Router {
   router.get("/account/activity", async (req, res) => {
     const user = req.user!
     res.render("account/activity", {
-      title: "Activity | Meridian",
+      title: "Activity | Meridian Exchanger",
       description: "Recent activity on your account.",
       path: req.path,
       entries: (await deps.audit.forUser(user.id, 100)).map((entry) => ({

@@ -151,7 +151,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
         }
 
     res.render("marketing/home", {
-      title: "Meridian",
+      title: "Meridian Exchanger",
       description: "Buy, sell, and store digital assets. Ten assets across five networks.",
       path: req.path,
       strip,
@@ -165,7 +165,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
 
   router.get("/get-started", async (req, res) => {
     res.render("marketing/guide", {
-      title: "Get started | Meridian",
+      title: "Get started | Meridian Exchanger",
       description: "From opening an account to verified, in five steps.",
       path: req.path,
       steps: GET_STARTED_STEPS,
@@ -174,7 +174,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
 
   router.get("/resources", async (req, res) => {
     res.render("marketing/resources", {
-      title: "Resources | Meridian",
+      title: "Resources | Meridian Exchanger",
       description: "Guides, policies, and market news.",
       path: req.path,
       resources: RESOURCES,
@@ -201,7 +201,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
     })
 
     res.render("marketing/markets", {
-      title: "Markets | Meridian",
+      title: "Markets | Meridian Exchanger",
       description: "Supported digital assets, networks, and indicative prices.",
       path: req.path,
       rows,
@@ -214,7 +214,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
 
     const quote = (await deps.feed.snapshot()).find((q) => q.symbol === asset.symbol)
     res.render("marketing/asset", {
-      title: `${asset.name} (${asset.displaySymbol}) | Meridian`,
+      title: `${asset.name} (${asset.displaySymbol}) | Meridian Exchanger`,
       description: `${asset.name} on ${asset.networkLabel}. Network, confirmations, and indicative price.`,
       path: req.path,
       asset,
@@ -248,7 +248,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
   router.get("/help", async (req, res) => {
     const categories = [...new Set(HELP_ARTICLES.map((a) => a.category))]
     res.render("marketing/help-index", {
-      title: "Help centre | Meridian",
+      title: "Help centre | Meridian Exchanger",
       description: "Guides to deposits, networks, verification, and account security.",
       path: req.path,
       groups: categories.map((category) => ({
@@ -262,7 +262,7 @@ export function createMarketingRoutes(deps: MarketingDeps): express.Router {
     const article = HELP_ARTICLES.find((a) => a.slug === req.params.slug)
     if (!article) return next()
     res.render("marketing/help-article", {
-      title: `${article.title} | Meridian`,
+      title: `${article.title} | Meridian Exchanger`,
       description: article.summary,
       path: req.path,
       article,

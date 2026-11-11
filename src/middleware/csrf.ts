@@ -34,7 +34,7 @@ export function csrfMiddleware(secure: boolean): RequestHandler {
     )
     if (!matches(submitted, token)) {
       res.status(403).render("error", {
-        title: "Request rejected | Meridian",
+        title: "Request rejected | Meridian Exchanger",
         description: "The form could not be submitted.",
         path: req.path,
         heading: "That form has expired.",
